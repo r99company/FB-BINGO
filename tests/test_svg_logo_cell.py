@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.cards import BingoCard, CardModel
+from app.cards import CardModel, SeriesGenerator
 from app.printing import A4SvgRenderer, PrintStyle
 
 
@@ -13,13 +13,7 @@ _PIXEL_PNG = bytes.fromhex(
 def test_a4_renderer_places_logo_in_an_empty_cell_of_each_card(tmp_path: Path):
     logo = tmp_path / "logo.png"
     logo.write_bytes(_PIXEL_PNG)
-    card = BingoCard(
-        serial="1-000001",
-        model=CardModel.A,
-        grid=((1, 10, None, 30, None, None, None, None, None),
-              (None, None, 20, None, 40, 50, None, None, None),
-              (9, 19, None, None, None, None, 70, 80, 90)),
-    )
+    card = SeriesGenerator(seed=33).generate("1", CardModel.A, serial_start=1).cards[0]
     svg = A4SvgRenderer(style=PrintStyle(logo_path=str(logo))).render(tuple(card for _ in range(6)))
 
     assert svg.count("data:image/png;base64,") == 6
