@@ -6,6 +6,7 @@ from .layout import (
     PrintSlot,
     PrintStyle,
 )
+from .renderer import render_series_svg, save_series_svg
 
 __all__ = [
     "A4PrintLayout",
@@ -14,4 +15,6 @@ __all__ = [
     "CardSlot",
     "PrintSlot",
     "PrintStyle",
+    "render_series_svg",
+    "save_series_svg",
 ]
