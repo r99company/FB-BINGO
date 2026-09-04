@@ -7,6 +7,7 @@ from typing import Sequence
 from .card import BingoCard, CardModel, COLUMNS, ROWS
 
 CARDS_PER_SERIES = 6
+MAX_SERIAL = 30_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +18,7 @@ class BingoSeries:
     cards: tuple[BingoCard, ...]
 
     def __post_init__(self) -> None:
-        if not self.series_id.strip():
+        if not str(self.series_id).strip():
             raise ValueError("El identificador de serie es obligatorio")
         if len(self.cards) != CARDS_PER_SERIES:
             raise ValueError("Una serie debe contener exactamente 6 cartones")
@@ -44,10 +45,13 @@ class SeriesGenerator:
         model: CardModel = CardModel.A,
         serial_start: int = 1,
     ) -> BingoSeries:
-        if not series_id.strip():
+        series_id = str(series_id).strip()
+        if not series_id:
             raise ValueError("El identificador de serie es obligatorio")
         if serial_start < 1:
             raise ValueError("serial_start debe ser positivo")
+        if serial_start + CARDS_PER_SERIES - 1 > MAX_SERIAL:
+            raise ValueError(f"Una serie no puede superar el serial {MAX_SERIAL}")
 
         for _ in range(1000):
             column_counts = self._column_counts(model)
@@ -76,8 +80,6 @@ class SeriesGenerator:
         for column, extra in enumerate(extras):
             candidates = list(range(CARDS_PER_SERIES))
             self._rng.shuffle(candidates)
-            # Ambos modelos respetan exactamente las mismas reglas; cambia
-            # únicamente la preferencia de desempate para obtener patrones distintos.
             if model is CardModel.A:
                 candidates.sort(key=lambda index: (loads[index], index, self._rng.random()))
             else:
@@ -125,11 +127,17 @@ class SeriesGenerator:
             self._rng.shuffle(values)
             cursor = 0
             for card_index in range(CARDS_PER_SERIES):
+                count = column_counts[card_index][column]
+                card_values = sorted(values[cursor : cursor + count])
+                cursor += count
+                if len(card_values) != count:
+                    return None
+                value_index = 0
                 mask = row_masks[card_index][column]
                 for row in range(ROWS):
                     if mask & (1 << row):
-                        grids[card_index][row][column] = values[cursor]
-                        cursor += 1
+                        grids[card_index][row][column] = card_values[value_index]
+                        value_index += 1
             if cursor != len(values):
                 return None
 
