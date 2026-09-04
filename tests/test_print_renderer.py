@@ -1,5 +1,5 @@
 from app.cards import BingoCard, CardModel
-from app.printing.layout import A4PrintLayout, PrintStyle
+from app.printing.layout import PrintStyle
 from app.printing.renderer import render_series_svg
 
 
@@ -8,9 +8,9 @@ def card(serial: str) -> BingoCard:
         serial=serial,
         model=CardModel.B,
         grid=(
-            (1, None, 20, None, 40, None, 60, 70, None),
-            (None, 10, None, 30, None, 50, None, None, 80),
-            (9, 19, 29, None, 49, None, 69, 79, 90),
+            (1, 10, 20, 30, 40, None, None, None, None),
+            (9, 19, None, None, None, 50, 60, 70, None),
+            (None, None, 29, 39, 49, 59, None, None, 90),
         ),
     )
 
@@ -18,7 +18,6 @@ def card(serial: str) -> BingoCard:
 def test_render_series_svg_contains_six_cards_serials_model_and_style():
     cards = tuple(card(f"S7-{i:06d}") for i in range(1, 7))
     svg = render_series_svg(cards, PrintStyle(empty_cell_color="#123456"))
-
     assert svg.startswith("<svg ")
     assert svg.count('class="bingo-card"') == 6
     assert "S7-000001" in svg
