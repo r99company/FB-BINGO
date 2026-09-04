@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from html import escape
 from pathlib import Path
 from typing import Sequence
@@ -10,6 +11,19 @@ from .layout import A4PrintLayout, PrintStyle
 
 def _text(value: object) -> str:
     return escape(str(value))
+
+
+def _logo_data_uri(path: str | Path) -> str | None:
+    logo_path = Path(path)
+    if not logo_path.is_file():
+        raise ValueError(f"No se encontró el logo: {logo_path}")
+    suffix = logo_path.suffix.lower()
+    mime_types = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+    mime = mime_types.get(suffix)
+    if mime is None:
+        raise ValueError("El logo debe ser PNG, JPG, JPEG o WEBP")
+    encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
 
 
 def render_series_svg(
@@ -24,6 +38,7 @@ def render_series_svg(
     style = style or PrintStyle()
     layout = layout or A4PrintLayout()
     placements = layout.place_cards(cards)
+    logo_uri = _logo_data_uri(style.logo_path) if style.logo_path else None
 
     parts = [
         '<svg xmlns="http://www.w3.org/2000/svg" '
@@ -65,17 +80,27 @@ def render_series_svg(
         grid_h = h - 42
         cell_w = grid_w / 9
         cell_h = grid_h / 3
+        logo_placed = False
         for row in range(3):
             for column in range(9):
                 cx = grid_x + column * cell_w
                 cy = grid_y + row * cell_h
                 value = card.grid[row][column]
+                is_logo_cell = logo_uri is not None and value is None and not logo_placed
                 fill = style.background_color if value is not None else style.empty_cell_color
                 parts.append(
                     f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" '
                     f'fill="{escape(fill)}" stroke="{escape(style.border_color)}" stroke-width="0.6"/>'
                 )
-                if value is not None:
+                if is_logo_cell:
+                    padding = min(cell_w, cell_h) * 0.12
+                    parts.append(
+                        f'<image href="{logo_uri}" x="{cx + padding:.2f}" y="{cy + padding:.2f}" '
+                        f'width="{cell_w - 2 * padding:.2f}" height="{cell_h - 2 * padding:.2f}" '
+                        f'preserveAspectRatio="xMidYMid meet"/>'
+                    )
+                    logo_placed = True
+                elif value is not None:
                     parts.append(
                         f'<text x="{cx + cell_w / 2:.2f}" y="{cy + cell_h * 0.67:.2f}" '
                         f'text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" '

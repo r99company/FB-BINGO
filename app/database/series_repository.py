@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable
 from pathlib import Path
 
 from app.cards import BingoCard, BingoSeries, CardModel
@@ -40,6 +41,7 @@ class SQLiteSeriesRepository:
             )
 
     def save(self, series: BingoSeries) -> None:
+        """Guarda una sola serie y conserva el error específico para duplicados."""
         with self._connect() as db:
             try:
                 db.execute("INSERT INTO series(series_id) VALUES (?)", (series.series_id,))
@@ -62,6 +64,38 @@ class SQLiteSeriesRepository:
             except sqlite3.IntegrityError as exc:
                 db.rollback()
                 raise ValueError(f"La serie '{series.series_id}' ya existe o contiene seriales repetidos") from exc
+
+    def save_many(self, series_list: Iterable[BingoSeries]) -> None:
+        """Guarda un lote completo en una sola transacción SQLite."""
+        series_items = tuple(series_list)
+        if not series_items:
+            return
+        with self._connect() as db:
+            try:
+                db.executemany(
+                    "INSERT INTO series(series_id) VALUES (?)",
+                    [(series.series_id,) for series in series_items],
+                )
+                db.executemany(
+                    """
+                    INSERT INTO cards(serial, series_id, card_index, model, grid_json)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            card.serial,
+                            series.series_id,
+                            index,
+                            card.model.value,
+                            json.dumps(card.grid),
+                        )
+                        for series in series_items
+                        for index, card in enumerate(series.cards)
+                    ],
+                )
+            except sqlite3.IntegrityError as exc:
+                db.rollback()
+                raise ValueError("El lote contiene series o seriales repetidos") from exc
 
     def get(self, series_id: str) -> BingoSeries:
         with self._connect() as db:

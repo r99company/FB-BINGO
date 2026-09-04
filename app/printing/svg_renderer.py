@@ -40,7 +40,7 @@ class A4SvgRenderer:
         path = Path(self.style.logo_path)
         if not path.is_file():
             return None
-        mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(path.suffix.lower())
+        mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(path.suffix.lower())
         if mime is None:
             return None
         data = base64.b64encode(path.read_bytes()).decode("ascii")
@@ -51,22 +51,20 @@ class A4SvgRenderer:
         cell_w = width / 9
         cell_h = (height - header - 14.0) / 3
         out = [
-            f'<g transform="translate({x:.2f},{y:.2f})">',
+            f'<g data-serial="{escape(card.serial)}" transform="translate({x:.2f},{y:.2f})">',
             f'<rect width="{width:.2f}" height="{height:.2f}" rx="6" fill="{escape(self.style.background_color)}" '
             f'stroke="{escape(self.style.border_color)}" stroke-width="1.5"/>',
+            f'<text x="8" y="13" font-family="Arial,sans-serif" font-size="9" font-weight="bold" '
+            f'fill="{escape(self.style.accent_color)}">FB BINGO</text>',
         ]
         logo = self._logo_href()
-        if logo:
-            out.append(f'<image href="{logo}" x="8" y="5" width="35" height="17" preserveAspectRatio="xMidYMid meet"/>')
-        else:
-            out.append(f'<text x="8" y="13" font-family="Arial,sans-serif" font-size="9" font-weight="bold" '
-                       f'fill="{escape(self.style.accent_color)}">FB BINGO</text>')
         if self.style.show_serial:
             out.append(f'<text x="{width - 8:.2f}" y="13" text-anchor="end" font-family="Arial,sans-serif" '
                        f'font-size="7" fill="{escape(self.style.number_color)}">SERIE {escape(card.serial)}</text>')
         if self.style.show_model:
             out.append(f'<text x="8" y="23" font-family="Arial,sans-serif" font-size="6.5" '
                        f'fill="{escape(self.style.number_color)}">MODELO {escape(card.model.value)}</text>')
+        logo_placed = False
         for row in range(3):
             for column in range(9):
                 cx = column * cell_w
@@ -79,6 +77,12 @@ class A4SvgRenderer:
                     out.append(f'<text x="{cx + cell_w/2:.2f}" y="{cy + cell_h*.67:.2f}" text-anchor="middle" '
                                f'font-family="Arial,sans-serif" font-size="13" font-weight="bold" '
                                f'fill="{escape(self.style.number_color)}">{value}</text>')
+                elif logo and not logo_placed:
+                    padding = min(cell_w, cell_h) * 0.12
+                    out.append(f'<image href="{logo}" x="{cx + padding:.2f}" y="{cy + padding:.2f}" '
+                               f'width="{cell_w - 2 * padding:.2f}" height="{cell_h - 2 * padding:.2f}" '
+                               f'preserveAspectRatio="xMidYMid meet"/>')
+                    logo_placed = True
         out.append(f'<text x="{width/2:.2f}" y="{height-5:.2f}" text-anchor="middle" font-family="Arial,sans-serif" '
                    f'font-size="5.5" fill="{escape(self.style.number_color)}">SERIAL: {escape(card.serial)}</text>')
         out.append("</g>")
