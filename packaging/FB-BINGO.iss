@@ -1,5 +1,5 @@
 #define AppName "FB-BINGO"
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #define AppPublisher "FB-BINGO"
 #define AppExeName "FB-BINGO.exe"
 
@@ -20,7 +20,8 @@ PrivilegesRequired=admin
 UninstallDisplayName=FB-BINGO
 
 [Files]
-Source: "..\dist\FB-BINGO\FB-BINGO.exe"; DestDir: "{app}"; Flags: ignoreversion
+; PyInstaller onedir necesita todos los binarios y archivos auxiliares.
+Source: "..\dist\FB-BINGO\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\FB-BINGO"; Filename: "{app}\{#AppExeName}"
