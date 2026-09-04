@@ -52,3 +52,30 @@ def test_model_is_metadata_and_both_models_generate_valid_series() -> None:
 def test_generator_rejects_series_past_supported_serial_limit() -> None:
     with pytest.raises(ValueError, match="30000"):
         SeriesGenerator(seed=1).generate("SER-LIMIT", CardModel.A, serial_start=29_996)
+
+
+def test_generate_batch_creates_consecutive_series_and_serials() -> None:
+    series = list(
+        SeriesGenerator(seed=42).generate_batch(
+            series_start=10,
+            quantity=3,
+            model=CardModel.A,
+            serial_start=1,
+        )
+    )
+
+    assert [item.series_id for item in series] == ["10", "11", "12"]
+    assert [card.serial for item in series for card in item.cards] == [
+        f"{series_id}-{serial:06d}"
+        for series_id, serial in zip(("10", "11", "12"), range(1, 19))
+    ]
+
+
+def test_generate_batch_rejects_invalid_quantity_and_serial_range() -> None:
+    generator = SeriesGenerator(seed=1)
+
+    with pytest.raises(ValueError, match="quantity"):
+        list(generator.generate_batch(1, 0, CardModel.A, 1))
+
+    with pytest.raises(ValueError, match="30000"):
+        list(generator.generate_batch(1, 2_500, CardModel.A, 15_001))
