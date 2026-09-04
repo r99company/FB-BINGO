@@ -34,6 +34,43 @@ jobs:
         run: |
           python -m PyInstaller --clean --noconfirm packaging\FB-BINGO.spec
 
+      - name: Add Microsoft Visual C++ runtime to bundle
+        shell: powershell
+        run: |
+          $bundle = "dist\FB-BINGO"
+          $internal = "$bundle\_internal"
+          $qtDir = "$internal\PySide6"
+          New-Item -ItemType Directory -Force -Path $qtDir | Out-Null
+
+          $runtimeNames = @(
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "msvcp140.dll",
+            "msvcp140_1.dll",
+            "concrt140.dll"
+          )
+
+          $runtimeRoots = @(
+            $env:pythonLocation,
+            (python -c "import sys; print(sys.prefix)"),
+            "$env:WINDIR\System32"
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+          foreach ($name in $runtimeNames) {
+            $found = $null
+            foreach ($root in $runtimeRoots) {
+              $candidate = Join-Path $root $name
+              if (Test-Path $candidate) { $found = $candidate; break }
+            }
+            if ($found) {
+              Copy-Item $found $internal -Force
+              Copy-Item $found $qtDir -Force
+              Write-Host "Runtime agregado: $name desde $found"
+            } else {
+              Write-Host "Runtime no encontrado en runner: $name"
+            }
+          }
+
       - name: Verify PyInstaller runtime files
         shell: powershell
         run: |
@@ -47,6 +84,8 @@ jobs:
           Write-Host "Runtime de PyInstaller y binarios de Qt verificados."
           Get-ChildItem $internal -Recurse -Filter "Qt6Widgets.dll" | Select-Object FullName,Length
           Get-ChildItem $internal -Recurse -Filter "QtWidgets.pyd" | Select-Object FullName,Length
+          Get-ChildItem $internal -Recurse -Filter "vcruntime*.dll" | Select-Object FullName,Length
+          Get-ChildItem $internal -Recurse -Filter "msvcp*.dll" | Select-Object FullName,Length
 
       - name: Build installer
         shell: powershell
