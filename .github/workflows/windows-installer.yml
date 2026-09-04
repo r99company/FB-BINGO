@@ -52,5 +52,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FB-BINGO-Windows-Portable
-          path: dist/FB-BINGO.exe
+          path: dist/FB-BINGO/FB-BINGO.exe
           if-no-files-found: error
