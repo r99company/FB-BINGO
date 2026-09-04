@@ -23,7 +23,7 @@ def test_card_keeps_model_and_exact_positions() -> None:
 
 def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
     grid = (
-        (1, 11, 21, None, 41, None, 61, None, 81),
+        (1, 11, 21, None, 41, None, None, None, 81),
         (2, None, 22, 32, None, 52, None, 72, None),
         (3, None, None, 39, None, 59, 69, None, 89),
     )
@@ -35,11 +35,7 @@ def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
 
 
 def test_verification_uses_actual_row_positions_not_model_name() -> None:
-    grid = (
-        (1, None, 21, None, 41, None, 61, None, 81),
-        (None, 12, None, 32, 44, 52, None, 72, None),
-        (9, None, 29, 39, None, 59, None, None, 89),
-    )
+    grid = sample_matrix()
     called = {1, 21, 41, 61, 81}
 
     card_a = BingoCard(serial="A-1", model=CardModel.A, grid=grid)
