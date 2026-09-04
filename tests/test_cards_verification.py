@@ -25,7 +25,7 @@ def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
     grid = (
         (1, 11, 21, None, 41, None, 61, None, 81),
         (2, None, 22, 32, None, 52, None, 72, None),
-        (3, None, None, 39, None, 59, None, None, 89),
+        (3, None, None, 39, None, 59, 69, None, 89),
     )
 
     card = BingoCard(serial="B-000001", model=CardModel.B, grid=grid)
