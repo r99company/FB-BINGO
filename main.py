@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
-
-from app.ui.generator_window import GeneratorWindow
+from app.database import SQLiteSeriesRepository
+from app.ui.generator_window import GeneratorWidget
 from app.ui.main_window import BingoMainWindow
 
 
@@ -14,8 +12,9 @@ def build_window() -> QMainWindow:
     window.setWindowTitle("FB BINGO")
     window.resize(1280, 820)
     tabs = QTabWidget()
-    tabs.addTab(BingoMainWindow().centralWidget(), "Sala de Juego")
-    tabs.addTab(GeneratorWindow().centralWidget(), "Generador de Cartones")
+    repository = SQLiteSeriesRepository("data/fb_bingo.db")
+    tabs.addTab(BingoMainWindow(), "Sala de Juego")
+    tabs.addTab(GeneratorWidget(repository), "Generador de Cartones")
     window.setCentralWidget(tabs)
     return window
 
