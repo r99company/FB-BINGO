@@ -87,6 +87,20 @@ jobs:
           Get-ChildItem $internal -Recurse -Filter "vcruntime*.dll" | Select-Object FullName,Length
           Get-ChildItem $internal -Recurse -Filter "msvcp*.dll" | Select-Object FullName,Length
 
+      - name: Smoke test real del ejecutable
+        shell: powershell
+        run: |
+          $exe = (Resolve-Path "dist\FB-BINGO\FB-BINGO.exe").Path
+          Write-Host "Iniciando smoke test: $exe"
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            $code = $p.ExitCode
+            throw "FB-BINGO.exe se cerro durante el smoke test. ExitCode=$code"
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "Smoke test OK: FB-BINGO.exe inicio correctamente y permanecio activo."
+
       - name: Build installer
         shell: powershell
         run: |
