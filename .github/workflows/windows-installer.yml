@@ -1,0 +1,56 @@
+name: Windows installer
+
+on:
+  push:
+    branches: [main, feature/windows-installer]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install pyinstaller
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Build executable
+        run: |
+          python -m PyInstaller --clean --noconfirm --windowed --name FB-BINGO app/ui/main.py
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 no esta instalado en el runner." }
+          & $iscc "packaging\FB-BINGO.iss"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FB-BINGO-Windows-Installer
+          path: packaging/installer/FB-BINGO-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Upload portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: FB-BINGO-Windows-Portable
+          path: dist/FB-BINGO/FB-BINGO.exe
+          if-no-files-found: error
