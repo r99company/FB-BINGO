@@ -76,14 +76,16 @@ class SeriesGenerator:
         for column, extra in enumerate(extras):
             candidates = list(range(CARDS_PER_SERIES))
             self._rng.shuffle(candidates)
-            candidates.sort(key=lambda index: (loads[index], self._rng.random()))
-            if model is CardModel.B:
-                candidates.reverse()
+            # Ambos modelos respetan exactamente las mismas reglas; cambia
+            # únicamente la preferencia de desempate para obtener patrones distintos.
+            if model is CardModel.A:
+                candidates.sort(key=lambda index: (loads[index], index, self._rng.random()))
+            else:
+                candidates.sort(key=lambda index: (loads[index], -index, self._rng.random()))
             for card_index in candidates[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
 
-        # Cada cartón necesita 15 números: parte de 9 columnas mínimas + 6 extras.
         if loads != [6] * CARDS_PER_SERIES:
             return self._balanced_column_counts(model)
         return result
@@ -96,9 +98,10 @@ class SeriesGenerator:
             extra = target - CARDS_PER_SERIES
             order = list(range(CARDS_PER_SERIES))
             self._rng.shuffle(order)
-            order.sort(key=lambda i: loads[i])
-            if model is CardModel.B:
-                order = order[::-1]
+            if model is CardModel.A:
+                order.sort(key=lambda i: (loads[i], i, self._rng.random()))
+            else:
+                order.sort(key=lambda i: (loads[i], -i, self._rng.random()))
             for card_index in order[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
