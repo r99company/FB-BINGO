@@ -76,19 +76,15 @@ class SeriesGenerator:
         for column, extra in enumerate(extras):
             candidates = list(range(CARDS_PER_SERIES))
             self._rng.shuffle(candidates)
-            if model is CardModel.A:
-                candidates.sort(key=lambda index: (loads[index], self._rng.random()))
-            else:
-                candidates.sort(key=lambda index: (-loads[index], self._rng.random()))
-                # Invertir aquí produce un patrón distinto sin cambiar las reglas.
+            candidates.sort(key=lambda index: (loads[index], self._rng.random()))
+            if model is CardModel.B:
                 candidates.reverse()
-            selected = candidates[:extra]
-            for card_index in selected:
+            for card_index in candidates[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
 
-        # Si el patrón aleatorio no dejó exactamente 4 extras por cartón, reintentar.
-        if loads != [4] * CARDS_PER_SERIES:
+        # Cada cartón necesita 15 números: parte de 9 columnas mínimas + 6 extras.
+        if loads != [6] * CARDS_PER_SERIES:
             return self._balanced_column_counts(model)
         return result
 
@@ -103,12 +99,10 @@ class SeriesGenerator:
             order.sort(key=lambda i: loads[i])
             if model is CardModel.B:
                 order = order[::-1]
-            selected = order[:extra]
-            for card_index in selected:
+            for card_index in order[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
-        # The greedy construction can be balanced by cycling tied candidates.
-        if loads != [4] * CARDS_PER_SERIES:
+        if loads != [6] * CARDS_PER_SERIES:
             raise RuntimeError("No se pudo equilibrar la distribución de la serie")
         return result
 
