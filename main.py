@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from app.database import SQLiteSeriesRepository
 from app.ui.generator_window import GeneratorWidget
 from app.ui.main_window import BingoMainWindow
+from app.ui.verification_widget import VerificationWidget
 
 
 def build_window() -> QMainWindow:
@@ -15,6 +16,7 @@ def build_window() -> QMainWindow:
     repository = SQLiteSeriesRepository("data/fb_bingo.db")
     tabs.addTab(BingoMainWindow(), "Sala de Juego")
     tabs.addTab(GeneratorWidget(repository), "Generador de Cartones")
+    tabs.addTab(VerificationWidget(repository), "Verificación")
     window.setCentralWidget(tabs)
     return window
 
