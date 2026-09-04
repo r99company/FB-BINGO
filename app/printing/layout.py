@@ -90,19 +90,26 @@ class A4PrintLayout:
     vertical_gap = 5.0 * MM_TO_PT
 
     def card_slots(self) -> tuple[CardSlot, ...]:
-        width = (self.page_width - 2 * self.margin - self.horizontal_gap) / 2
-        height = (self.page_height - 2 * self.margin - 2 * self.vertical_gap) / 3
+        inner_width = self.page_width - 2 * self.margin
+        inner_height = self.page_height - 2 * self.margin
+        card_width = (inner_width - self.horizontal_gap) / 2
+        card_height = (inner_height - 2 * self.vertical_gap) / 3
+
         slots: list[CardSlot] = []
         index = 1
         for row in range(3):
+            y = self.margin + row * (card_height + self.vertical_gap)
+            height = card_height if row < 2 else self.page_height - self.margin - y
             for column in range(2):
+                x = self.margin + column * (card_width + self.horizontal_gap)
+                width = card_width if column == 0 else self.page_width - self.margin - x
                 slots.append(
                     CardSlot(
                         index=index,
                         column=column,
                         row=row,
-                        x=self.margin + column * (width + self.horizontal_gap),
-                        y=self.margin + row * (height + self.vertical_gap),
+                        x=x,
+                        y=y,
                         width=width,
                         height=height,
                     )
