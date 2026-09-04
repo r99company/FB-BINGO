@@ -4,23 +4,13 @@ from dataclasses import dataclass
 
 try:
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import (
-        QGridLayout,
-        QHBoxLayout,
-        QLabel,
-        QMainWindow,
-        QPushButton,
-        QVBoxLayout,
-        QWidget,
-    )
+    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
 except ImportError:  # pragma: no cover
     Qt = None
-
-    class QMainWindow:  # type: ignore[no-redef]
-        pass
+    QMainWindow = object  # type: ignore[assignment,misc]
 
 
-@dataclass
+@dataclass(frozen=True)
 class GameDisplayState:
     called: tuple[int, ...] = ()
 
@@ -46,17 +36,14 @@ class GameWindow(QMainWindow):
         self.setWindowTitle("FB BINGO — Sala de Juego")
         central = QWidget()
         root = QVBoxLayout(central)
-
         title = QLabel("FB BINGO")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 30px; font-weight: 700;")
         root.addWidget(title)
-
         self.current_label = QLabel("—")
         self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.current_label.setStyleSheet("font-size: 72px; font-weight: 800;")
         root.addWidget(self.current_label)
-
         self.board = QGridLayout()
         for number in range(1, 91):
             button = QPushButton(str(number))
@@ -65,7 +52,6 @@ class GameWindow(QMainWindow):
             self._buttons[number] = button
             self.board.addWidget(button, (number - 1) // 10, (number - 1) % 10)
         root.addLayout(self.board)
-
         bottom = QHBoxLayout()
         self.recent_label = QLabel("Últimos 5: —")
         self.remaining_label = QLabel("Restantes: 90")
@@ -76,7 +62,6 @@ class GameWindow(QMainWindow):
         bottom.addWidget(self.remaining_label)
         bottom.addWidget(reset)
         root.addLayout(bottom)
-
         self.setCentralWidget(central)
 
     def call_number(self, number: int) -> bool:
@@ -86,8 +71,7 @@ class GameWindow(QMainWindow):
         self._buttons[number].setEnabled(False)
         self._buttons[number].setText(f"✓ {number}")
         self.current_label.setText(str(number))
-        recent = " · ".join(map(str, self.state.recent)) or "—"
-        self.recent_label.setText(f"Últimos 5: {recent}")
+        self.recent_label.setText("Últimos 5: " + (" · ".join(map(str, self.state.recent)) or "—"))
         self.remaining_label.setText(f"Restantes: {self.state.remaining}")
         return True
 
