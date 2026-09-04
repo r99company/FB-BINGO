@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import random
-from typing import Sequence
+from typing import Iterator, Sequence
 
 from .card import BingoCard, CardModel, COLUMNS, ROWS
 
@@ -38,6 +38,34 @@ class SeriesGenerator:
 
     def __init__(self, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
+
+    def generate_batch(
+        self,
+        series_start: int,
+        quantity: int,
+        model: CardModel = CardModel.A,
+        serial_start: int = 1,
+    ) -> Iterator[BingoSeries]:
+        """Genera un bloque de series sin reutilizar el rango de seriales.
+
+        La función es un iterador para que la UI pueda producir y persistir
+        bloques grandes sin mantener todas las series en memoria.
+        """
+        if series_start < 1:
+            raise ValueError("series_start debe ser positivo")
+        if quantity < 1:
+            raise ValueError("quantity debe ser positivo")
+        if serial_start < 1:
+            raise ValueError("serial_start debe ser positivo")
+
+        last_serial = serial_start + quantity * CARDS_PER_SERIES - 1
+        if last_serial > MAX_SERIAL:
+            raise ValueError(f"El bloque no puede superar el serial {MAX_SERIAL}")
+
+        for offset in range(quantity):
+            series_id = str(series_start + offset)
+            current_serial = serial_start + offset * CARDS_PER_SERIES
+            yield self.generate(series_id, model, serial_start=current_serial)
 
     def generate(
         self,
