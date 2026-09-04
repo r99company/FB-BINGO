@@ -1,0 +1,43 @@
+from app.cards import CardModel, SeriesGenerator
+
+
+def test_generates_six_cards_with_fifteen_numbers_each() -> None:
+    series = SeriesGenerator(seed=123).generate("SER-001", CardModel.A, serial_start=100)
+
+    assert len(series.cards) == 6
+    assert all(len(card.numbers) == 15 for card in series.cards)
+    assert [card.serial for card in series.cards] == [
+        "SER-001-000100",
+        "SER-001-000101",
+        "SER-001-000102",
+        "SER-001-000103",
+        "SER-001-000104",
+        "SER-001-000105",
+    ]
+
+
+def test_series_covers_each_number_1_to_90_once() -> None:
+    series = SeriesGenerator(seed=456).generate("SER-002", CardModel.A)
+    numbers = [number for card in series.cards for number in card.numbers]
+
+    assert len(numbers) == 90
+    assert len(set(numbers)) == 90
+    assert set(numbers) == set(range(1, 91))
+
+
+def test_each_generated_card_has_valid_rows_and_columns() -> None:
+    for model in (CardModel.A, CardModel.B):
+        series = SeriesGenerator(seed=789).generate(f"SER-{model.value}", model)
+        for card in series.cards:
+            assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
+            assert all(1 <= count <= 3 for count in card.column_counts)
+            assert card.model is model
+
+
+def test_model_is_metadata_and_both_models_generate_valid_series() -> None:
+    series_a = SeriesGenerator(seed=1).generate("A", CardModel.A)
+    series_b = SeriesGenerator(seed=1).generate("B", CardModel.B)
+
+    assert all(card.model is CardModel.A for card in series_a.cards)
+    assert all(card.model is CardModel.B for card in series_b.cards)
+    assert all(len(card.numbers) == 15 for card in series_a.cards + series_b.cards)
