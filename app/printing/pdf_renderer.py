@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable, Protocol
 
-from app.cards import BingoCard
-from .layout import A4PrintLayout, MM_TO_PT, PrintStyle
+from app.cards import BingoCard, BingoSeries, CardModel
+from .layout import A4PrintLayout, PrintStyle
+
+
+class SeriesRepository(Protocol):
+    def get(self, series_id: str) -> BingoSeries: ...
 
 
 class A4PdfRenderer:
-    """Renderiza una serie de seis cartones en una página A4 PDF."""
+    """Renderiza cartones A4 y puede escribir muchas series en un único PDF."""
 
     def __init__(self, layout: A4PrintLayout | None = None, style: PrintStyle | None = None) -> None:
         self.layout = layout or A4PrintLayout()
         self.style = style or PrintStyle()
 
-    def save(self, cards: tuple[BingoCard, ...], path: str | Path) -> Path:
+    @staticmethod
+    def _dependencies():
         try:
             from reportlab.lib.colors import HexColor
             from reportlab.lib.pagesizes import A4
@@ -22,23 +28,65 @@ class A4PdfRenderer:
             from reportlab.lib.utils import ImageReader
         except ImportError as exc:  # pragma: no cover - dependency is declared by the project
             raise RuntimeError("La exportación PDF requiere reportlab") from exc
+        return HexColor, A4, stringWidth, Canvas, ImageReader
 
-        placements = self.layout.place_cards(cards)
+    def save(self, cards: tuple[BingoCard, ...], path: str | Path) -> Path:
         destination = Path(path)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        canvas = Canvas(str(destination), pagesize=A4)
+        _, _, _, Canvas, _ = self._dependencies()
+        canvas = Canvas(str(destination), pagesize=(self.layout.page_width, self.layout.page_height))
+        self._draw_page(canvas, cards)
+        canvas.showPage()
+        canvas.save()
+        return destination
 
+    def export_pages(
+        self,
+        *,
+        repository: SeriesRepository,
+        start_series: int,
+        quantity: int,
+        destination: str | Path,
+        model: CardModel | None = None,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> Path:
+        """Escribe una página A4 por serie, manteniendo memoria constante."""
+        if start_series < 1 or quantity < 1:
+            raise ValueError("La serie inicial y la cantidad deben ser positivos")
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        _, _, _, Canvas, _ = self._dependencies()
+        canvas = Canvas(str(destination), pagesize=(self.layout.page_width, self.layout.page_height))
+        try:
+            for offset in range(quantity):
+                number = start_series + offset
+                series = repository.get(str(number))
+                if model is not None and any(card.model is not model for card in series.cards):
+                    raise ValueError(f"La serie {number} no coincide con el modelo seleccionado")
+                self._draw_page(canvas, series.cards)
+                canvas.showPage()
+                if progress is not None:
+                    progress(offset + 1, quantity)
+        finally:
+            canvas.save()
+        return destination
+
+    def _draw_page(self, canvas, cards: tuple[BingoCard, ...]) -> None:
+        HexColor, _, stringWidth, _, ImageReader = self._dependencies()
+        placements = self.layout.place_cards(cards)
         logo = None
         if self.style.logo_path:
             logo_path = Path(self.style.logo_path)
             if logo_path.is_file():
                 logo = ImageReader(str(logo_path))
 
+        canvas.setFillColor(HexColor(self.style.background_color))
+        canvas.rect(0, 0, self.layout.page_width, self.layout.page_height, fill=1, stroke=0)
+
         for placement in placements:
             card = placement.card
             slot = placement.slot
             x = slot.x
-            # Layout geometry is top-origin; ReportLab is bottom-origin.
             y = self.layout.page_height - slot.y - slot.height
             width, height = slot.width, slot.height
             header = 28.0
@@ -54,10 +102,9 @@ class A4PdfRenderer:
             canvas.drawString(x + 8, y + height - 13, "FB BINGO")
 
             if self.style.show_serial:
-                text = f"SERIE {card.serial}"
                 canvas.setFillColor(HexColor(self.style.number_color))
                 canvas.setFont("Helvetica", 7)
-                canvas.drawRightString(x + width - 8, y + height - 13, text)
+                canvas.drawRightString(x + width - 8, y + height - 13, f"SERIE {card.serial}")
 
             if self.style.show_model:
                 canvas.setFillColor(HexColor(self.style.number_color))
@@ -74,7 +121,6 @@ class A4PdfRenderer:
                     canvas.setFillColor(HexColor(fill))
                     canvas.setStrokeColor(HexColor(self.style.border_color))
                     canvas.rect(cx, cy, cell_w, cell_h, fill=1, stroke=1)
-
                     if value is not None:
                         text = str(value)
                         canvas.setFillColor(HexColor(self.style.number_color))
@@ -97,9 +143,4 @@ class A4PdfRenderer:
 
             canvas.setFillColor(HexColor(self.style.number_color))
             canvas.setFont("Helvetica", 5.5)
-            footer = f"SERIAL: {card.serial}"
-            canvas.drawCentredString(x + width / 2, y + 5, footer)
-
-        canvas.showPage()
-        canvas.save()
-        return destination
+            canvas.drawCentredString(x + width / 2, y + 5, f"SERIAL: {card.serial}")
