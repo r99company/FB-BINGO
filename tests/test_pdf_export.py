@@ -1,3 +1,5 @@
+import re
+
 from app.cards import CardModel, SeriesGenerator
 from app.printing import A4PdfRenderer, BulkA4PdfExporter
 
@@ -10,6 +12,10 @@ class MemoryRepository:
         return self._series[str(series_id)]
 
 
+def _page_count(data: bytes) -> int:
+    return len(re.findall(rb"/Type /Page(?:\s|/|>)", data))
+
+
 def test_a4_pdf_renderer_creates_pdf(tmp_path):
     series = SeriesGenerator(seed=31).generate("1", CardModel.A, serial_start=1)
     target = tmp_path / "serie_0001.pdf"
@@ -18,7 +24,7 @@ def test_a4_pdf_renderer_creates_pdf(tmp_path):
 
     data = target.read_bytes()
     assert data.startswith(b"%PDF-")
-    assert data.count(b"/Type /Page") == 1
+    assert _page_count(data) == 1
 
 
 def test_bulk_a4_pdf_export_creates_one_page_per_series(tmp_path):
@@ -38,4 +44,4 @@ def test_bulk_a4_pdf_export_creates_one_page_per_series(tmp_path):
     assert result.pages_exported == 3
     assert result.cards_exported == 18
     assert data.startswith(b"%PDF-")
-    assert data.count(b"/Type /Page") == 3
+    assert _page_count(data) == 3
