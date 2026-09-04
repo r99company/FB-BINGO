@@ -13,7 +13,7 @@ def test_bulk_generator_creates_requested_series_and_cards(tmp_path):
     assert result.first_serial == 1
     assert result.last_serial == 60
     assert repo.get("1").series_id == "1"
-    assert repo.get_card("10-000010").serial == "10-000010"
+    assert repo.get_card("10-000055").serial == "10-000055"
 
 
 def test_bulk_generator_supports_full_2500_series_range(tmp_path):
