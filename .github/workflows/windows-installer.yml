@@ -30,9 +30,9 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
-      - name: Build executable
+      - name: Build executable with explicit PySide6 bundle
         run: |
-          python -m PyInstaller --clean --noconfirm --windowed --name FB-BINGO app/ui/main.py
+          python -m PyInstaller --clean --noconfirm packaging\FB-BINGO.spec
 
       - name: Verify PyInstaller runtime files
         shell: powershell
@@ -40,11 +40,13 @@ jobs:
           $bundle = "dist\FB-BINGO"
           $internal = "$bundle\_internal"
           if (-not (Test-Path "$bundle\FB-BINGO.exe")) { throw "No se genero FB-BINGO.exe" }
-          if (-not (Test-Path "$internal\python311.dll")) { throw "Falta python311.dll en el directorio _internal de PyInstaller" }
           if (-not (Test-Path "$internal")) { throw "Falta el directorio _internal de PyInstaller" }
-          Write-Host "Runtime de PyInstaller verificado: $internal\python311.dll"
-          Get-ChildItem $bundle | Select-Object Name,Length
-          Get-ChildItem $internal | Select-Object -First 20 Name,Length
+          if (-not (Get-ChildItem $internal -Recurse -Filter "python311.dll" -ErrorAction SilentlyContinue)) { throw "Falta python311.dll en el bundle" }
+          if (-not (Get-ChildItem $internal -Recurse -Filter "Qt6Widgets.dll" -ErrorAction SilentlyContinue)) { throw "Falta Qt6Widgets.dll en el bundle" }
+          if (-not (Get-ChildItem $internal -Recurse -Filter "QtWidgets.pyd" -ErrorAction SilentlyContinue)) { throw "Falta QtWidgets.pyd en el bundle" }
+          Write-Host "Runtime de PyInstaller y binarios de Qt verificados."
+          Get-ChildItem $internal -Recurse -Filter "Qt6Widgets.dll" | Select-Object FullName,Length
+          Get-ChildItem $internal -Recurse -Filter "QtWidgets.pyd" | Select-Object FullName,Length
 
       - name: Build installer
         shell: powershell

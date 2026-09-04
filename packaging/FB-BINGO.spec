@@ -1,19 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-hiddenimports = [
-    "app.ui.main",
-    "app.ui.generator_window",
-]
-datas = collect_data_files("PySide6")
+# PySide6 necesita sus binarios DLL, datos (incluidos plugins Qt) e imports
+# ocultos para que QtWidgets pueda cargarse en el equipo donde se instala.
+qt_datas, qt_binaries, qt_hiddenimports = collect_all("PySide6")
+app_hiddenimports = collect_submodules("app")
 
+hiddenimports = app_hiddenimports + qt_hiddenimports
 
 a = Analysis(
-    ["app/ui/main.py"],
+    ["main.py"],
     pathex=["."],
-    binaries=[],
-    datas=datas,
+    binaries=qt_binaries,
+    datas=qt_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
