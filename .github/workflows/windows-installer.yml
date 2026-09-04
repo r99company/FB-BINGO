@@ -34,12 +34,28 @@ jobs:
         run: |
           python -m PyInstaller --clean --noconfirm --windowed --name FB-BINGO app/ui/main.py
 
+      - name: Verify PyInstaller runtime files
+        shell: powershell
+        run: |
+          $bundle = "dist\FB-BINGO"
+          if (-not (Test-Path "$bundle\FB-BINGO.exe")) { throw "No se genero FB-BINGO.exe" }
+          if (-not (Test-Path "$bundle\python311.dll")) { throw "Falta python311.dll en el bundle de PyInstaller" }
+          Get-ChildItem $bundle | Select-Object Name,Length
+
       - name: Build installer
         shell: powershell
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 no esta instalado en el runner." }
           & $iscc "packaging\FB-BINGO.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify installer output
+        shell: powershell
+        run: |
+          $installer = Get-ChildItem "packaging\installer\FB-BINGO-Setup-*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "No se genero el instalador." }
+          Write-Host "Instalador generado: $($installer.FullName) ($($installer.Length) bytes)"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
@@ -48,9 +64,13 @@ jobs:
           path: packaging/installer/FB-BINGO-Setup-*.exe
           if-no-files-found: error
 
-      - name: Upload portable executable
+      - name: Package portable bundle
+        shell: powershell
+        run: Compress-Archive -Path "dist\FB-BINGO\*" -DestinationPath "dist\FB-BINGO-Windows-Portable.zip" -Force
+
+      - name: Upload portable bundle
         uses: actions/upload-artifact@v4
         with:
           name: FB-BINGO-Windows-Portable
-          path: dist/FB-BINGO/FB-BINGO.exe
+          path: dist/FB-BINGO-Windows-Portable.zip
           if-no-files-found: error
