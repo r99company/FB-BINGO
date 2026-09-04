@@ -41,7 +41,29 @@ class SQLiteSeriesRepository:
             )
 
     def save(self, series: BingoSeries) -> None:
-        self.save_many((series,))
+        """Guarda una sola serie y conserva el error específico para duplicados."""
+        with self._connect() as db:
+            try:
+                db.execute("INSERT INTO series(series_id) VALUES (?)", (series.series_id,))
+                db.executemany(
+                    """
+                    INSERT INTO cards(serial, series_id, card_index, model, grid_json)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            card.serial,
+                            series.series_id,
+                            index,
+                            card.model.value,
+                            json.dumps(card.grid),
+                        )
+                        for index, card in enumerate(series.cards)
+                    ],
+                )
+            except sqlite3.IntegrityError as exc:
+                db.rollback()
+                raise ValueError(f"La serie '{series.series_id}' ya existe o contiene seriales repetidos") from exc
 
     def save_many(self, series_list: Iterable[BingoSeries]) -> None:
         """Guarda un lote completo en una sola transacción SQLite."""
