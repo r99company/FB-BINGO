@@ -51,7 +51,7 @@ class A4SvgRenderer:
         cell_w = width / 9
         cell_h = (height - header - 14.0) / 3
         out = [
-            f'<g transform="translate({x:.2f},{y:.2f})">',
+            f'<g data-serial="{escape(card.serial)}" transform="translate({x:.2f},{y:.2f})">',
             f'<rect width="{width:.2f}" height="{height:.2f}" rx="6" fill="{escape(self.style.background_color)}" '
             f'stroke="{escape(self.style.border_color)}" stroke-width="1.5"/>',
             f'<text x="8" y="13" font-family="Arial,sans-serif" font-size="9" font-weight="bold" '
