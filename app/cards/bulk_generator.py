@@ -9,6 +9,7 @@ from app.database import SQLiteSeriesRepository
 
 TOTAL_SERIES = 2_500
 TOTAL_CARDS = TOTAL_SERIES * CARDS_PER_SERIES
+BATCH_SIZE = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +23,7 @@ class BulkGenerationResult:
 
 
 class BulkSeriesGenerator:
-    """Genera y persiste el lote completo de 2.500 series de forma reproducible."""
+    """Genera y persiste lotes grandes de series con transacciones agrupadas."""
 
     def __init__(self, repository: SQLiteSeriesRepository, seed: int | None = None) -> None:
         self.repository = repository
@@ -43,16 +44,21 @@ class BulkSeriesGenerator:
         if last_serial > MAX_SERIAL:
             raise ValueError(f"El lote supera el serial máximo {MAX_SERIAL}")
 
+        batch: list[BingoSeries] = []
         for offset in range(quantity):
             series_number = start_series + offset
-            series = self.generator.generate(
-                series_id=str(series_number),
-                model=model,
-                serial_start=serial_start + offset * CARDS_PER_SERIES,
+            batch.append(
+                self.generator.generate(
+                    series_id=str(series_number),
+                    model=model,
+                    serial_start=serial_start + offset * CARDS_PER_SERIES,
+                )
             )
-            self.repository.save(series)
-            if progress is not None:
-                progress(offset + 1, quantity)
+            if len(batch) >= BATCH_SIZE or offset == quantity - 1:
+                self.repository.save_many(batch)
+                if progress is not None:
+                    progress(offset + 1, quantity)
+                batch.clear()
 
         return BulkGenerationResult(
             series_generated=quantity,
