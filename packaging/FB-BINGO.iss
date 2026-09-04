@@ -20,7 +20,7 @@ PrivilegesRequired=admin
 UninstallDisplayName=FB-BINGO
 
 [Files]
-Source: "..\dist\FB-BINGO.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\FB-BINGO\FB-BINGO.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\FB-BINGO"; Filename: "{app}\{#AppExeName}"
