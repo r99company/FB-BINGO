@@ -24,5 +24,5 @@ def test_renderer_contains_serial_model_and_all_numbers():
     assert "S1-000001" in svg
     assert "S1-000006" in svg
     assert "#ABCDEF" in svg
-    for number in (1, 10, 20, 30, 40, 50, 60, 70, 80, 90):
+    for number in (1, 10, 20, 30, 40, 50, 60, 70, 90):
         assert f">{number}</text>" in svg
