@@ -32,7 +32,7 @@ jobs:
 
       - name: Build executable
         run: |
-          python -m PyInstaller --clean --noconfirm packaging/FB-BINGO.spec
+          python -m PyInstaller --clean --noconfirm --windowed --name FB-BINGO app/ui/main.py
 
       - name: Build installer
         shell: powershell
