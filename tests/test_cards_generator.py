@@ -1,3 +1,5 @@
+import pytest
+
 from app.cards import CardModel, SeriesGenerator
 
 
@@ -34,6 +36,16 @@ def test_each_generated_card_has_valid_rows_and_columns() -> None:
             assert card.model is model
 
 
+def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
+    for model in (CardModel.A, CardModel.B):
+        series = SeriesGenerator(seed=321).generate(f"SER-{model.value}", model)
+        for card in series.cards:
+            for column in range(9):
+                values = [card.grid[row][column] for row in range(3)]
+                values = [value for value in values if value is not None]
+                assert values == sorted(values)
+
+
 def test_model_is_metadata_and_both_models_generate_valid_series() -> None:
     series_a = SeriesGenerator(seed=1).generate("A", CardModel.A)
     series_b = SeriesGenerator(seed=1).generate("B", CardModel.B)
@@ -41,3 +53,8 @@ def test_model_is_metadata_and_both_models_generate_valid_series() -> None:
     assert all(card.model is CardModel.A for card in series_a.cards)
     assert all(card.model is CardModel.B for card in series_b.cards)
     assert all(len(card.numbers) == 15 for card in series_a.cards + series_b.cards)
+
+
+def test_generator_rejects_series_past_supported_serial_limit() -> None:
+    with pytest.raises(ValueError, match="30_000"):
+        SeriesGenerator(seed=1).generate("SER-LIMIT", CardModel.A, serial_start=29_996)
