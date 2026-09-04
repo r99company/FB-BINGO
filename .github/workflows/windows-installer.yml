@@ -38,9 +38,13 @@ jobs:
         shell: powershell
         run: |
           $bundle = "dist\FB-BINGO"
+          $internal = "$bundle\_internal"
           if (-not (Test-Path "$bundle\FB-BINGO.exe")) { throw "No se genero FB-BINGO.exe" }
-          if (-not (Test-Path "$bundle\python311.dll")) { throw "Falta python311.dll en el bundle de PyInstaller" }
+          if (-not (Test-Path "$internal\python311.dll")) { throw "Falta python311.dll en el directorio _internal de PyInstaller" }
+          if (-not (Test-Path "$internal")) { throw "Falta el directorio _internal de PyInstaller" }
+          Write-Host "Runtime de PyInstaller verificado: $internal\python311.dll"
           Get-ChildItem $bundle | Select-Object Name,Length
+          Get-ChildItem $internal | Select-Object -First 20 Name,Length
 
       - name: Build installer
         shell: powershell
