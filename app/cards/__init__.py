@@ -1,5 +1,6 @@
 from .card import BingoCard, CardModel, Grid
 from .generator import BingoSeries, SeriesGenerator
+from .bulk_generator import BulkGenerationResult, BulkSeriesGenerator
 
 __all__ = [
     "BingoCard",
@@ -7,4 +8,6 @@ __all__ = [
     "Grid",
     "BingoSeries",
     "SeriesGenerator",
+    "BulkGenerationResult",
+    "BulkSeriesGenerator",
 ]
