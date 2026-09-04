@@ -17,8 +17,8 @@ def test_a4_renderer_places_logo_in_an_empty_cell_of_each_card(tmp_path: Path):
         serial="1-000001",
         model=CardModel.A,
         grid=((1, 10, None, 30, None, None, None, None, None),
-              (9, None, 20, None, 40, 50, None, None, None),
-              (None, 19, None, None, None, None, 70, 80, 90)),
+              (None, None, 20, None, 40, 50, None, None, None),
+              (9, 19, None, None, None, None, 70, 80, 90)),
     )
     svg = A4SvgRenderer(style=PrintStyle(logo_path=str(logo))).render(tuple(card for _ in range(6)))
 
