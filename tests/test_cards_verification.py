@@ -7,7 +7,7 @@ from app.verification import CardVerifier
 def sample_matrix() -> tuple[tuple[int | None, ...], ...]:
     return (
         (1, None, 21, None, 41, None, 61, None, 81),
-        (None, 12, None, 32, None, 52, None, 72, None),
+        (None, 12, None, 32, 44, 52, None, 72, None),
         (9, None, 29, 39, None, 59, None, None, 89),
     )
 
@@ -17,7 +17,7 @@ def test_card_keeps_model_and_exact_positions() -> None:
 
     assert card.model is CardModel.A
     assert card.serial == "A-000001"
-    assert card.numbers == frozenset({1, 9, 12, 21, 29, 32, 39, 41, 52, 59, 61, 72, 81, 89})
+    assert card.numbers == frozenset({1, 9, 12, 21, 29, 32, 39, 41, 44, 52, 59, 61, 72, 81, 89})
     assert card.row_numbers(0) == (1, 21, 41, 61, 81)
 
 
@@ -37,7 +37,7 @@ def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
 def test_verification_uses_actual_row_positions_not_model_name() -> None:
     grid = (
         (1, None, 21, None, 41, None, 61, None, 81),
-        (None, 12, None, 32, None, 52, None, 72, None),
+        (None, 12, None, 32, 44, 52, None, 72, None),
         (9, None, 29, 39, None, 59, None, None, 89),
     )
     called = {1, 21, 41, 61, 81}
@@ -62,7 +62,7 @@ def test_bingo_requires_all_numbers_of_that_exact_card() -> None:
 def test_invalid_card_is_rejected() -> None:
     invalid = (
         (1, None, 21, None, 41, None, 61, None, 91),
-        (None, 12, None, 32, None, 52, None, 72, None),
+        (None, 12, None, 32, 44, 52, None, 72, None),
         (9, None, 29, 39, None, 59, None, None, 89),
     )
 
