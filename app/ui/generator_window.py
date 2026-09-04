@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from app.cards import BulkGenerationResult, BulkSeriesGenerator, CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-from app.printing import A4SvgRenderer, PrintStyle
+from app.printing import A4SvgRenderer, BulkA4ExportResult, BulkA4SvgExporter, PrintStyle
 
 
 class BulkGenerationWorker(QObject):
@@ -58,6 +58,40 @@ class BulkGenerationWorker(QObject):
         self.progress.emit(current, total, current * 6)
 
 
+class BulkA4ExportWorker(QObject):
+    """Exporta las hojas A4 sin bloquear la interfaz."""
+
+    progress = Signal(int, int, int)
+    finished = Signal(object)
+    error = Signal(str)
+
+    def __init__(self, repository, *, start_series, quantity, destination, model, style):
+        super().__init__()
+        self.repository = repository
+        self.start_series = start_series
+        self.quantity = quantity
+        self.destination = destination
+        self.model = model
+        self.style = style
+
+    def run(self) -> None:
+        try:
+            exporter = BulkA4SvgExporter(self.repository, style=self.style)
+            result = exporter.export(
+                start_series=self.start_series,
+                quantity=self.quantity,
+                destination=self.destination,
+                model=self.model,
+                progress=self._report_progress,
+            )
+            self.finished.emit(result)
+        except Exception as exc:  # noqa: BLE001 - se informa a la interfaz
+            self.error.emit(str(exc))
+
+    def _report_progress(self, current: int, total: int) -> None:
+        self.progress.emit(current, total, current * 6)
+
+
 class GeneratorWidget(QWidget):
     """Generator UI embeddable as a tab in the main application."""
 
@@ -68,6 +102,8 @@ class GeneratorWidget(QWidget):
         self._logo_path: str | None = None
         self._bulk_thread: QThread | None = None
         self._bulk_worker: BulkGenerationWorker | None = None
+        self._a4_thread: QThread | None = None
+        self._a4_worker: BulkA4ExportWorker | None = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -88,6 +124,8 @@ class GeneratorWidget(QWidget):
         self.bulk_generate.clicked.connect(self.generate_bulk)
         self.preview = QPushButton("VISTA PREVIA A4"); self.preview.clicked.connect(self.preview_a4)
         self.save = QPushButton("GUARDAR A4 SVG"); self.save.clicked.connect(self.save_a4)
+        self.bulk_export = QPushButton("EXPORTAR LOTE A4 — LISTO PARA IMPRESIÓN")
+        self.bulk_export.clicked.connect(self.export_bulk_a4)
 
         self.bulk_progress = QProgressBar(); self.bulk_progress.setRange(0, 2_500); self.bulk_progress.setValue(0)
         self.bulk_progress.setFormat("Serie %v / %m")
@@ -101,6 +139,7 @@ class GeneratorWidget(QWidget):
         form.addRow(self.logo, logo_button)
         form.addRow(generate); form.addRow(self.bulk_generate); form.addRow(self.bulk_progress)
         form.addRow(self.bulk_status); form.addRow(self.preview); form.addRow(self.save)
+        form.addRow(self.bulk_export)
         layout.addWidget(controls)
 
         self.preview_label = QLabel("Configura y genera una serie.")
@@ -144,7 +183,7 @@ class GeneratorWidget(QWidget):
         model = self._selected_model(); quantity = self.quantity.value()
         self.bulk_progress.setRange(0, quantity); self.bulk_progress.setValue(0)
         self.bulk_status.setText(f"Generando {quantity:,} series · {quantity * 6:,} cartones...")
-        for widget in (self.bulk_generate, self.preview, self.save, self.model,
+        for widget in (self.bulk_generate, self.bulk_export, self.preview, self.save, self.model,
                        self.series_id, self.quantity, self.serial_start):
             widget.setEnabled(False)
 
@@ -162,6 +201,42 @@ class GeneratorWidget(QWidget):
         self._bulk_worker.error.connect(self._bulk_thread.quit)
         self._bulk_thread.finished.connect(self._bulk_cleanup)
         self._bulk_thread.start()
+
+    def export_bulk_a4(self) -> None:
+        if self._a4_thread is not None and self._a4_thread.isRunning():
+            return
+        destination = QFileDialog.getExistingDirectory(self, "Carpeta de hojas A4")
+        if not destination:
+            return
+        start_series = self.series_id.value()
+        quantity = self.quantity.value()
+        model = self._selected_model()
+        self.bulk_progress.setRange(0, quantity); self.bulk_progress.setValue(0)
+        self.bulk_status.setText(
+            f"Exportando A4: {quantity:,} hojas · {quantity * 6:,} cartones..."
+        )
+        for widget in (self.bulk_generate, self.bulk_export, self.preview, self.save, self.model,
+                       self.series_id, self.quantity, self.serial_start):
+            widget.setEnabled(False)
+
+        self._a4_thread = QThread(self)
+        self._a4_worker = BulkA4ExportWorker(
+            self.repository,
+            start_series=start_series,
+            quantity=quantity,
+            destination=destination,
+            model=model,
+            style=self._style(),
+        )
+        self._a4_worker.moveToThread(self._a4_thread)
+        self._a4_thread.started.connect(self._a4_worker.run)
+        self._a4_worker.progress.connect(self._on_a4_progress)
+        self._a4_worker.finished.connect(self._on_a4_finished)
+        self._a4_worker.error.connect(self._on_a4_error)
+        self._a4_worker.finished.connect(self._a4_thread.quit)
+        self._a4_worker.error.connect(self._a4_thread.quit)
+        self._a4_thread.finished.connect(self._a4_cleanup)
+        self._a4_thread.start()
 
     def _on_bulk_progress(self, current: int, total: int, cards: int) -> None:
         self.bulk_progress.setRange(0, total); self.bulk_progress.setValue(current)
@@ -184,13 +259,41 @@ class GeneratorWidget(QWidget):
         self.bulk_status.setText(f"ERROR: {message}")
         QMessageBox.critical(self, "Generación masiva", message)
 
+    def _on_a4_progress(self, current: int, total: int, cards: int) -> None:
+        self.bulk_progress.setRange(0, total); self.bulk_progress.setValue(current)
+        self.bulk_status.setText(f"A4 {current:,} / {total:,} · Cartones {cards:,} / {total * 6:,}")
+
+    def _on_a4_finished(self, result: BulkA4ExportResult) -> None:
+        self.bulk_progress.setValue(result.pages_exported)
+        self.bulk_status.setText(
+            f"A4 COMPLETADO · {result.pages_exported:,} hojas · {result.cards_exported:,} cartones\n"
+            f"Series {result.first_series}–{result.last_series}"
+        )
+        self.preview_label.setText(
+            "LOTE A4 LISTO PARA IMPRESIÓN\n"
+            f"{result.pages_exported:,} hojas A4 · 6 cartones por hoja\n"
+            f"Destino: {result.destination}"
+        )
+
+    def _on_a4_error(self, message: str) -> None:
+        self.bulk_status.setText(f"ERROR A4: {message}")
+        QMessageBox.critical(self, "Exportación A4", message)
+
     def _bulk_cleanup(self) -> None:
-        for widget in (self.bulk_generate, self.preview, self.save, self.model,
+        for widget in (self.bulk_generate, self.bulk_export, self.preview, self.save, self.model,
                        self.series_id, self.quantity, self.serial_start):
             widget.setEnabled(True)
         if self._bulk_thread is not None:
             self._bulk_thread.deleteLater()
         self._bulk_thread = None; self._bulk_worker = None
+
+    def _a4_cleanup(self) -> None:
+        for widget in (self.bulk_generate, self.bulk_export, self.preview, self.save, self.model,
+                       self.series_id, self.quantity, self.serial_start):
+            widget.setEnabled(True)
+        if self._a4_thread is not None:
+            self._a4_thread.deleteLater()
+        self._a4_thread = None; self._a4_worker = None
 
     def _svg(self) -> str:
         if self._series is None: self.generate_series()
