@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from html import escape
 from pathlib import Path
 
@@ -33,18 +34,33 @@ class A4SvgRenderer:
         destination.write_text(self.render(cards), encoding="utf-8")
         return destination
 
+    def _logo_href(self) -> str | None:
+        if not self.style.logo_path:
+            return None
+        path = Path(self.style.logo_path)
+        if not path.is_file():
+            return None
+        mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(path.suffix.lower())
+        if mime is None:
+            return None
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        return f"data:{mime};base64,{data}"
+
     def _card(self, card: BingoCard, x: float, y: float, width: float, height: float) -> str:
         header = 28.0
-        grid_y = y + header
         cell_w = width / 9
         cell_h = (height - header - 14.0) / 3
         out = [
             f'<g transform="translate({x:.2f},{y:.2f})">',
-            f'<rect width="{width:.2f}" height="{height:.2f}" rx="6" '
-            f'fill="{escape(self.style.background_color)}" stroke="{escape(self.style.border_color)}" stroke-width="1.5"/>',
-            f'<text x="8" y="13" font-family="Arial,sans-serif" font-size="9" font-weight="bold" '
-            f'fill="{escape(self.style.accent_color)}">FB BINGO</text>',
+            f'<rect width="{width:.2f}" height="{height:.2f}" rx="6" fill="{escape(self.style.background_color)}" '
+            f'stroke="{escape(self.style.border_color)}" stroke-width="1.5"/>',
         ]
+        logo = self._logo_href()
+        if logo:
+            out.append(f'<image href="{logo}" x="8" y="5" width="35" height="17" preserveAspectRatio="xMidYMid meet"/>')
+        else:
+            out.append(f'<text x="8" y="13" font-family="Arial,sans-serif" font-size="9" font-weight="bold" '
+                       f'fill="{escape(self.style.accent_color)}">FB BINGO</text>')
         if self.style.show_serial:
             out.append(f'<text x="{width - 8:.2f}" y="13" text-anchor="end" font-family="Arial,sans-serif" '
                        f'font-size="7" fill="{escape(self.style.number_color)}">SERIE {escape(card.serial)}</text>')
@@ -54,7 +70,7 @@ class A4SvgRenderer:
         for row in range(3):
             for column in range(9):
                 cx = column * cell_w
-                cy = grid_y - y + row * cell_h
+                cy = header + row * cell_h
                 value = card.grid[row][column]
                 fill = self.style.background_color if value is not None else self.style.empty_cell_color
                 out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" '
