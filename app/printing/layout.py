@@ -21,7 +21,7 @@ class PrintStyle:
     accent_color: str = "#FF4FA3"
     secondary_accent_color: str = "#8FD9FF"
     logo_path: str | None = None
-    show_model: bool = False
+    show_model: bool = True
     show_serial: bool = True
     show_qr_zone: bool = True
     qr_caption: str = "ESCANEA PARA VERIFICAR"
@@ -38,12 +38,7 @@ class CardSlot:
     height: float
 
     def intersects(self, other: "CardSlot") -> bool:
-        return not (
-            self.x + self.width <= other.x
-            or other.x + other.width <= self.x
-            or self.y + self.height <= other.y
-            or other.y + other.height <= self.y
-        )
+        return not (self.x + self.width <= other.x or other.x + other.width <= self.x or self.y + self.height <= other.y or other.y + other.height <= self.y)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,10 +71,7 @@ class A4SeriesLayout:
 
     @classmethod
     def for_series(cls, series: BingoSeries) -> "A4SeriesLayout":
-        slots = tuple(
-            PrintSlot(card=card, row=index // 2, column=index % 2)
-            for index, card in enumerate(series.cards)
-        )
+        slots = tuple(PrintSlot(card=card, row=index // 2, column=index % 2) for index, card in enumerate(series.cards))
         return cls(page_size="A4", columns=2, cards_per_page=6, slots=slots)
 
 
@@ -97,7 +89,6 @@ class A4PrintLayout:
         inner_height = self.page_height - 2 * self.margin
         card_width = (inner_width - self.horizontal_gap) / 2
         card_height = (inner_height - 2 * self.vertical_gap) / 3
-
         slots: list[CardSlot] = []
         index = 1
         for row in range(3):
@@ -106,9 +97,7 @@ class A4PrintLayout:
             for column in range(2):
                 x = self.margin + column * (card_width + self.horizontal_gap)
                 width = card_width if column == 0 else self.page_width - self.margin - x
-                slots.append(
-                    CardSlot(index=index, column=column, row=row, x=x, y=y, width=width, height=height)
-                )
+                slots.append(CardSlot(index=index, column=column, row=row, x=x, y=y, width=width, height=height))
                 index += 1
         return tuple(slots)
 
