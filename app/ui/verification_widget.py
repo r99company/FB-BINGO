@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 from app.database import SQLiteSeriesRepository
+from app.settings.paths import database_path
 from app.verification.verifier import CardVerifier
 
 
@@ -10,7 +11,7 @@ class VerificationWidget(QWidget):
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None) -> None:
         super().__init__()
-        self.repository = repository or SQLiteSeriesRepository("data/fb_bingo.db")
+        self.repository = repository or SQLiteSeriesRepository(database_path())
         self.called: set[int] = set()
         self._build_ui()
 
