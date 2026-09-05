@@ -126,6 +126,21 @@ class ProductionService:
             raise KeyError(f"Lote no encontrado: {lot_id}")
         return self._lot_from_row(row)
 
+    def _set_status(self, lot_id: int, status: str) -> None:
+        with self.repository._connect() as db:
+            db.execute(
+                "UPDATE production_lots SET status = ? WHERE lot_id = ?",
+                (status, lot_id),
+            )
+
+    def _series_is_persisted(self, series_id: str) -> bool:
+        with self.repository._connect() as db:
+            row = db.execute(
+                "SELECT COUNT(*) AS card_count FROM cards WHERE series_id = ?",
+                (series_id,),
+            ).fetchone()
+        return int(row["card_count"]) == 6
+
     def generate_lot(
         self,
         lot_id: int,
@@ -135,12 +150,20 @@ class ProductionService:
         if lot.status == "generated":
             raise DuplicateProductionError(f"El lote {lot_id} ya fue generado")
 
+        self._set_status(lot_id, "generating")
         total = lot.card_count
         completed = 0
         for offset in range(0, total, 6):
             first_card = lot.start_card + offset
             series_number = (first_card - 1) // 6 + 1
             series_id = f"{series_number:04d}"
+
+            if self._series_is_persisted(series_id):
+                completed += 6
+                if progress_callback:
+                    progress_callback(completed)
+                continue
+
             try:
                 series = self.generator.generate(series_id, lot.model, serial_start=first_card)
                 self.repository.save(series)
@@ -150,11 +173,7 @@ class ProductionService:
             if progress_callback:
                 progress_callback(completed)
 
-        with self.repository._connect() as db:
-            db.execute(
-                "UPDATE production_lots SET status = 'generated' WHERE lot_id = ?",
-                (lot_id,),
-            )
+        self._set_status(lot_id, "generated")
         return ProductionLot(
             lot_id=lot.lot_id,
             start_card=lot.start_card,
