@@ -1,5 +1,5 @@
 from .layout import A4PrintLayout, A4SeriesLayout, CardPlacement, CardSlot, PrintSlot, PrintStyle
-from .modern_svg_renderer import ModernA4SvgRenderer
+from .modern_svg_renderer_v2 import ModernA4SvgRenderer
 
 A4SvgRenderer = ModernA4SvgRenderer
 
