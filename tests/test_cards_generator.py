@@ -27,7 +27,7 @@ def test_each_generated_card_has_valid_rows_and_columns() -> None:
         series = SeriesGenerator(seed=789).generate(f"SER-{model.value}", model)
         for card in series.cards:
             assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-            assert all(1 <= count <= 3 for count in card.column_counts)
+            assert all(1 <= count <= 2 for count in card.column_counts)
             assert card.model is model
 
 
