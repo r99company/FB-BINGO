@@ -150,6 +150,12 @@ class SeriesGenerator:
             [mask for mask in range(1, 1 << ROWS) if mask.bit_count() == count]
             for count in counts
         ]
+        # Randomize the admissible row positions for every column. The previous
+        # implementation always selected the first valid mask, which could make
+        # several cards look like copies even when their numbers were different.
+        for masks in choices:
+            self._rng.shuffle(masks)
+
         chosen = [0] * COLUMNS
         remaining = [5, 5, 5]
 
