@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
 from app.printing import A4SvgRenderer, PrintStyle
+from app.settings.paths import database_path
 
 
 class GeneratorWidget(QWidget):
@@ -28,7 +29,7 @@ class GeneratorWidget(QWidget):
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None) -> None:
         super().__init__()
-        self.repository = repository or SQLiteSeriesRepository(Path("data") / "fb_bingo.db")
+        self.repository = repository or SQLiteSeriesRepository(database_path())
         self._series = None
         self._logo_path: str | None = None
         self._build_ui()
