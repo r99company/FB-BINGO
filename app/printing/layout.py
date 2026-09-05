@@ -15,13 +15,16 @@ class PrintStyle:
     """Visual settings for printed cards; game logic never depends on these."""
 
     background_color: str = "#FFFFFF"
-    empty_cell_color: str = "#F7DDE7"
-    number_color: str = "#222222"
-    border_color: str = "#8EAFC2"
-    accent_color: str = "#9ED8EA"
+    empty_cell_color: str = "#F2E9FF"
+    number_color: str = "#171B2B"
+    border_color: str = "#7D6BFF"
+    accent_color: str = "#FF4FA3"
+    secondary_accent_color: str = "#8FD9FF"
     logo_path: str | None = None
-    show_model: bool = True
+    show_model: bool = False
     show_serial: bool = True
+    show_qr_zone: bool = True
+    qr_caption: str = "ESCANEA PARA VERIFICAR"
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,15 +107,7 @@ class A4PrintLayout:
                 x = self.margin + column * (card_width + self.horizontal_gap)
                 width = card_width if column == 0 else self.page_width - self.margin - x
                 slots.append(
-                    CardSlot(
-                        index=index,
-                        column=column,
-                        row=row,
-                        x=x,
-                        y=y,
-                        width=width,
-                        height=height,
-                    )
+                    CardSlot(index=index, column=column, row=row, x=x, y=y, width=width, height=height)
                 )
                 index += 1
         return tuple(slots)
@@ -120,7 +115,4 @@ class A4PrintLayout:
     def place_cards(self, cards: Sequence[BingoCard]) -> tuple[CardPlacement, ...]:
         if len(cards) != 6:
             raise ValueError("A4 printing requires exactly 6 cards per series")
-        return tuple(
-            CardPlacement(card=card, slot=slot)
-            for card, slot in zip(cards, self.card_slots())
-        )
+        return tuple(CardPlacement(card=card, slot=slot) for card, slot in zip(cards, self.card_slots()))
