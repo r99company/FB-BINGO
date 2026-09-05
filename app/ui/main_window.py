@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QVBoxLayout,
@@ -14,6 +15,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.bingo import BingoGame
+from app.database import SQLiteSeriesRepository
+from app.settings.paths import database_path
+from app.verification import CardVerifier
 
 
 class TVWindow(QMainWindow):
@@ -27,10 +31,46 @@ class TVWindow(QMainWindow):
         self.setCentralWidget(root)
         root.setStyleSheet("background:#0B0F19; color:#FFFFFF;")
         layout = QVBoxLayout(root)
+        header = QHBoxLayout()
+        brand = QLabel("FB-BINGO")
+        brand.setStyleSheet("font-size:28px;font-weight:900;color:#8FD9FF;")
+        header.addWidget(brand)
+        header.addStretch()
+        self.card_title = QLabel("VERIFICACIÓN DE CARTÓN")
+        self.card_title.setStyleSheet("font-size:24px;font-weight:900;color:#FFFFFF;")
+        header.addWidget(self.card_title)
+        layout.addLayout(header)
+
         self.number = QLabel("—")
         self.number.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.number.setStyleSheet("font-size:150px;font-weight:900;color:#FF4FA3;")
         layout.addWidget(self.number, 2)
+
+        self.card_panel = QFrame()
+        self.card_panel.setVisible(False)
+        card_layout = QVBoxLayout(self.card_panel)
+        self.card_serial = QLabel("CARTÓN —")
+        self.card_serial.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.card_serial.setStyleSheet("font-size:30px;font-weight:900;color:#FFFFFF;")
+        card_layout.addWidget(self.card_serial)
+        self.card_grid = QGridLayout()
+        self.card_grid.setSpacing(5)
+        self.card_cells: list[QLabel] = []
+        for row in range(3):
+            for column in range(9):
+                cell = QLabel("")
+                cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                cell.setMinimumSize(65, 42)
+                cell.setStyleSheet("font-size:22px;font-weight:900;border:1px solid #38445A;border-radius:6px;background:#151D2D;")
+                self.card_cells.append(cell)
+                self.card_grid.addWidget(cell, row, column)
+        card_layout.addLayout(self.card_grid)
+        self.card_result = QLabel("")
+        self.card_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.card_result.setStyleSheet("font-size:25px;font-weight:900;color:#8FD9FF;padding:6px;")
+        card_layout.addWidget(self.card_result)
+        layout.addWidget(self.card_panel)
+
         self.history = QLabel("Últimas: —")
         self.history.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.history.setStyleSheet("font-size:30px;font-weight:800;color:#8FD9FF;")
@@ -45,6 +85,30 @@ class TVWindow(QMainWindow):
         self.history.setText("Últimas: " + (" · ".join(map(str, history[::-1])) if history else "—"))
         self.status.setText("FB-BINGO · PARTIDA EN CURSO")
 
+    def show_card_verification(self, card, called_numbers) -> None:
+        verifier = CardVerifier(card)
+        called = frozenset(called_numbers)
+        lines = verifier.line_winners(called)
+        bingo = verifier.is_bingo(called)
+        self.card_panel.setVisible(True)
+        self.card_serial.setText(f"CARTÓN {card.serial}")
+        for index, cell in enumerate(self.card_cells):
+            row, column = divmod(index, 9)
+            value = card.grid[row][column]
+            cell.setText("" if value is None else str(value))
+            if value is not None and value in called:
+                cell.setStyleSheet("font-size:22px;font-weight:900;border:2px solid #FF4FA3;border-radius:6px;background:#FF4FA3;color:#FFFFFF;")
+            else:
+                cell.setStyleSheet("font-size:22px;font-weight:900;border:1px solid #38445A;border-radius:6px;background:#151D2D;color:#FFFFFF;")
+        if bingo:
+            result = "★ BINGO ★"
+        elif lines:
+            result = "✓ LÍNEA " + ", ".join(str(row + 1) for row in lines)
+        else:
+            result = "✕ NO HAY LÍNEA NI BINGO"
+        self.card_result.setText(result)
+        self.status.setText("FB-BINGO · VERIFICACIÓN DE CARTÓN")
+
 
 class BingoMainWindow(QMainWindow):
     """Panel profesional de locutora conectado al motor Bingo 90."""
@@ -54,6 +118,7 @@ class BingoMainWindow(QMainWindow):
         self.setWindowTitle("FB BINGO — Sala de Juego")
         self.resize(1450, 900)
         self.game = BingoGame()
+        self.repository = SQLiteSeriesRepository(database_path())
         self._buttons: dict[int, QPushButton] = {}
         self.tv_window: TVWindow | None = None
         self._build_ui()
@@ -130,6 +195,25 @@ class BingoMainWindow(QMainWindow):
         history_layout.addWidget(self.history_label)
         left.addWidget(history_panel)
 
+        verify_panel = QFrame(objectName="Panel")
+        verify_layout = QVBoxLayout(verify_panel)
+        verify_title = QLabel("VERIFICAR CARTÓN"); verify_title.setObjectName("SectionTitle")
+        verify_layout.addWidget(verify_title)
+        verify_row = QHBoxLayout()
+        self.card_serial_input = QLineEdit()
+        self.card_serial_input.setPlaceholderText("Ej. 0001-000001")
+        self.card_serial_input.returnPressed.connect(self.verify_card)
+        verify_button = QPushButton("VERIFICAR")
+        verify_button.setObjectName("Primary")
+        verify_button.clicked.connect(self.verify_card)
+        verify_row.addWidget(self.card_serial_input)
+        verify_row.addWidget(verify_button)
+        verify_layout.addLayout(verify_row)
+        self.verify_result = QLabel("Ingrese el serial del cartón.")
+        self.verify_result.setWordWrap(True)
+        verify_layout.addWidget(self.verify_result)
+        left.addWidget(verify_panel)
+
         actions = QHBoxLayout()
         draw = QPushButton("SACAR BOLA")
         draw.setObjectName("Primary")
@@ -165,8 +249,6 @@ class BingoMainWindow(QMainWindow):
         self.status_label.setObjectName("Muted")
         status.addWidget(self.status_label)
         status.addStretch()
-        status.addWidget(QLabel("LÍNEA: —"))
-        status.addWidget(QLabel("BINGO: —"))
         content.addLayout(status)
         outer.addLayout(content, 1)
 
@@ -201,6 +283,33 @@ class BingoMainWindow(QMainWindow):
     def new_game(self) -> None:
         self.game.reset()
         self._sync_ui()
+
+    def verify_card(self) -> None:
+        serial = self.card_serial_input.text().strip()
+        if not serial:
+            self.verify_result.setText("Ingrese el serial del cartón.")
+            return
+        try:
+            card = self.repository.get_card(serial)
+        except KeyError:
+            self.verify_result.setText("✕ CARTÓN NO ENCONTRADO")
+            return
+        except ValueError as exc:
+            self.verify_result.setText(f"✕ {exc}")
+            return
+        called = self.game.history
+        verifier = CardVerifier(card)
+        lines = verifier.line_winners(called)
+        bingo = verifier.is_bingo(called)
+        if bingo:
+            result = "★ BINGO ★"
+        elif lines:
+            result = "✓ LÍNEA " + ", ".join(str(row + 1) for row in lines)
+        else:
+            result = "✕ NO HAY LÍNEA NI BINGO"
+        self.verify_result.setText(f"CARTÓN {card.serial} · {result}")
+        self.open_tv()
+        self.tv_window.show_card_verification(card, called)
 
     def open_tv(self) -> None:
         if self.tv_window is None:
