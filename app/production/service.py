@@ -21,7 +21,7 @@ class ProductionService:
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
-        with self.repository._connect() as db:  # repository owns the SQLite path/connection policy
+        with self.repository._connect() as db:
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS production_lots (
@@ -34,10 +34,23 @@ class ProductionService:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_production_range
+                CREATE INDEX IF NOT EXISTS idx_production_range
                     ON production_lots(start_card, end_card);
                 """
             )
+
+    @staticmethod
+    def _lot_from_row(row) -> ProductionLot:
+        return ProductionLot(
+            lot_id=int(row["lot_id"]),
+            start_card=int(row["start_card"]),
+            end_card=int(row["end_card"]),
+            series_count=int(row["series_count"]),
+            model=CardModel(row["model"]),
+            operator=row["operator"],
+            status=row["status"],
+            created_at=row["created_at"],
+        )
 
     def create_lot(
         self,
@@ -46,47 +59,82 @@ class ProductionService:
         model: CardModel = CardModel.A,
         operator: str = "",
     ) -> ProductionLot:
-        lot = plan_lot(start_card, end_card, model=model, operator=operator)
+        planned = plan_lot(start_card, end_card, model=model, operator=operator)
         with self.repository._connect() as db:
-            row = db.execute(
-                "SELECT 1 FROM cards WHERE serial LIKE ? LIMIT 1",
-                (f"%-{start_card:06d}",),
+            overlap = db.execute(
+                """
+                SELECT lot_id FROM production_lots
+                WHERE start_card <= ? AND end_card >= ?
+                LIMIT 1
+                """,
+                (planned.end_card, planned.start_card),
             ).fetchone()
-            if row is not None:
-                raise DuplicateProductionError(f"El cartón {start_card} ya existe")
+            if overlap is not None:
+                raise DuplicateProductionError(
+                    f"El rango {planned.start_card}-{planned.end_card} se superpone al lote {overlap['lot_id']}"
+                )
+
+            existing = db.execute(
+                """
+                SELECT serial FROM cards
+                WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
+                LIMIT 1
+                """,
+                (planned.start_card, planned.end_card),
+            ).fetchone()
+            if existing is not None:
+                raise DuplicateProductionError(
+                    f"El rango {planned.start_card}-{planned.end_card} contiene el cartón existente {existing['serial']}"
+                )
+
             row = db.execute(
                 "SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots"
             ).fetchone()
             lot = ProductionLot(
                 lot_id=int(row["next_id"]),
-                start_card=lot.start_card,
-                end_card=lot.end_card,
-                series_count=lot.series_count,
-                model=lot.model,
-                operator=lot.operator,
-                status=lot.status,
-                created_at=lot.created_at,
+                start_card=planned.start_card,
+                end_card=planned.end_card,
+                series_count=planned.series_count,
+                model=planned.model,
+                operator=planned.operator,
+                status=planned.status,
+                created_at=planned.created_at,
             )
             db.execute(
-                "INSERT INTO production_lots(lot_id,start_card,end_card,series_count,model,operator,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
-                (lot.lot_id, lot.start_card, lot.end_card, lot.series_count, lot.model.value, lot.operator, lot.status, lot.created_at),
+                """
+                INSERT INTO production_lots(
+                    lot_id,start_card,end_card,series_count,model,operator,status,created_at
+                ) VALUES (?,?,?,?,?,?,?,?)
+                """,
+                (
+                    lot.lot_id,
+                    lot.start_card,
+                    lot.end_card,
+                    lot.series_count,
+                    lot.model.value,
+                    lot.operator,
+                    lot.status,
+                    lot.created_at,
+                ),
             )
         return lot
+
+    def get_lot(self, lot_id: int) -> ProductionLot:
+        with self.repository._connect() as db:
+            row = db.execute("SELECT * FROM production_lots WHERE lot_id = ?", (lot_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"Lote no encontrado: {lot_id}")
+        return self._lot_from_row(row)
 
     def generate_lot(
         self,
         lot_id: int,
         progress_callback: Callable[[int], None] | None = None,
     ) -> ProductionLot:
-        with self.repository._connect() as db:
-            row = db.execute("SELECT * FROM production_lots WHERE lot_id = ?", (lot_id,)).fetchone()
-        if row is None:
-            raise KeyError(f"Lote no encontrado: {lot_id}")
-        lot = ProductionLot(
-            lot_id=row["lot_id"], start_card=row["start_card"], end_card=row["end_card"],
-            series_count=row["series_count"], model=CardModel(row["model"]),
-            operator=row["operator"], status=row["status"], created_at=row["created_at"],
-        )
+        lot = self.get_lot(lot_id)
+        if lot.status == "generated":
+            raise DuplicateProductionError(f"El lote {lot_id} ya fue generado")
+
         total = lot.card_count
         completed = 0
         for offset in range(0, total, 6):
@@ -101,10 +149,19 @@ class ProductionService:
             completed += 6
             if progress_callback:
                 progress_callback(completed)
+
         with self.repository._connect() as db:
-            db.execute("UPDATE production_lots SET status = 'generated' WHERE lot_id = ?", (lot_id,))
-        return ProductionLot(**{**lot.__dict__, "status": "generated"}) if hasattr(lot, "__dict__") else ProductionLot(
-            lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-            series_count=lot.series_count, model=lot.model, operator=lot.operator,
-            status="generated", created_at=lot.created_at,
+            db.execute(
+                "UPDATE production_lots SET status = 'generated' WHERE lot_id = ?",
+                (lot_id,),
+            )
+        return ProductionLot(
+            lot_id=lot.lot_id,
+            start_card=lot.start_card,
+            end_card=lot.end_card,
+            series_count=lot.series_count,
+            model=lot.model,
+            operator=lot.operator,
+            status="generated",
+            created_at=lot.created_at,
         )
