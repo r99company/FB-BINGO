@@ -15,8 +15,9 @@ from app.ui.theme import APP_STYLESHEET
 def test_modern_renderer_has_qr_zone_and_serials():
     series = SeriesGenerator(seed=7).generate("12", CardModel.A, 1)
     svg = A4SvgRenderer(style=PrintStyle(show_qr_zone=True)).render(series.cards)
-    assert svg.count('class="bingo-card"') == 0
-    assert svg.count('SERIAL') >= 6
+    assert svg.count('class="bingo-card"') == 6
+    assert svg.count("SERIAL") >= 6
+    assert svg.count('class="qr-zone"') == 6
     assert "ESCANEA PARA VERIFICAR" in svg
     assert "FB-BINGO" in svg
 
