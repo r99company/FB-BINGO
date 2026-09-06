@@ -11,6 +11,7 @@ from app.ui.sales_window import SalesWindow
 
 
 _original_init = BingoMainWindow.__init__
+_original_enter_ball = BingoMainWindow.enter_ball
 
 
 def _open_sales(self: BingoMainWindow) -> None:
@@ -22,10 +23,20 @@ def _open_sales(self: BingoMainWindow) -> None:
     self.sales_window.activateWindow()
 
 
+def _enter_ball_guarded(self: BingoMainWindow) -> bool:
+    if self.game.state.paused:
+        self.ball_message.setText("Ⅱ PARTIDA PAUSADA · NO SE PUEDE DIGITAR")
+        self.ball_input.selectAll()
+        self.ball_input.setFocus()
+        return False
+    return _original_enter_ball(self)
+
+
 def _init_with_sales(self: BingoMainWindow) -> None:
     _original_init(self)
     self.sales_window = None
     self.open_sales = lambda: _open_sales(self)
+    self.enter_ball = lambda: _enter_ball_guarded(self)
     for button in self.findChildren(QPushButton):
         if button.text().startswith("🛒  VENTAS"):
             button.clicked.connect(self.open_sales)
