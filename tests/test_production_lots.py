@@ -16,6 +16,22 @@ def test_lot_must_use_complete_six_card_series() -> None:
         plan_lot(1, 1499)
 
 
+def test_initial_capacity_is_15000_but_can_be_configured_to_30000() -> None:
+    with pytest.raises(ValueError):
+        plan_lot(15001, 15006)
+
+    lot = plan_lot(15001, 30000, max_cards=30000)
+    assert lot.card_count == 15000
+    assert lot.series_count == 2500
+
+
+def test_configured_capacity_must_be_positive_and_cover_requested_range() -> None:
+    with pytest.raises(ValueError):
+        plan_lot(1, 6, max_cards=0)
+    with pytest.raises(ValueError):
+        plan_lot(29995, 30000, max_cards=29999)
+
+
 def test_generation_persists_series_and_reports_progress(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository, generator=None)
