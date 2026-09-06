@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.database.series_repository import SQLiteSeriesRepository
 from app.sales import SalesService
 
 
@@ -42,7 +43,8 @@ class SalesWindow(QMainWindow):
         self.setWindowTitle("FB-BINGO — Ventas")
         self.resize(720, 620)
         self.setMinimumSize(620, 520)
-        self.sales_service = SalesService(database_path)
+        self.repository = SQLiteSeriesRepository(database_path)
+        self.sales_service = SalesService(database_path, repository=self.repository)
         root = QWidget(objectName="SalesRoot")
         root.setStyleSheet(SALES_QSS)
         self.setCentralWidget(root)
@@ -53,7 +55,7 @@ class SalesWindow(QMainWindow):
         title = QLabel("VENTAS")
         title.setObjectName("Title")
         outer.addWidget(title)
-        subtitle = QLabel("Registro de cartones y series · evita ventas duplicadas")
+        subtitle = QLabel("Registro de cartones y series · solo acepta material generado")
         subtitle.setObjectName("Hint")
         outer.addWidget(subtitle)
 
