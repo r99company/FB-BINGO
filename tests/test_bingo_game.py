@@ -70,3 +70,20 @@ def test_invalid_state_is_rejected() -> None:
 def test_ball_91_is_rejected() -> None:
     with pytest.raises(ValueError):
         GameState(drawn_numbers=(91,), remaining_numbers=tuple(range(1, 91)))
+
+
+def test_restore_cannot_silently_resume_a_paused_game() -> None:
+    game = BingoGame(seed=5)
+    game.draw()
+    game.pause()
+    paused_history = game.history
+    replacement = GameState(
+        drawn_numbers=paused_history + (47,),
+        remaining_numbers=tuple(n for n in range(1, 91) if n not in paused_history and n != 47),
+        paused=False,
+    )
+
+    game.restore(replacement)
+
+    assert game.state.paused is True
+    assert game.history == paused_history + (47,)
