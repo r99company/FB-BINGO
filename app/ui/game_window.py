@@ -1,39 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
-try:
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
-except ImportError:  # pragma: no cover
-    Qt = None
-    QMainWindow = object  # type: ignore[assignment,misc]
-
-
-@dataclass(frozen=True)
-class GameDisplayState:
-    called: tuple[int, ...] = ()
-
-    @property
-    def recent(self) -> tuple[int, ...]:
-        return self.called[-5:][::-1]
-
-    @property
-    def remaining(self) -> int:
-        return 90 - len(self.called)
+from app.game.session import GameSession
 
 
 class GameWindow(QMainWindow):
     """Pantalla de locutora: tablero 1-90 e historial de las últimas 5 bolas."""
 
-    def __init__(self) -> None:
+    def __init__(self, session: GameSession | None = None) -> None:
         super().__init__()
-        self.state = GameDisplayState()
+        self.setWindowTitle("FB BINGO — Sala de Juego")
+        self.session = session or GameSession()
         self._buttons: dict[int, QPushButton] = {}
         self._build_ui()
+        self._refresh()
 
     def _build_ui(self) -> None:
-        self.setWindowTitle("FB BINGO — Sala de Juego")
+        self.setMinimumSize(900, 650)
         central = QWidget()
         root = QVBoxLayout(central)
         title = QLabel("FB BINGO")
@@ -55,31 +40,45 @@ class GameWindow(QMainWindow):
         bottom = QHBoxLayout()
         self.recent_label = QLabel("Últimos 5: —")
         self.remaining_label = QLabel("Restantes: 90")
+        undo = QPushButton("Deshacer")
+        undo.clicked.connect(self.undo_number)
         reset = QPushButton("Nueva partida")
         reset.clicked.connect(self.reset_game)
         bottom.addWidget(self.recent_label)
         bottom.addStretch()
         bottom.addWidget(self.remaining_label)
+        bottom.addWidget(undo)
         bottom.addWidget(reset)
         root.addLayout(bottom)
         self.setCentralWidget(central)
 
     def call_number(self, number: int) -> bool:
-        if number < 1 or number > 90 or number in self.state.called:
+        try:
+            self.session.call(number)
+        except ValueError:
             return False
-        self.state = GameDisplayState(self.state.called + (number,))
-        self._buttons[number].setEnabled(False)
-        self._buttons[number].setText(f"✓ {number}")
-        self.current_label.setText(str(number))
-        self.recent_label.setText("Últimos 5: " + (" · ".join(map(str, self.state.recent)) or "—"))
-        self.remaining_label.setText(f"Restantes: {self.state.remaining}")
+        self._refresh()
+        return True
+
+    def undo_number(self) -> bool:
+        try:
+            self.session.undo()
+        except ValueError as exc:
+            QMessageBox.information(self, "Deshacer", str(exc))
+            return False
+        self._refresh()
         return True
 
     def reset_game(self) -> None:
-        self.state = GameDisplayState()
+        self.session.reset()
+        self._refresh()
+
+    def _refresh(self) -> None:
+        called = self.session.called_set
         for number, button in self._buttons.items():
-            button.setEnabled(True)
-            button.setText(str(number))
-        self.current_label.setText("—")
-        self.recent_label.setText("Últimos 5: —")
-        self.remaining_label.setText("Restantes: 90")
+            is_called = number in called
+            button.setEnabled(not is_called)
+            button.setText(f"✓ {number}" if is_called else str(number))
+        self.current_label.setText(str(self.session.called[-1]) if self.session.called else "—")
+        self.recent_label.setText("Últimos 5: " + (" · ".join(map(str, self.session.last_five)) or "—"))
+        self.remaining_label.setText(f"Restantes: {90 - len(self.session.called)}")
