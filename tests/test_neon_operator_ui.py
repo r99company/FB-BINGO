@@ -72,3 +72,13 @@ def test_manual_ball_entry_is_blocked_while_game_is_paused():
 
     window.close()
     app.processEvents()
+
+
+def test_sales_navigation_is_connected_to_operational_sales_window():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    sales_buttons = [button for button in window.findChildren(type(window.pause_button)) if button.text().startswith("🛒  VENTAS")]
+    assert len(sales_buttons) == 1
+    assert hasattr(window, "open_sales")
+    window.close()
+    app.processEvents()
