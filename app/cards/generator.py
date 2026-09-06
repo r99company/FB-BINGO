@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import itertools
 import random
 from typing import Sequence
 
 from .card import BingoCard, CardModel, COLUMNS, ROWS
+from .distribution import CARDS_PER_SERIES, DistributionModel
 
-CARDS_PER_SERIES = 6
 MAX_SERIAL = 30_000
 
 
@@ -32,12 +33,15 @@ class BingoSeries:
 class SeriesGenerator:
     """Genera series de Bingo 90 conservando la matriz exacta de cada cartón.
 
-    El modelo A/B es información de generación e impresión. Nunca interviene
+    El modelo de distribución decide las máscaras/ocupación. Nunca interviene
     en la decisión de línea o bingo.
     """
 
-    def __init__(self, seed: int | None = None) -> None:
+    def __init__(self, seed: int | None = None, max_serial: int = MAX_SERIAL) -> None:
+        if max_serial < CARDS_PER_SERIES:
+            raise ValueError("max_serial no permite completar una serie")
         self._rng = random.Random(seed)
+        self._max_serial = max_serial
 
     def generate(
         self,
@@ -50,12 +54,13 @@ class SeriesGenerator:
             raise ValueError("El identificador de serie es obligatorio")
         if serial_start < 1:
             raise ValueError("serial_start debe ser positivo")
-        if serial_start + CARDS_PER_SERIES - 1 > MAX_SERIAL:
-            raise ValueError(f"Una serie no puede superar el serial {MAX_SERIAL}")
+        if serial_start + CARDS_PER_SERIES - 1 > self._max_serial:
+            raise ValueError(f"Una serie no puede superar el serial {self._max_serial}")
 
+        distribution = DistributionModel.for_model(model)
         for _ in range(1000):
-            column_counts = self._column_counts(model)
-            grids = self._build_grids(column_counts)
+            column_counts = self._column_counts(model, distribution)
+            grids = self._build_grids(column_counts, distribution)
             if grids is None:
                 continue
             cards = tuple(
@@ -70,53 +75,81 @@ class SeriesGenerator:
 
         raise RuntimeError("No se pudo generar una serie válida")
 
-    def _column_counts(self, model: CardModel) -> list[list[int]]:
-        # Totales por columna: 9, 10 x 7 y 11. En conjunto son los 90 números.
+    def _column_counts(
+        self, model: CardModel, distribution: DistributionModel | None = None
+    ) -> list[list[int]]:
+        """Build model-specific column loads for a six-card series."""
+        distribution = distribution or DistributionModel.for_model(model)
+        if model is CardModel.A:
+            return distribution.column_counts(self._rng)
+
         targets = [9] + [10] * 7 + [11]
-        extras = [target - CARDS_PER_SERIES for target in targets]
+        max_extra = 2
+        remaining = [15 - COLUMNS] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        loads = [0] * CARDS_PER_SERIES
+        columns = list(range(COLUMNS))
+        self._rng.shuffle(columns)
+        cache: dict[int, list[tuple[int, ...]]] = {}
 
-        for column, extra in enumerate(extras):
-            candidates = list(range(CARDS_PER_SERIES))
-            self._rng.shuffle(candidates)
-            if model is CardModel.A:
-                candidates.sort(key=lambda index: (loads[index], index, self._rng.random()))
-            else:
-                candidates.sort(key=lambda index: (loads[index], -index, self._rng.random()))
-            for card_index in candidates[:extra]:
-                result[card_index][column] += 1
-                loads[card_index] += 1
+        def candidates(extra: int) -> list[tuple[int, ...]]:
+            if extra not in cache:
+                values = [
+                    allocation
+                    for allocation in itertools.product(
+                        range(max_extra + 1), repeat=CARDS_PER_SERIES
+                    )
+                    if sum(allocation) == extra
+                ]
+                self._rng.shuffle(values)
+                cache[extra] = values
+            return cache[extra]
 
-        if loads != [6] * CARDS_PER_SERIES:
-            return self._balanced_column_counts(model)
+        def backtrack(position: int, has_three: bool) -> bool:
+            if position == COLUMNS:
+                return remaining == [0] * CARDS_PER_SERIES and has_three
+
+            column = columns[position]
+            extra = targets[column] - CARDS_PER_SERIES
+            remaining_columns = COLUMNS - position - 1
+            future_extra = sum(
+                targets[c] - CARDS_PER_SERIES for c in columns[position + 1 :]
+            )
+            for allocation in candidates(extra):
+                next_remaining = [
+                    remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)
+                ]
+                if min(next_remaining) < 0:
+                    continue
+                if sum(next_remaining) != future_extra:
+                    continue
+                if any(value > remaining_columns * max_extra for value in next_remaining):
+                    continue
+                old_remaining = remaining[:]
+                for card_index, added in enumerate(allocation):
+                    result[card_index][column] = 1 + added
+                remaining[:] = next_remaining
+                if backtrack(position + 1, has_three or 2 in allocation):
+                    return True
+                remaining[:] = old_remaining
+            return False
+
+        if not backtrack(0, False):
+            raise RuntimeError("No se pudo equilibrar la distribución de Modelo B")
         return result
 
     def _balanced_column_counts(self, model: CardModel) -> list[list[int]]:
-        targets = [9] + [10] * 7 + [11]
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        loads = [0] * CARDS_PER_SERIES
-        for column, target in enumerate(targets):
-            extra = target - CARDS_PER_SERIES
-            order = list(range(CARDS_PER_SERIES))
-            self._rng.shuffle(order)
-            if model is CardModel.A:
-                order.sort(key=lambda i: (loads[i], i, self._rng.random()))
-            else:
-                order.sort(key=lambda i: (loads[i], -i, self._rng.random()))
-            for card_index in order[:extra]:
-                result[card_index][column] += 1
-                loads[card_index] += 1
-        if loads != [6] * CARDS_PER_SERIES:
-            raise RuntimeError("No se pudo equilibrar la distribución de la serie")
-        return result
+        """Compatibilidad histórica; delega en las reglas del modelo."""
+        return self._column_counts(model)
 
     def _build_grids(
-        self, column_counts: Sequence[Sequence[int]]
+        self,
+        column_counts: Sequence[Sequence[int]],
+        distribution: DistributionModel | None = None,
     ) -> list[tuple[tuple[int | None, ...], ...]] | None:
+        distribution = distribution or DistributionModel.for_model(CardModel.A)
         row_masks: list[list[int]] = []
         for counts in column_counts:
-            masks = self._row_masks_for_counts(counts)
+            masks = distribution.row_masks_for_counts(counts, self._rng)
             if masks is None:
                 return None
             row_masks.append(masks)
@@ -144,37 +177,8 @@ class SeriesGenerator:
         return [tuple(tuple(row) for row in grid) for grid in grids]
 
     def _row_masks_for_counts(self, counts: Sequence[int]) -> list[int] | None:
-        if len(counts) != COLUMNS or sum(counts) != 15:
-            return None
-        choices = [
-            [mask for mask in range(1, 1 << ROWS) if mask.bit_count() == count]
-            for count in counts
-        ]
-        chosen = [0] * COLUMNS
-        remaining = [5, 5, 5]
-
-        def backtrack(column: int) -> bool:
-            if column == COLUMNS:
-                return remaining == [0, 0, 0]
-            for mask in choices[column]:
-                next_remaining = remaining[:]
-                for row in range(ROWS):
-                    if mask & (1 << row):
-                        next_remaining[row] -= 1
-                slots_left = COLUMNS - column - 1
-                if min(next_remaining) < 0:
-                    continue
-                if any(value > slots_left * 3 for value in next_remaining):
-                    continue
-                chosen[column] = mask
-                old = remaining[:]
-                remaining[:] = next_remaining
-                if backtrack(column + 1):
-                    return True
-                remaining[:] = old
-            return False
-
-        return chosen if backtrack(0) else None
+        """Compatibilidad histórica; delega al modelo A."""
+        return DistributionModel.for_model(CardModel.A).row_masks_for_counts(counts, self._rng)
 
     @staticmethod
     def _values_for_column(column: int) -> range:

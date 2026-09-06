@@ -46,6 +46,7 @@ class BingoCard:
             raise ValueError("El cartón debe tener una matriz de 3 x 9")
 
         numbers: list[int] = []
+        max_per_column = 2 if self.model is CardModel.A else 3
         for row in self.grid:
             if sum(value is not None for value in row) != 5:
                 raise ValueError("Cada fila debe contener exactamente 5 números")
@@ -53,8 +54,10 @@ class BingoCard:
         for column in range(COLUMNS):
             values = [self.grid[row][column] for row in range(ROWS)]
             count = sum(value is not None for value in values)
-            if not 1 <= count <= 3:
-                raise ValueError("Cada columna debe contener entre 1 y 3 números")
+            if not 1 <= count <= max_per_column:
+                raise ValueError(
+                    f"El modelo {self.model.value} permite entre 1 y {max_per_column} números por columna"
+                )
             previous = [value for value in values if value is not None]
             if previous != sorted(previous):
                 raise ValueError("Los números de cada columna deben estar ordenados")
@@ -70,9 +73,7 @@ class BingoCard:
 
     @property
     def numbers(self) -> frozenset[int]:
-        return frozenset(
-            value for row in self.grid for value in row if value is not None
-        )
+        return frozenset(value for row in self.grid for value in row if value is not None)
 
     @property
     def column_counts(self) -> tuple[int, ...]:

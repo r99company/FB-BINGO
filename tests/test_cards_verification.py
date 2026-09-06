@@ -1,6 +1,6 @@
 import pytest
 
-from app.cards import BingoCard, CardModel
+from app.cards import BingoCard, CardModel, SeriesGenerator
 from app.verification import CardVerifier
 
 
@@ -21,7 +21,23 @@ def test_card_keeps_model_and_exact_positions() -> None:
     assert card.row_numbers(0) == (1, 21, 41, 61, 81)
 
 
-def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
+def test_model_a_accepts_one_or_two_numbers_per_column() -> None:
+    card = BingoCard(serial="A-000002", model=CardModel.A, grid=sample_matrix())
+    assert all(count in (1, 2) for count in card.column_counts)
+
+
+def test_model_a_rejects_three_numbers_in_a_column() -> None:
+    grid = (
+        (1, 11, 21, None, 41, None, None, None, 81),
+        (2, None, 22, 32, None, 52, None, 72, None),
+        (3, None, None, 39, None, 59, 69, None, 89),
+    )
+
+    with pytest.raises(ValueError, match="entre 1 y 2"):
+        BingoCard(serial="A-000003", model=CardModel.A, grid=grid)
+
+
+def test_model_b_accepts_one_two_or_three_numbers_per_column() -> None:
     grid = (
         (1, 11, 21, None, 41, None, None, None, 81),
         (2, None, 22, 32, None, 52, None, 72, None),
@@ -32,6 +48,28 @@ def test_card_accepts_columns_with_one_two_or_three_numbers() -> None:
 
     assert card.column_counts == (3, 1, 2, 2, 1, 2, 1, 1, 2)
     assert sum(card.column_counts) == 15
+
+
+def test_model_a_generates_valid_series_with_varied_masks() -> None:
+    generator = SeriesGenerator(seed=20260905)
+    signatures: set[tuple[tuple[int, ...], ...]] = set()
+
+    for series_number in range(1, 31):
+        series = generator.generate(str(series_number), CardModel.A, (series_number - 1) * 6 + 1)
+        assert len(series.cards) == 6
+        assert all(card.model is CardModel.A for card in series.cards)
+        assert all(all(count in (1, 2) for count in card.column_counts) for card in series.cards)
+        assert set().union(*(card.numbers for card in series.cards)) == set(range(1, 91))
+        assert sum(len(card.numbers) for card in series.cards) == 90
+
+        for card in series.cards:
+            mask = tuple(
+                tuple(column for column in range(9) if card.grid[row][column] is not None)
+                for row in range(3)
+            )
+            signatures.add(mask)
+
+    assert len(signatures) >= 10
 
 
 def test_verification_uses_actual_row_positions_not_model_name() -> None:
