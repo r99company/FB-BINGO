@@ -161,7 +161,7 @@ class ProductionService:
         progress_callback: Callable[[int], None] | None = None,
     ) -> ProductionLot:
         lot = self.get_lot(lot_id)
-        if lot.status == "generated":
+        if lot.status in {"generated", "printed"}:
             raise DuplicateProductionError(f"El lote {lot_id} ya fue generado")
 
         self._set_status(lot_id, "generating")
@@ -196,5 +196,24 @@ class ProductionService:
             model=lot.model,
             operator=lot.operator,
             status="generated",
+            created_at=lot.created_at,
+        )
+
+    def mark_printed(self, lot_id: int) -> ProductionLot:
+        """Register that a fully generated production lot has been printed."""
+        lot = self.get_lot(lot_id)
+        if lot.status == "printed":
+            raise DuplicateProductionError(f"El lote {lot_id} ya fue marcado como impreso")
+        if lot.status != "generated":
+            raise ValueError("El lote debe estar generado antes de marcarlo como impreso")
+        self._set_status(lot_id, "printed")
+        return ProductionLot(
+            lot_id=lot.lot_id,
+            start_card=lot.start_card,
+            end_card=lot.end_card,
+            series_count=lot.series_count,
+            model=lot.model,
+            operator=lot.operator,
+            status="printed",
             created_at=lot.created_at,
         )
