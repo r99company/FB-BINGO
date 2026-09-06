@@ -84,7 +84,7 @@ class SalesService:
                     serials,
                 ).fetchone()
             if row is not None:
-                raise ValueError(f"La serie '{series_id}' no puede venderse completa: hay cartones ya fueron vendidos")
+                raise ValueError(f"La serie '{series_id}' no puede venderse completa: hay cartones ya vendidos")
         return self._record(series_id, "serie", seller)
 
     def _record(self, serial: str, sale_type: str, seller: str) -> Sale:
