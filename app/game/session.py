@@ -25,7 +25,8 @@ class GameSession:
 
     @property
     def last_five(self) -> list[int]:
-        return self.called[-5:][::-1]
+        """Últimas cinco bolas en el mismo orden en que fueron cantadas."""
+        return self.called[-5:]
 
     @property
     def called_set(self) -> set[int]:
