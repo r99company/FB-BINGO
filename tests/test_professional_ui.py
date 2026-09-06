@@ -22,6 +22,15 @@ def test_modern_renderer_has_qr_zone_and_serials():
     assert "FB-BINGO" in svg
 
 
+def test_modern_renderer_can_print_without_qr_zone():
+    series = SeriesGenerator(seed=8).generate("13", CardModel.A, 7)
+    svg = A4SvgRenderer(style=PrintStyle(show_qr_zone=False)).render(series.cards)
+    assert svg.count('class="bingo-card"') == 6
+    assert svg.count("SERIAL") >= 6
+    assert 'class="qr-zone"' not in svg
+    assert "ESCANEA PARA VERIFICAR" not in svg
+
+
 def test_operator_screen_is_connected_to_90_ball_engine():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
