@@ -4,12 +4,12 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from app.ui.generator_window import GeneratorWindow
+from app.ui.main_window import BingoMainWindow
 
 
 def main() -> int:
     app = QApplication(sys.argv)
-    window = GeneratorWindow()
+    window = BingoMainWindow()
     window.show()
     return app.exec()
 
