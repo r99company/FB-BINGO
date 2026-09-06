@@ -7,7 +7,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from app.cards import CardModel, SeriesGenerator
+from app.database import SQLiteSeriesRepository
 from app.printing import A4SvgRenderer, PrintStyle
+from app.production import ProductionService
+from app.ui.generator_window import GeneratorWidget
 from app.ui.main_window import BingoMainWindow
 from app.ui.theme import APP_STYLESHEET
 
@@ -58,6 +61,21 @@ def test_generator_navigation_opens_generator_window():
     assert window.generator_window.isVisible()
     window.generator_window.close()
     window.close()
+    app.processEvents()
+
+
+def test_generator_uses_production_service_for_persistent_generation(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    widget = GeneratorWidget(repository)
+
+    assert isinstance(widget.production_service, ProductionService)
+    lot = widget.production_service.create_lot(1, 6, CardModel.A, operator="ui-test")
+    result = widget.production_service.generate_lot(lot.lot_id)
+
+    assert result.status == "generated"
+    assert repository.get("0001").cards[0].serial.endswith("000001")
+    widget.close()
     app.processEvents()
 
 
