@@ -56,3 +56,19 @@ def test_manual_ball_entry_updates_board_and_rejects_duplicates_and_invalid_valu
 
     window.close()
     app.processEvents()
+
+
+def test_manual_ball_entry_is_blocked_while_game_is_paused():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+
+    window.toggle_pause()
+    window.ball_input.setText("47")
+
+    assert window.enter_ball() is False
+    assert window.game.history == ()
+    assert window.game.state.paused is True
+    assert "PAUSADA" in window.ball_message.text()
+
+    window.close()
+    app.processEvents()
