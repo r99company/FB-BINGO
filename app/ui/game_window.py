@@ -17,7 +17,7 @@ class GameDisplayState:
 
     @property
     def recent(self) -> tuple[int, ...]:
-        return self.called[-5:][::-1]
+        return self.called[-5:]
 
     @property
     def remaining(self) -> int:
