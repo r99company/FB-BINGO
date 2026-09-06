@@ -47,6 +47,20 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     app.processEvents()
 
 
+def test_generator_navigation_opens_generator_window():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    generator_buttons = [b for b in window.findChildren(type(window.pause_button)) if b.text().startswith("🎫  Generador")]
+    assert len(generator_buttons) == 1
+    assert window.generator_window is None
+    generator_buttons[0].click()
+    assert window.generator_window is not None
+    assert window.generator_window.isVisible()
+    window.generator_window.close()
+    window.close()
+    app.processEvents()
+
+
 def test_theme_contains_brand_palette():
     assert "#FF4FA3" in APP_STYLESHEET
     assert "#8FD9FF" in APP_STYLESHEET
