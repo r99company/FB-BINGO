@@ -42,9 +42,9 @@ def test_verify_serial_reports_line(qapp):
     result = window.verify_serial(" A-000001 ", {1, 21, 41, 61, 81})
 
     assert result is not None
-    assert result.line_complete is True
-    assert result.bingo_complete is False
-    assert window.verification_result_label.text() == "LÍNEA · Cartón A-000001"
+    assert result.is_line({1, 21, 41, 61, 81}) is True
+    assert result.is_bingo({1, 21, 41, 61, 81}) is False
+    assert window.verification_result_label.text() == "LÍNEA · Cartón A-000001 · Fila(s): 1"
     window.close()
 
 
@@ -54,7 +54,7 @@ def test_verify_serial_reports_bingo(qapp):
     result = window.verify_serial(card.serial, set(card.numbers))
 
     assert result is not None
-    assert result.bingo_complete is True
+    assert result.is_bingo(card.numbers) is True
     assert window.verification_result_label.text() == "BINGO · Cartón A-000001"
     window.close()
 
