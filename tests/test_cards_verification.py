@@ -1,6 +1,6 @@
 import pytest
 
-from app.cards import BingoCard, CardModel
+from app.cards import BingoCard, CardModel, SeriesGenerator
 from app.verification import CardVerifier
 
 
@@ -59,6 +59,29 @@ def test_model_b_rejects_four_numbers_in_a_column() -> None:
 
     with pytest.raises(ValueError, match="entre 1 y 3"):
         BingoCard(serial="B-000002", model=CardModel.B, grid=grid)
+
+
+def test_model_a_generates_valid_series_with_varied_masks() -> None:
+    generator = SeriesGenerator(seed=20260905)
+    signatures: set[tuple[tuple[int, ...], ...]] = set()
+
+    for series_number in range(1, 31):
+        series = generator.generate(str(series_number), CardModel.A, (series_number - 1) * 6 + 1)
+        assert len(series.cards) == 6
+        assert all(card.model is CardModel.A for card in series.cards)
+        assert all(all(count in (1, 2) for count in card.column_counts) for card in series.cards)
+        assert set().union(*(card.numbers for card in series.cards)) == set(range(1, 91))
+        assert sum(len(card.numbers) for card in series.cards) == 90
+
+        for card in series.cards:
+            mask = tuple(
+                tuple(column for column in range(9) if card.grid[row][column] is not None)
+                for row in range(3)
+            )
+            signatures.add(mask)
+
+    # The generator must not collapse every card to one fixed visual pattern.
+    assert len(signatures) >= 10
 
 
 def test_verification_uses_actual_row_positions_not_model_name() -> None:
