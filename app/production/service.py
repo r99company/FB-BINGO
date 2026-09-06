@@ -5,7 +5,7 @@ from collections.abc import Callable
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
 
-from .models import ProductionLot, plan_lot
+from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
@@ -15,9 +15,17 @@ class DuplicateProductionError(RuntimeError):
 class ProductionService:
     """Coordinates validated six-card series generation and SQLite persistence."""
 
-    def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None) -> None:
+    def __init__(
+        self,
+        repository: SQLiteSeriesRepository,
+        generator: SeriesGenerator | None = None,
+        max_cards: int = DEFAULT_PRODUCTION_CAPACITY,
+    ) -> None:
+        if max_cards < 1:
+            raise ValueError("La capacidad de producción debe ser positiva")
         self.repository = repository
-        self.generator = generator or SeriesGenerator()
+        self.generator = generator or SeriesGenerator(max_serial=max_cards)
+        self.max_cards = max_cards
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -59,7 +67,13 @@ class ProductionService:
         model: CardModel = CardModel.A,
         operator: str = "",
     ) -> ProductionLot:
-        planned = plan_lot(start_card, end_card, model=model, operator=operator)
+        planned = plan_lot(
+            start_card,
+            end_card,
+            model=model,
+            operator=operator,
+            max_cards=self.max_cards,
+        )
         with self.repository._connect() as db:
             overlap = db.execute(
                 """
