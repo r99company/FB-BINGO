@@ -33,11 +33,11 @@ def test_sales_service_prevents_mixing_series_and_card_sales(tmp_path: Path):
 
     service.sell_card(series.cards[0].serial, seller="Vendedor 2")
 
-    with pytest.raises(ValueError, match="cartones ya fueron vendidos"):
+    with pytest.raises(ValueError, match="cartones ya vendidos"):
         service.sell_series(series.series_id)
 
-    other_repository, other = prepare_series(db, "S-002", 7)
+    _, other = prepare_series(db, "S-002", 7)
     service.sell_series(other.series_id, seller="Vendedor 3")
 
-    with pytest.raises(ValueError, match="serie ya fue vendida"):
+    with pytest.raises(ValueError, match="ya fue vendida"):
         service.sell_card(other.cards[0].serial)
