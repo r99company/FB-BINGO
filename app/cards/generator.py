@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import itertools
 import random
 from typing import Sequence
 
@@ -58,7 +59,7 @@ class SeriesGenerator:
 
         distribution = DistributionModel.for_model(model)
         for _ in range(1000):
-            column_counts = distribution.column_counts(self._rng)
+            column_counts = self._column_counts(model, distribution)
             grids = self._build_grids(column_counts, distribution)
             if grids is None:
                 continue
@@ -74,13 +75,71 @@ class SeriesGenerator:
 
         raise RuntimeError("No se pudo generar una serie válida")
 
-    def _column_counts(self, model: CardModel) -> list[list[int]]:
-        """Compatibilidad para consumidores existentes; delega al modelo."""
-        return DistributionModel.for_model(model).column_counts(self._rng)
+    def _column_counts(
+        self, model: CardModel, distribution: DistributionModel | None = None
+    ) -> list[list[int]]:
+        """Build model-specific column loads for a six-card series."""
+        distribution = distribution or DistributionModel.for_model(model)
+        if model is CardModel.A:
+            return distribution.column_counts(self._rng)
+
+        targets = [9] + [10] * 7 + [11]
+        max_extra = 2
+        remaining = [15 - COLUMNS] * CARDS_PER_SERIES
+        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        columns = list(range(COLUMNS))
+        self._rng.shuffle(columns)
+        cache: dict[int, list[tuple[int, ...]]] = {}
+
+        def candidates(extra: int) -> list[tuple[int, ...]]:
+            if extra not in cache:
+                values = [
+                    allocation
+                    for allocation in itertools.product(
+                        range(max_extra + 1), repeat=CARDS_PER_SERIES
+                    )
+                    if sum(allocation) == extra
+                ]
+                self._rng.shuffle(values)
+                cache[extra] = values
+            return cache[extra]
+
+        def backtrack(position: int, has_three: bool) -> bool:
+            if position == COLUMNS:
+                return remaining == [0] * CARDS_PER_SERIES and has_three
+
+            column = columns[position]
+            extra = targets[column] - CARDS_PER_SERIES
+            remaining_columns = COLUMNS - position - 1
+            future_extra = sum(
+                targets[c] - CARDS_PER_SERIES for c in columns[position + 1 :]
+            )
+            for allocation in candidates(extra):
+                next_remaining = [
+                    remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)
+                ]
+                if min(next_remaining) < 0:
+                    continue
+                if sum(next_remaining) != future_extra:
+                    continue
+                if any(value > remaining_columns * max_extra for value in next_remaining):
+                    continue
+                old_remaining = remaining[:]
+                for card_index, added in enumerate(allocation):
+                    result[card_index][column] = 1 + added
+                remaining[:] = next_remaining
+                if backtrack(position + 1, has_three or 2 in allocation):
+                    return True
+                remaining[:] = old_remaining
+            return False
+
+        if not backtrack(0, False):
+            raise RuntimeError("No se pudo equilibrar la distribución de Modelo B")
+        return result
 
     def _balanced_column_counts(self, model: CardModel) -> list[list[int]]:
-        """Compatibilidad histórica; el modelo actual ya devuelve una carga balanceada."""
-        return DistributionModel.for_model(model).column_counts(self._rng)
+        """Compatibilidad histórica; delega en las reglas del modelo."""
+        return self._column_counts(model)
 
     def _build_grids(
         self,
