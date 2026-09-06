@@ -13,7 +13,7 @@ from app.settings.paths import database_path
 
 
 class GeneratorWidget(QWidget):
-    """Generador profesional de series y hoja A4 de seis cartones."""
+    """Generador profesional de series Modelo A y hoja A4 de seis cartones."""
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None) -> None:
         super().__init__()
@@ -31,7 +31,12 @@ class GeneratorWidget(QWidget):
         controls = QGroupBox("GENERADOR DE CARTONES")
         controls.setMinimumWidth(330)
         form = QFormLayout(controls)
-        self.model = QComboBox(); self.model.addItems(["Modelo A", "Modelo B"])
+
+        # Modelo A es el único modelo de producción de esta versión.
+        # El núcleo conserva CardModel.B para una futura incorporación segura.
+        self.model = QComboBox()
+        self.model.addItem("Modelo A", CardModel.A.value)
+
         self.series_id = QSpinBox(); self.series_id.setRange(1, 999999); self.series_id.setValue(1)
         self.quantity = QSpinBox(); self.quantity.setRange(1, 2500); self.quantity.setValue(1)
         self.serial_start = QSpinBox(); self.serial_start.setRange(1, 29995); self.serial_start.setValue(1)
@@ -39,18 +44,30 @@ class GeneratorWidget(QWidget):
         self.accent_color = QLineEdit("#FF4FA3")
         self.secondary_color = QLineEdit("#8FD9FF")
         self.logo = QLabel("Sin logo seleccionado"); self.logo.setObjectName("Muted"); self.logo.setWordWrap(True)
-        self.qr = QComboBox(); self.qr.addItems(["Reservar espacio QR", "Sin espacio QR"])
+
+        # La decisión de QR es exclusivamente de impresión: no cambia el
+        # cartón, sus números, su serial ni la lógica de verificación.
+        self.qr = QComboBox()
+        self.qr.addItem("SIN QR — sin zona reservada", False)
+        self.qr.addItem("CON QR — reservar zona", True)
+
         logo_button = QPushButton("SELECCIONAR LOGO"); logo_button.setObjectName("Secondary"); logo_button.clicked.connect(self._choose_logo)
         generate = QPushButton("GENERAR SERIES"); generate.setObjectName("Primary"); generate.clicked.connect(self.generate_series)
         preview = QPushButton("ACTUALIZAR VISTA A4"); preview.setObjectName("Secondary"); preview.clicked.connect(self.preview_a4)
         save = QPushButton("GUARDAR A4 (SVG)"); save.setObjectName("Secondary"); save.clicked.connect(self.save_a4)
+
         for label, widget in (("Modelo", self.model), ("Serie inicial", self.series_id), ("Cantidad de series", self.quantity), ("Serial inicial", self.serial_start), ("Color espacios", self.empty_color), ("Color principal", self.accent_color), ("Color secundario", self.secondary_color), ("QR", self.qr)):
             form.addRow(label, widget)
         form.addRow(self.logo, logo_button)
         form.addRow(generate)
         form.addRow(preview)
         form.addRow(save)
-        info = QLabel("Cada serie contiene 6 cartones y cubre las 90 bolas exactamente una vez.")
+
+        info = QLabel(
+            "Producción actual: Modelo A. Cada serie contiene 6 cartones y cubre "
+            "las 90 bolas exactamente una vez. El QR es opcional y solo afecta "
+            "el diseño de impresión."
+        )
         info.setObjectName("Muted"); info.setWordWrap(True)
         form.addRow(info)
         layout.addWidget(controls)
@@ -82,21 +99,28 @@ class GeneratorWidget(QWidget):
             logo_path=self._logo_path,
             show_model=False,
             show_serial=True,
-            show_qr_zone=self.qr.currentIndex() == 0,
+            show_qr_zone=bool(self.qr.currentData()),
         )
 
     def generate_series(self) -> None:
-        model = CardModel.B if self.model.currentIndex() else CardModel.A
+        # El selector está limitado deliberadamente a Modelo A durante la fase
+        # de producción inicial, aunque el núcleo sigue siendo model-aware.
+        model = CardModel(self.model.currentData())
         generator = SeriesGenerator()
         generated = []
         try:
             for offset in range(self.quantity.value()):
-                series = generator.generate(self.series_id.value() + offset, model=model, serial_start=self.serial_start.value() + offset * 6)
+                series = generator.generate(
+                    self.series_id.value() + offset,
+                    model=model,
+                    serial_start=self.serial_start.value() + offset * 6,
+                )
                 self.repository.save(series)
                 generated.append(series)
             self._series = generated[0]
             self._render_preview()
-            self.preview_label.setText(f"GENERADO · {len(generated)} serie(s) · {len(generated) * 6} cartones · Serie {generated[0].series_id}–{generated[-1].series_id}")
+            qr_text = "CON QR" if self.qr.currentData() else "SIN QR"
+            self.preview_label.setText(f"GENERADO · {len(generated)} serie(s) · {len(generated) * 6} cartones · Serie {generated[0].series_id}–{generated[-1].series_id} · {qr_text}")
         except (ValueError, RuntimeError) as exc:
             QMessageBox.warning(self, "No se pudo generar", str(exc))
 
@@ -112,7 +136,8 @@ class GeneratorWidget(QWidget):
                 self.generate_series()
                 return
             self._render_preview()
-            self.preview_label.setText(f"Vista A4 · Serie {self._series.series_id} · 6 cartones")
+            qr_text = "CON QR" if self.qr.currentData() else "SIN QR"
+            self.preview_label.setText(f"Vista A4 · Serie {self._series.series_id} · 6 cartones · {qr_text}")
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "Error de vista previa", str(exc))
 
