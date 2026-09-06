@@ -69,6 +69,13 @@ class BingoGame:
         self._state = self._new_state()
 
     def restore(self, state: GameState) -> None:
+        """Restaura estado sin permitir que una mutación accidental quite la pausa."""
+        if self._state.paused and not state.paused:
+            state = GameState(
+                drawn_numbers=state.drawn_numbers,
+                remaining_numbers=state.remaining_numbers,
+                paused=True,
+            )
         self._state = state
 
     @classmethod

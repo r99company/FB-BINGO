@@ -49,13 +49,7 @@ class SQLiteSeriesRepository:
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     [
-                        (
-                            card.serial,
-                            series.series_id,
-                            index,
-                            card.model.value,
-                            json.dumps(card.grid),
-                        )
+                        (card.serial, series.series_id, index, card.model.value, json.dumps(card.grid))
                         for index, card in enumerate(series.cards)
                     ],
                 )
@@ -94,3 +88,10 @@ class SQLiteSeriesRepository:
             model=CardModel(row["model"]),
             grid=tuple(tuple(value for value in line) for line in json.loads(row["grid_json"])),
         )
+
+    def get_series_id_for_card(self, serial: str) -> str:
+        with self._connect() as db:
+            row = db.execute("SELECT series_id FROM cards WHERE serial = ?", (serial,)).fetchone()
+        if row is None:
+            raise KeyError(f"Cartón no encontrado: {serial}")
+        return str(row["series_id"])

@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from app.ui.main_window import BingoMainWindow
+from app.ui.main import BingoMainWindow
 
 
 def test_operator_window_has_approved_layout_and_90_ball_board():
@@ -54,5 +54,31 @@ def test_manual_ball_entry_updates_board_and_rejects_duplicates_and_invalid_valu
     assert window.enter_ball() is False
     assert window.game.history == (47,)
 
+    window.close()
+    app.processEvents()
+
+
+def test_manual_ball_entry_is_blocked_while_game_is_paused():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+
+    window.toggle_pause()
+    window.ball_input.setText("47")
+
+    assert window.enter_ball() is False
+    assert window.game.history == ()
+    assert window.game.state.paused is True
+    assert "PAUSADA" in window.ball_message.text()
+
+    window.close()
+    app.processEvents()
+
+
+def test_sales_navigation_is_connected_to_operational_sales_window():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    sales_buttons = [button for button in window.findChildren(type(window.pause_button)) if button.text().startswith("🛒  VENTAS")]
+    assert len(sales_buttons) == 1
+    assert hasattr(window, "open_sales")
     window.close()
     app.processEvents()
