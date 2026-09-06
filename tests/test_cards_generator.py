@@ -22,13 +22,21 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_each_generated_card_has_valid_rows_and_columns() -> None:
-    for model in (CardModel.A, CardModel.B):
-        series = SeriesGenerator(seed=789).generate(f"SER-{model.value}", model)
-        for card in series.cards:
-            assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-            assert all(1 <= count <= 2 for count in card.column_counts)
-            assert card.model is model
+def test_model_a_generated_cards_have_only_one_or_two_numbers_per_column() -> None:
+    series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
+    for card in series.cards:
+        assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
+        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert card.model is CardModel.A
+
+
+def test_model_b_generated_cards_can_have_three_numbers_per_column() -> None:
+    series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
+    for card in series.cards:
+        assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
+        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert card.model is CardModel.B
+    assert any(3 in card.column_counts for card in series.cards)
 
 
 def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
