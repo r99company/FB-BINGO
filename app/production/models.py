@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 from app.cards import CardModel
 
 
+DEFAULT_PRODUCTION_CAPACITY = 15_000
+
+
 @dataclass(frozen=True, slots=True)
 class ProductionLot:
     lot_id: int
@@ -22,11 +25,20 @@ class ProductionLot:
         return self.end_card - self.start_card + 1
 
 
-def plan_lot(start_card: int, end_card: int, model: CardModel = CardModel.A, lot_id: int = 0, operator: str = "") -> ProductionLot:
+def plan_lot(
+    start_card: int,
+    end_card: int,
+    model: CardModel = CardModel.A,
+    lot_id: int = 0,
+    operator: str = "",
+    max_cards: int = DEFAULT_PRODUCTION_CAPACITY,
+) -> ProductionLot:
+    if max_cards < 1:
+        raise ValueError("La capacidad de producción debe ser positiva")
     if start_card < 1 or end_card < start_card:
         raise ValueError("El rango de cartones no es válido")
-    if end_card > 15_000:
-        raise ValueError("La capacidad inicial es de 15.000 cartones")
+    if end_card > max_cards:
+        raise ValueError(f"El rango supera la capacidad configurada de {max_cards:,} cartones")
     if (start_card - 1) % 6 != 0 or end_card % 6 != 0:
         raise ValueError("El lote debe comenzar y terminar en límites completos de serie de 6 cartones")
     return ProductionLot(
