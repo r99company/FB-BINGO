@@ -36,3 +36,22 @@ class GameSession:
         if name is not None:
             self.name = name
         self.active = True
+
+
+class BingoSession(GameSession):
+    """API de compatibilidad para el motor de partida usado por pruebas antiguas."""
+
+    def start(self) -> None:
+        self.called.clear()
+        self.active = True
+
+    @property
+    def called_numbers(self) -> list[int]:
+        return self.called
+
+    @property
+    def last_five(self) -> tuple[int, ...]:
+        return tuple(self.called[-5:])
+
+    def is_winner(self, numbers: list[int] | tuple[int, ...] | set[int]) -> bool:
+        return set(numbers).issubset(self.called_set) and bool(numbers)
