@@ -10,7 +10,8 @@ def test_manual_ball_input_contract():
     window.ball_input.setText("47")
     window.ball_input.returnPressed.emit()
     assert window.game.current_number == 47
-    assert window._buttons[46].isChecked()
+    assert window._buttons[47].property("called") is True
+    assert window._buttons[47].property("current") is True
     assert window.count_label.text() == "1\nDE 90"
     window.close()
     app.quit()
