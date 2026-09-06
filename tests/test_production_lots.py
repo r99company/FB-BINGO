@@ -32,6 +32,14 @@ def test_configured_capacity_must_be_positive_and_cover_requested_range() -> Non
         plan_lot(29995, 30000, max_cards=29999)
 
 
+def test_service_uses_configured_capacity(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    service = ProductionService(repository, max_cards=30_000)
+    lot = service.create_lot(29_995, 30_000, CardModel.A, operator="test")
+    assert lot.start_card == 29_995
+    assert lot.end_card == 30_000
+
+
 def test_generation_persists_series_and_reports_progress(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository, generator=None)
