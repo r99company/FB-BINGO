@@ -1,17 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from app.database import SQLiteSeriesRepository
 from app.game.session import GameSession
@@ -19,14 +11,23 @@ from app.settings.paths import database_path
 from app.verification.verifier import CardVerifier
 
 
-class GameWindow(QMainWindow):
-    """Pantalla de locutora: tablero 1-90, historial y verificación de cartones."""
+@dataclass(frozen=True)
+class GameDisplayState:
+    called: tuple[int, ...] = ()
 
-    def __init__(
-        self,
-        session: GameSession | None = None,
-        repository: SQLiteSeriesRepository | None = None,
-    ) -> None:
+    @property
+    def recent(self) -> tuple[int, ...]:
+        return self.called[-5:][::-1]
+
+    @property
+    def remaining(self) -> int:
+        return 90 - len(self.called)
+
+
+class GameWindow(QMainWindow):
+    """Pantalla de locutora: tablero 1-90, historial y verificación."""
+
+    def __init__(self, session: GameSession | None = None, repository: SQLiteSeriesRepository | None = None) -> None:
         super().__init__()
         self.setWindowTitle("FB BINGO — Sala de Juego")
         self.session = session or GameSession()
@@ -57,17 +58,15 @@ class GameWindow(QMainWindow):
         root.addLayout(self.board)
 
         verification = QHBoxLayout()
-        verification_title = QLabel("Verificar cartón:")
+        verification.addWidget(QLabel("Verificar cartón:"))
         self.verification_serial = QLineEdit()
         self.verification_serial.setPlaceholderText("Número de cartón / serial")
         self.verification_serial.returnPressed.connect(self.verify_current_card)
         verify_button = QPushButton("VERIFICAR")
         verify_button.clicked.connect(self.verify_current_card)
-        verification.addWidget(verification_title)
         verification.addWidget(self.verification_serial)
         verification.addWidget(verify_button)
         root.addLayout(verification)
-
         self.verification_result_label = QLabel("Ingrese el número del cartón y pulse VERIFICAR.")
         self.verification_result_label.setWordWrap(True)
         self.verification_result_label.setStyleSheet("font-size: 18px; font-weight: 700;")
@@ -114,21 +113,15 @@ class GameWindow(QMainWindow):
         self.verify_serial(self.verification_serial.text(), self.session.called_set)
 
     def verify_serial(self, serial: str, called: set[int] | frozenset[int]):
-        """Busca el cartón por serial y lo comprueba contra las bolas llamadas."""
         serial = serial.strip()
         if not serial:
             self.verification_result_label.setText("Ingrese el número del cartón.")
             return None
-
         try:
             card = self.repository.get_card(serial)
-        except KeyError as exc:
+        except (KeyError, ValueError) as exc:
             self.verification_result_label.setText(str(exc))
             return None
-        except ValueError as exc:
-            self.verification_result_label.setText(str(exc))
-            return None
-
         result = CardVerifier(card)
         if result.is_bingo(called):
             self.verification_result_label.setText(f"BINGO · Cartón {card.serial}")
@@ -137,9 +130,7 @@ class GameWindow(QMainWindow):
             self.verification_result_label.setText(f"LÍNEA · Cartón {card.serial} · Fila(s): {rows}")
         else:
             missing = sorted(card.numbers - set(called))
-            self.verification_result_label.setText(
-                f"NO COMPLETA · Cartón {card.serial} · Faltan: {', '.join(map(str, missing))}"
-            )
+            self.verification_result_label.setText(f"NO COMPLETA · Cartón {card.serial} · Faltan: {', '.join(map(str, missing))}")
         return result
 
     def _refresh(self) -> None:
