@@ -10,6 +10,8 @@ from app.ui.main_window import BingoMainWindow
 def test_operator_window_has_approved_layout_and_90_ball_board():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
+    window.show()
+    app.processEvents()
 
     assert window.windowTitle() == "FB-BINGO — Sala de Juego"
     assert window.minimumSize().width() == 1200
