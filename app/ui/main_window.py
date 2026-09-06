@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app.bingo import BingoGame
 from app.database import SQLiteSeriesRepository
 from app.settings.paths import database_path
+from app.ui.generator_window import GeneratorWidget
 from app.verification import CardVerifier
 
 
@@ -121,6 +122,7 @@ class BingoMainWindow(QMainWindow):
         self.repository = SQLiteSeriesRepository(database_path())
         self._buttons: dict[int, QPushButton] = {}
         self.tv_window: TVWindow | None = None
+        self.generator_window: GeneratorWidget | None = None
         self._build_ui()
         self._sync_ui()
 
@@ -146,6 +148,8 @@ class BingoMainWindow(QMainWindow):
             button.setProperty("active", label.startswith("🎙"))
             if label.startswith("📺"):
                 button.clicked.connect(self.open_tv)
+            elif label.startswith("🎫"):
+                button.clicked.connect(self.open_generator)
             side.addWidget(button)
         side.addStretch()
         footer = QLabel("BINGO 90\nSistema profesional")
@@ -318,6 +322,14 @@ class BingoMainWindow(QMainWindow):
         self.tv_window.raise_()
         self.tv_window.activateWindow()
         self.tv_window.update_game(self.game.current_number, self.game.last_five)
+
+    def open_generator(self) -> None:
+        if self.generator_window is None:
+            self.generator_window = GeneratorWidget(self.repository)
+            self.generator_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        self.generator_window.show()
+        self.generator_window.raise_()
+        self.generator_window.activateWindow()
 
     def _sync_ui(self) -> None:
         state = self.game.state
