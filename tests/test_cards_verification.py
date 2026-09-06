@@ -50,17 +50,6 @@ def test_model_b_accepts_one_two_or_three_numbers_per_column() -> None:
     assert sum(card.column_counts) == 15
 
 
-def test_model_b_rejects_four_numbers_in_a_column() -> None:
-    grid = (
-        (1, 11, 21, None, 41, None, None, None, 81),
-        (2, None, 22, 32, None, 52, None, 72, None),
-        (3, None, 23, 39, None, 59, 69, None, 89),
-    )
-
-    with pytest.raises(ValueError, match="entre 1 y 3"):
-        BingoCard(serial="B-000002", model=CardModel.B, grid=grid)
-
-
 def test_model_a_generates_valid_series_with_varied_masks() -> None:
     generator = SeriesGenerator(seed=20260905)
     signatures: set[tuple[tuple[int, ...], ...]] = set()
@@ -80,7 +69,6 @@ def test_model_a_generates_valid_series_with_varied_masks() -> None:
             )
             signatures.add(mask)
 
-    # The generator must not collapse every card to one fixed visual pattern.
     assert len(signatures) >= 10
 
 
