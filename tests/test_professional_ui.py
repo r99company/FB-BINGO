@@ -41,7 +41,7 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     assert window.game.current_number is None
     window.draw_number()
     assert window.game.current_number is not None
-    assert window.count_label.text() == "1 de 90 bolas"
+    assert window.count_label.text() == "1\nDE 90"
     window.toggle_pause()
     assert window.game.state.paused is True
     window.toggle_pause()
@@ -53,7 +53,10 @@ def test_operator_screen_is_connected_to_90_ball_engine():
 def test_generator_navigation_opens_generator_window():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
-    generator_buttons = [b for b in window.findChildren(type(window.pause_button)) if b.text().startswith("🎫  Generador")]
+    generator_buttons = [
+        b for b in window.findChildren(type(window.pause_button))
+        if "GENERADOR" in b.text().upper()
+    ]
     assert len(generator_buttons) == 1
     assert window.generator_window is None
     generator_buttons[0].click()
