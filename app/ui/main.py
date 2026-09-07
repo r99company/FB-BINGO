@@ -85,11 +85,11 @@ def _history_sync(self: BingoMainWindow) -> None:
         self.history_service.sync(game_id, self.game)
 
 
-def _start_history_game(self: BingoMainWindow) -> None:
+def _start_history_game(self) -> None:
     self.history_game_id = self.history_service.start(self.game, game_name=self.header_values[0].text() or "PARTIDA RÁPIDA", series_id=self.header_values[2].text() or "—")
 
 
-def _enter_ball_with_history(self: BingoMainWindow) -> bool:
+def _enter_ball_with_history(self) -> bool:
     if self.game.state.paused:
         self.ball_message.setText("Ⅱ PARTIDA PAUSADA · NO SE PUEDE DIGITAR")
         self.ball_input.selectAll()
@@ -101,27 +101,27 @@ def _enter_ball_with_history(self: BingoMainWindow) -> bool:
     return result
 
 
-def _draw_with_history(self: BingoMainWindow) -> None:
+def _draw_with_history(self) -> None:
     _original_draw_number(self)
     _history_sync(self)
 
 
-def _call_with_history(self: BingoMainWindow, number: int) -> None:
+def _call_with_history(self, number: int) -> None:
     _original_call_number(self, number)
     _history_sync(self)
 
 
-def _undo_with_history(self: BingoMainWindow) -> None:
+def _undo_with_history(self) -> None:
     _original_undo_number(self)
     _history_sync(self)
 
 
-def _pause_with_history(self: BingoMainWindow) -> None:
+def _pause_with_history(self) -> None:
     _original_toggle_pause(self)
     _history_sync(self)
 
 
-def _new_game_with_history(self: BingoMainWindow) -> None:
+def _new_game_with_history(self) -> None:
     old_game_id = getattr(self, "history_game_id", None)
     export_error: Exception | None = None
     if old_game_id is not None:
@@ -185,16 +185,16 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _wire_operational_controls(self)
     for button in self.findChildren(QPushButton):
         if button.text().startswith("▣  GENERADOR") or button.text().startswith("▣ GENERADOR"):
-            button.setText("🛒  CARTONES\nImprimir · Ver · Diseñar")
+            button.setText("🛒  CARTONES\nGenerador · Imprimir · Ver · Diseñar")
             _replace_signal_connection(button.clicked, self.open_cartons)
         elif button.text().startswith("🛒  VENTAS") or button.text().startswith("🛒 VENTAS"):
-            button.clicked.connect(self.open_sales)
+            _replace_signal_connection(button.clicked, self.open_sales)
         elif button.text().startswith("✓  VERIFICACIÓN") or button.text().startswith("✓ VERIFICACIÓN"):
-            button.clicked.connect(self.open_verification)
+            _replace_signal_connection(button.clicked, self.open_verification)
         elif button.text().startswith("▥  REPORTES") or button.text().startswith("▥ REPORTES"):
-            button.clicked.connect(self.open_reports)
+            _replace_signal_connection(button.clicked, self.open_reports)
         elif button.text().startswith("⚙  CONFIGURACIÓN") or button.text().startswith("⚙ CONFIGURACIÓN"):
-            button.clicked.connect(self.open_settings)
+            _replace_signal_connection(button.clicked, self.open_settings)
 
 
 BingoMainWindow.__init__ = _init_with_operational_modules
