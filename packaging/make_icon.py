@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QGuiApplication, QImage, QImageReader
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QGuiApplication, QImage, QPainter
+from PySide6.QtSvg import QSvgRenderer
 
 from PIL import Image
 
@@ -11,14 +12,16 @@ ICO = ROOT / "packaging" / "assets" / "FB-BINGO.ico"
 PNG = ROOT / "packaging" / "assets" / "FB-BINGO.png"
 
 app = QGuiApplication.instance() or QGuiApplication([])
-reader = QImageReader(str(SVG))
-reader.setAutoTransform(True)
-reader.setScaledSize(QSize(1024, 1024))
-image = reader.read()
-if image.isNull():
-    raise SystemExit(f"No se pudo rasterizar {SVG}: {reader.errorString()}")
-image = image.convertToFormat(QImage.Format.Format_RGBA8888)
-if not image.save(str(PNG), "PNG"):
+renderer = QSvgRenderer(str(SVG))
+if not renderer.isValid():
+    raise SystemExit(f"No se pudo cargar el logo SVG: {SVG}")
+
+image = QImage(QSize(1024, 1024), QImage.Format.Format_RGBA8888)
+image.fill(Qt.GlobalColor.transparent)
+painter = QPainter(image)
+renderer.render(painter)
+painter.end()
+if image.isNull() or not image.save(str(PNG), "PNG"):
     raise SystemExit(f"No se pudo generar {PNG}")
 
 pil = Image.open(PNG).convert("RGBA")
