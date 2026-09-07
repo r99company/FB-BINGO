@@ -14,12 +14,15 @@ def sample_card(serial: str, model: CardModel = CardModel.A) -> BingoCard:
     )
 
 
-def test_a4_layout_has_six_slots_in_two_columns_and_three_rows():
+def test_a4_layout_has_twelve_slots_in_two_columns_and_six_rows():
     layout = A4PrintLayout()
     slots = layout.card_slots()
-    assert len(slots) == 6
-    assert [slot.index for slot in slots] == [1, 2, 3, 4, 5, 6]
-    assert [(slot.column, slot.row) for slot in slots] == [(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)]
+    assert len(slots) == 12
+    assert [slot.index for slot in slots] == list(range(1, 13))
+    assert [(slot.column, slot.row) for slot in slots] == [
+        (0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2),
+        (0, 3), (1, 3), (0, 4), (1, 4), (0, 5), (1, 5),
+    ]
     for slot in slots:
         assert slot.x >= layout.margin
         assert slot.y >= layout.margin
@@ -47,3 +50,12 @@ def test_layout_assigns_cards_in_series_order():
     placements = A4PrintLayout().place_cards(cards)
     assert [placement.card.serial for placement in placements] == [f"S1-{i:06d}" for i in range(1, 7)]
     assert [placement.slot.index for placement in placements] == [1, 2, 3, 4, 5, 6]
+
+
+def test_layout_can_duplicate_left_column_for_troquelado():
+    cards = tuple(sample_card(f"S1-{i:06d}") for i in range(1, 7))
+    placements = A4PrintLayout().place_columns(cards, cards)
+    assert [placement.card.serial for placement in placements] == [
+        f"S1-{i:06d}" for i in range(1, 7)
+    ] * 2
+    assert [placement.slot.index for placement in placements] == list(range(1, 13))
