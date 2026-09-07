@@ -33,6 +33,19 @@ def test_verification_returns_card_series_position_and_sale(tmp_path: Path):
     assert result.bingo is True
 
 
+def test_verification_finds_sale_when_operator_enters_human_card_number(tmp_path: Path):
+    repository, series, sales = prepare(tmp_path)
+    card = series.cards[0]
+    sales.sell_card(card.serial, seller="Vendedor Centro")
+
+    human_number = str(int(card.serial[-6:]))
+    result = VerificationService(repository, sales).verify(human_number, set(card.numbers))
+
+    assert result.serial == card.serial
+    assert result.sold is True
+    assert result.seller == "Vendedor Centro"
+
+
 def test_verification_finds_existing_but_unsold_card(tmp_path: Path):
     repository, series, sales = prepare(tmp_path)
     card = series.cards[0]
