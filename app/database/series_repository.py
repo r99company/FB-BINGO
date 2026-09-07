@@ -63,16 +63,19 @@ class SQLiteSeriesRepository:
         raise KeyError(f"Número de cartón inválido: {value}")
 
     def save(self, series: BingoSeries) -> None:
+        key = self._series_key(series.series_id)
+        if len(series.cards) != 6:
+            raise ValueError("Una serie debe contener exactamente 6 cartones")
         with self._connect() as db:
             try:
-                db.execute("INSERT INTO series(series_id) VALUES (?)", (series.series_id,))
+                db.execute("INSERT INTO series(series_id) VALUES (?)", (key,))
                 db.executemany(
                     """
                     INSERT INTO cards(serial, series_id, card_index, model, grid_json)
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     [
-                        (card.serial, series.series_id, index, card.model.value, json.dumps(card.grid))
+                        (card.serial, key, index, card.model.value, json.dumps(card.grid))
                         for index, card in enumerate(series.cards)
                     ],
                 )
