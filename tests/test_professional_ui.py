@@ -82,6 +82,24 @@ def test_generator_uses_production_service_for_persistent_generation(tmp_path):
     app.processEvents()
 
 
+def test_generator_can_be_configured_for_30000_cards(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    widget = GeneratorWidget(repository, max_cards=30_000)
+
+    assert widget.production_service.max_cards == 30_000
+    assert widget.series_id.maximum() == 5_000
+    assert widget.serial_start.maximum() == 29_995
+
+    widget.series_id.setValue(5_000)
+    assert widget.serial_start.value() == 29_995
+
+    widget.serial_start.setValue(29_995)
+    assert widget.series_id.value() == 5_000
+    widget.close()
+    app.processEvents()
+
+
 def test_theme_contains_brand_palette():
     assert "#FF4FA3" in APP_STYLESHEET
     assert "#8FD9FF" in APP_STYLESHEET

@@ -16,10 +16,14 @@ from app.settings.paths import database_path
 class GeneratorWidget(QWidget):
     """Generador profesional de producción Modelo A y hoja A4 de seis cartones."""
 
-    def __init__(self, repository: SQLiteSeriesRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: SQLiteSeriesRepository | None = None,
+        max_cards: int = 15_000,
+    ) -> None:
         super().__init__()
         self.repository = repository or SQLiteSeriesRepository(database_path())
-        self.production_service = ProductionService(self.repository)
+        self.production_service = ProductionService(self.repository, max_cards=max_cards)
         self._series = None
         self._logo_path: str | None = None
         self._svg = ""
@@ -37,17 +41,20 @@ class GeneratorWidget(QWidget):
         self.model = QComboBox()
         self.model.addItem("Modelo A", CardModel.A.value)
 
+        series_capacity = self.production_service.max_cards // 6
+        serial_max = self.production_service.max_cards - 5
+
         self.series_id = QSpinBox()
-        self.series_id.setRange(1, 2500)
+        self.series_id.setRange(1, series_capacity)
         self.series_id.setValue(1)
         self.series_id.valueChanged.connect(self._sync_serial_from_series)
 
         self.quantity = QSpinBox()
-        self.quantity.setRange(1, 2500)
+        self.quantity.setRange(1, series_capacity)
         self.quantity.setValue(1)
 
         self.serial_start = QSpinBox()
-        self.serial_start.setRange(1, 14995)
+        self.serial_start.setRange(1, serial_max)
         self.serial_start.setValue(1)
         self.serial_start.valueChanged.connect(self._sync_series_from_serial)
 
