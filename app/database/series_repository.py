@@ -89,9 +89,17 @@ class SQLiteSeriesRepository:
             grid=tuple(tuple(value for value in line) for line in json.loads(row["grid_json"])),
         )
 
-    def get_series_id_for_card(self, serial: str) -> str:
+    def get_card_position(self, serial: str) -> tuple[str, int]:
+        """Devuelve la serie y posición humana (1..6) de un cartón."""
         with self._connect() as db:
-            row = db.execute("SELECT series_id FROM cards WHERE serial = ?", (serial,)).fetchone()
+            row = db.execute(
+                "SELECT series_id, card_index FROM cards WHERE serial = ?",
+                (serial.strip(),),
+            ).fetchone()
         if row is None:
             raise KeyError(f"Cartón no encontrado: {serial}")
-        return str(row["series_id"])
+        return str(row["series_id"]), int(row["card_index"]) + 1
+
+    def get_series_id_for_card(self, serial: str) -> str:
+        series_id, _ = self.get_card_position(serial)
+        return series_id
