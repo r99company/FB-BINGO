@@ -93,40 +93,33 @@ class A4PrintLayout:
         index = 1
         for row in range(6):
             y = self.margin + row * (card_height + self.vertical_gap)
+            if row == 5:
+                y = self.page_height - self.margin - card_height
             for column in range(2):
                 x = self.margin + column * (card_width + self.horizontal_gap)
+                if column == 1:
+                    x = self.page_width - self.margin - card_width
                 slots.append(CardSlot(index=index, column=column, row=row, x=x, y=y, width=card_width, height=card_height))
                 index += 1
         return tuple(slots)
 
-    def place_cards(
-        self,
-        cards: Sequence[BingoCard],
-        *,
-        duplicate_column: bool = False,
-    ) -> tuple[CardPlacement, ...]:
+    def place_cards(self, cards: Sequence[BingoCard], *, duplicate_column: bool = False) -> tuple[CardPlacement, ...]:
         if len(cards) != 6:
             raise ValueError("A4 printing requires exactly 6 cards in a series")
-        physical_cards = tuple(cards) + (tuple(cards) if duplicate_column else tuple(cards))
-        if not duplicate_column:
-            # Normal production advances the right column to the next six cards.
-            # The renderer can supply those cards when printing a continuous batch;
-            # a single-series preview remains intentionally six physical cards.
-            physical_cards = tuple(cards)
+        physical_cards = tuple(cards) + (tuple(cards) if duplicate_column else tuple())
         slots = self.card_slots()
         if len(physical_cards) > len(slots):
             raise ValueError("Too many cards for an A4 page")
         return tuple(CardPlacement(card=card, slot=slot) for card, slot in zip(physical_cards, slots))
 
     def place_columns(self, left: Sequence[BingoCard], right: Sequence[BingoCard] | None = None) -> tuple[CardPlacement, ...]:
-        """Place six cards in the left column and six in the right column."""
+        """Place six cards in the left column and six cards in the right column."""
         if len(left) != 6 or (right is not None and len(right) != 6):
             raise ValueError("Each A4 column requires exactly 6 cards")
         right_cards = tuple(left) if right is None else tuple(right)
-        cards = tuple(left) + tuple(right_cards)
         slots = self.card_slots()
         placements: list[CardPlacement] = []
         for row in range(6):
-            placements.append(CardPlacement(cards[row], slots[row * 2]))
-            placements.append(CardPlacement(cards[6 + row], slots[row * 2 + 1]))
+            placements.append(CardPlacement(left[row], slots[row * 2]))
+            placements.append(CardPlacement(right_cards[row], slots[row * 2 + 1]))
         return tuple(placements)
