@@ -52,8 +52,11 @@ class VerificationService:
         seller = ""
         sale_type = ""
         if self.sales is not None:
+            canonical_serial = card.serial
             for sale in self.sales.list_sales():
-                if sale.sale_type == "carton" and sale.serial == serial:
+                # La caja admite tanto el número humano (1..15000) como el
+                # serial canónico; la verificación debe encontrar ambos.
+                if sale.sale_type == "carton" and sale.serial == canonical_serial:
                     sold, seller, sale_type = True, sale.seller, sale.sale_type
                     break
                 if sale.sale_type == "serie" and sale.serial == series_id:
