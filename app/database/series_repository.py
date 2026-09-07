@@ -100,7 +100,10 @@ class SQLiteSeriesRepository:
             )
             for row in rows
         )
-        return BingoSeries(series_id=key, cards=cards)
+        # Keep the public API compatible with callers that pass numeric series IDs,
+        # while storage remains canonicalized (0001, 0002, ...).
+        result_id = int(series_id) if isinstance(series_id, int) else key
+        return BingoSeries(series_id=result_id, cards=cards)
 
     def get_card(self, serial: str) -> BingoCard:
         number = self._card_number(serial)
