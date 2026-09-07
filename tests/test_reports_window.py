@@ -27,3 +27,12 @@ def test_reports_window_lists_games_and_exports_selected(tmp_path: Path):
     assert output.exists()
     window.close()
     app.processEvents()
+
+
+def test_reports_window_returns_none_without_selection(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteGameHistoryRepository(tmp_path / "bingo.db")
+    window = ReportsWindow(repository, tmp_path / "reports")
+    assert window.export_selected() is None
+    window.close()
+    app.processEvents()
