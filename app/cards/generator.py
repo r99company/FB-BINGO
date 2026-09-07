@@ -63,6 +63,12 @@ class SeriesGenerator:
             grids = self._build_grids(column_counts, distribution)
             if grids is None:
                 continue
+            mask_signatures = {
+                tuple(tuple(cell is not None for cell in row) for row in grid)
+                for grid in grids
+            }
+            if len(mask_signatures) != CARDS_PER_SERIES:
+                continue
             cards = tuple(
                 BingoCard(
                     serial=f"{series_id}-{serial_start + index:06d}",
