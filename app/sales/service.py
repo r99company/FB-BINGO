@@ -18,6 +18,16 @@ class Sale:
     sold_at: str = ""
 
 
+@dataclass(frozen=True)
+class SalesSummary:
+    """Resumen de ventas para caja y reportes."""
+
+    total: int
+    cards: int
+    series: int
+    by_seller: tuple[tuple[str, int], ...] = ()
+
+
 class SalesService:
     """Control de ventas reales, validando cartones/series generados."""
 
@@ -43,6 +53,7 @@ class SalesService:
                 )"""
             )
             db.execute("CREATE INDEX IF NOT EXISTS idx_sales_sold_at ON sales(sold_at)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_sales_type ON sales(sale_type)")
 
     @staticmethod
     def _series_key(series_id: str) -> str:
@@ -143,3 +154,23 @@ class SalesService:
                 "SELECT serial, sale_type, seller, sold_at FROM sales ORDER BY sold_at DESC"
             ).fetchall()
         return [Sale(row["serial"], row["sale_type"], row["seller"], row["sold_at"]) for row in rows]
+
+    def summary(self) -> SalesSummary:
+        """Devuelve un resumen consistente con la tabla real de ventas."""
+        with self._connect() as db:
+            totals = db.execute(
+                "SELECT COUNT(*) AS total, "
+                "SUM(CASE WHEN sale_type='carton' THEN 1 ELSE 0 END) AS cards, "
+                "SUM(CASE WHEN sale_type='serie' THEN 1 ELSE 0 END) AS series "
+                "FROM sales"
+            ).fetchone()
+            sellers = db.execute(
+                "SELECT seller, COUNT(*) AS count FROM sales "
+                "GROUP BY seller ORDER BY count DESC, seller ASC"
+            ).fetchall()
+        return SalesSummary(
+            total=int(totals["total"] or 0),
+            cards=int(totals["cards"] or 0),
+            series=int(totals["series"] or 0),
+            by_seller=tuple((str(row["seller"] or "SIN VENDEDOR"), int(row["count"])) for row in sellers),
+        )
