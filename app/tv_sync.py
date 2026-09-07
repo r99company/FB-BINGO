@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import json
+import socket
+import threading
+from typing import Any
+
+
+class GameSyncServer:
+    """Servidor ligero para compartir el estado de la partida con la PC de TV."""
+
+    def __init__(self, host: str = "0.0.0.0", port: int = 8765) -> None:
+        self.host = host
+        self._requested_port = port
+        self._state: dict[str, Any] = {"current": None, "history": [], "game": "PARTIDA RÁPIDA"}
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._socket: socket.socket | None = None
+        self.port = port
+
+    def serve_forever(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            self._socket = server
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind((self.host, self._requested_port))
+            self.port = int(server.getsockname()[1])
+            server.listen(8)
+            server.settimeout(0.25)
+            while not self._stop.is_set():
+                try:
+                    conn, _ = server.accept()
+                except socket.timeout:
+                    continue
+                threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
+        self._socket = None
+
+    def shutdown(self) -> None:
+        self._stop.set()
+        sock = self._socket
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def _handle(self, conn: socket.socket) -> None:
+        with conn:
+            conn.settimeout(2)
+            try:
+                data = conn.recv(65536).decode("utf-8").strip()
+                request = json.loads(data) if data else {}
+                action = request.get("action", "get")
+                if action == "publish":
+                    state = request.get("state")
+                    self._validate(state)
+                    with self._lock:
+                        self._state = dict(state)
+                    response = {"ok": True, "state": self._state}
+                elif action == "get":
+                    with self._lock:
+                        response = {"ok": True, "state": dict(self._state)}
+                else:
+                    response = {"ok": False, "error": "Acción no válida"}
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                response = {"ok": False, "error": str(exc)}
+            except OSError as exc:
+                response = {"ok": False, "error": str(exc)}
+            conn.sendall((json.dumps(response, ensure_ascii=False) + "\n").encode("utf-8"))
+
+    @staticmethod
+    def _validate(state: Any) -> None:
+        if not isinstance(state, dict):
+            raise ValueError("El estado de juego debe ser un objeto")
+        current = state.get("current")
+        if current is not None and (not isinstance(current, int) or not 1 <= current <= 90):
+            raise ValueError("La bola actual debe estar entre 1 y 90")
+        history = state.get("history", [])
+        if not isinstance(history, list) or any(not isinstance(n, int) or not 1 <= n <= 90 for n in history):
+            raise ValueError("El historial contiene una bola inválida")
+        if len(history) > 90:
+            raise ValueError("El historial no puede superar 90 bolas")
+
+
+class GameSyncClient:
+    """Cliente usado por la PC de TV para leer/publicar estado de la partida."""
+
+    def __init__(self, host: str, port: int = 8765, timeout: float = 2.0) -> None:
+        self.host, self.port, self.timeout = host, int(port), timeout
+
+    def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with socket.create_connection((self.host, self.port), timeout=self.timeout) as sock:
+            sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
+            data = sock.recv(65536).decode("utf-8")
+        response = json.loads(data)
+        if not response.get("ok"):
+            raise ValueError(response.get("error", "Error de sincronización"))
+        return response
+
+    def publish(self, state: dict[str, Any]) -> bool:
+        GameSyncServer._validate(state)
+        self._request({"action": "publish", "state": state})
+        return True
+
+    def get_state(self) -> dict[str, Any]:
+        return self._request({"action": "get"})["state"]
