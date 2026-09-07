@@ -12,11 +12,12 @@ DEFAULTS: dict[str, Any] = {
     "tv_show_internal_counts": False,
     "primary_color": "#18D9FF",
     "secondary_color": "#FF3FA4",
-    # Premios expresados como porcentaje del fondo/premio configurado.
     "line_prize_percent": 40.0,
     "bingo_prize_percent": 60.0,
     "series_line_prize_percent": 50.0,
     "series_bingo_prize_percent": 50.0,
+    "tv_server_host": "127.0.0.1",
+    "tv_server_port": 8765,
 }
 
 
