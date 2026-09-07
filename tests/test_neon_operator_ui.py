@@ -82,3 +82,19 @@ def test_sales_navigation_is_connected_to_operational_sales_window():
     assert hasattr(window, "open_sales")
     window.close()
     app.processEvents()
+
+
+def test_operator_controls_use_history_wrappers_when_clicked():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+
+    window.ball_input.setText("47")
+    enter_buttons = [button for button in window.findChildren(type(window.pause_button)) if button.text() == "ENTER"]
+    assert len(enter_buttons) == 1
+    enter_buttons[0].click()
+    app.processEvents()
+    assert window.game.history == (47,)
+    assert window.history_repository.get_game(window.history_game_id)["called_numbers"] == (47,)
+
+    window.close()
+    app.processEvents()
