@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QCheckBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QCheckBox, QDoubleSpinBox, QVBoxLayout, QWidget
 
 from app.settings.service import SettingsService
 
 
 class SettingsWindow(QMainWindow):
-    """Configuración operativa y respaldo de preferencias de FB-BINGO."""
+    """Configuración operativa, premios y respaldo de FB-BINGO."""
 
     def __init__(self, settings_path: str | Path) -> None:
         super().__init__()
         self.setWindowTitle("FB-BINGO — Configuración")
-        self.resize(620, 480)
+        self.resize(680, 620)
         self.service = SettingsService(settings_path)
         root = QWidget()
         self.setCentralWidget(root)
@@ -21,12 +21,32 @@ class SettingsWindow(QMainWindow):
         title = QLabel("⚙ CONFIGURACIÓN DEL SISTEMA")
         title.setStyleSheet("font-size:20px;font-weight:900;")
         layout.addWidget(title)
+
         form = QFormLayout()
         self.business_name = QLineEdit(str(self.service.get("business_name", "FB-BINGO")))
         self.operator_name = QLineEdit(str(self.service.get("operator_name", "")))
         form.addRow("Nombre del negocio:", self.business_name)
         form.addRow("Operador:", self.operator_name)
         layout.addLayout(form)
+
+        prize_title = QLabel("PREMIOS")
+        prize_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
+        layout.addWidget(prize_title)
+        prize_form = QFormLayout()
+        self.line_prize = self._percent_spin("line_prize_percent")
+        self.bingo_prize = self._percent_spin("bingo_prize_percent")
+        self.series_line_prize = self._percent_spin("series_line_prize_percent")
+        self.series_bingo_prize = self._percent_spin("series_bingo_prize_percent")
+        prize_form.addRow("Partida rápida · Línea (%):", self.line_prize)
+        prize_form.addRow("Partida rápida · Bingo (%):", self.bingo_prize)
+        prize_form.addRow("Serie · Línea (%):", self.series_line_prize)
+        prize_form.addRow("Serie · Bingo (%):", self.series_bingo_prize)
+        layout.addLayout(prize_form)
+
+        self.prize_feedback = QLabel("Los porcentajes se guardan para las próximas partidas.")
+        self.prize_feedback.setStyleSheet("color:#555;font-size:11px;")
+        layout.addWidget(self.prize_feedback)
+
         self.hide_sales = QCheckBox("Ocultar cantidades de ventas en la pantalla principal")
         self.hide_sales.setChecked(bool(self.service.get("hide_sales_counts", False)))
         self.hide_production = QCheckBox("Ocultar cantidades de producción")
@@ -36,6 +56,7 @@ class SettingsWindow(QMainWindow):
         layout.addWidget(self.hide_sales)
         layout.addWidget(self.hide_production)
         layout.addWidget(self.tv_internal)
+
         buttons = QHBoxLayout()
         save = QPushButton("GUARDAR")
         save.clicked.connect(self.save)
@@ -49,13 +70,34 @@ class SettingsWindow(QMainWindow):
         layout.addLayout(buttons)
         layout.addStretch()
 
+    def _percent_spin(self, key: str) -> QDoubleSpinBox:
+        spin = QDoubleSpinBox()
+        spin.setRange(0.0, 100.0)
+        spin.setDecimals(2)
+        spin.setSingleStep(5.0)
+        spin.setSuffix(" %")
+        spin.setValue(float(self.service.get(key, 0.0)))
+        return spin
+
     def save(self) -> None:
+        values = (
+            self.line_prize.value(), self.bingo_prize.value(),
+            self.series_line_prize.value(), self.series_bingo_prize.value(),
+        )
+        if any(value < 0 or value > 100 for value in values):
+            QMessageBox.warning(self, "FB-BINGO", "Los premios deben estar entre 0 % y 100 %.")
+            return
         self.service.set("business_name", self.business_name.text().strip() or "FB-BINGO")
         self.service.set("operator_name", self.operator_name.text().strip())
         self.service.set("hide_sales_counts", self.hide_sales.isChecked())
         self.service.set("hide_production_counts", self.hide_production.isChecked())
         self.service.set("tv_show_internal_counts", self.tv_internal.isChecked())
+        self.service.set("line_prize_percent", self.line_prize.value())
+        self.service.set("bingo_prize_percent", self.bingo_prize.value())
+        self.service.set("series_line_prize_percent", self.series_line_prize.value())
+        self.service.set("series_bingo_prize_percent", self.series_bingo_prize.value())
         self.service.save()
+        self.prize_feedback.setText("✓ Configuración y premios guardados correctamente.")
         QMessageBox.information(self, "FB-BINGO", "Configuración guardada correctamente.")
 
     def backup(self) -> None:
@@ -71,11 +113,18 @@ class SettingsWindow(QMainWindow):
             try:
                 self.service.restore(source)
                 self.service.load()
-                self.business_name.setText(str(self.service.get("business_name", "FB-BINGO")))
-                self.operator_name.setText(str(self.service.get("operator_name", "")))
-                self.hide_sales.setChecked(bool(self.service.get("hide_sales_counts", False)))
-                self.hide_production.setChecked(bool(self.service.get("hide_production_counts", False)))
-                self.tv_internal.setChecked(bool(self.service.get("tv_show_internal_counts", False)))
+                self._load_fields()
                 QMessageBox.information(self, "FB-BINGO", "Configuración restaurada correctamente.")
             except (OSError, ValueError) as exc:
                 QMessageBox.critical(self, "FB-BINGO", f"No se pudo restaurar el respaldo: {exc}")
+
+    def _load_fields(self) -> None:
+        self.business_name.setText(str(self.service.get("business_name", "FB-BINGO")))
+        self.operator_name.setText(str(self.service.get("operator_name", "")))
+        self.hide_sales.setChecked(bool(self.service.get("hide_sales_counts", False)))
+        self.hide_production.setChecked(bool(self.service.get("hide_production_counts", False)))
+        self.tv_internal.setChecked(bool(self.service.get("tv_show_internal_counts", False)))
+        self.line_prize.setValue(float(self.service.get("line_prize_percent", 40.0)))
+        self.bingo_prize.setValue(float(self.service.get("bingo_prize_percent", 60.0)))
+        self.series_line_prize.setValue(float(self.service.get("series_line_prize_percent", 50.0)))
+        self.series_bingo_prize.setValue(float(self.service.get("series_bingo_prize_percent", 50.0)))
