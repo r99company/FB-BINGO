@@ -40,10 +40,25 @@ class BingoGame:
             raise GamePausedError("La partida esta pausada")
         if self._state.finished:
             raise GameFinishedError("Ya se han sorteado las 90 bolas")
-        number = self._state.remaining_numbers[0]
+        return self._record_number(self._state.remaining_numbers[0])
+
+    def call_manual(self, number: int) -> int:
+        """Registra la bola extraída físicamente por la locutora."""
+        if self._state.paused:
+            raise GamePausedError("La partida esta pausada")
+        if self._state.finished:
+            raise GameFinishedError("Ya se han sorteado las 90 bolas")
+        if not isinstance(number, int) or isinstance(number, bool) or not MIN_BALL <= number <= MAX_BALL:
+            raise ValueError("La bola debe estar entre 1 y 90")
+        if number in self._state.drawn_numbers:
+            raise ValueError(f"La bola {number} ya fue cantada")
+        return self._record_number(number)
+
+    def _record_number(self, number: int) -> int:
+        remaining = tuple(n for n in self._state.remaining_numbers if n != number)
         self._state = GameState(
             drawn_numbers=self._state.drawn_numbers + (number,),
-            remaining_numbers=self._state.remaining_numbers[1:],
+            remaining_numbers=remaining,
             paused=False,
         )
         return number
