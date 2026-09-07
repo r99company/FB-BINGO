@@ -36,8 +36,31 @@ class SQLiteSeriesRepository:
                     FOREIGN KEY(series_id) REFERENCES series(series_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_cards_series ON cards(series_id);
+                CREATE INDEX IF NOT EXISTS idx_cards_human_number ON cards(CAST(substr(serial, -6) AS INTEGER));
                 """
             )
+
+    @staticmethod
+    def _series_key(series_id: str) -> str:
+        value = str(series_id).strip()
+        if not value:
+            raise KeyError("Identificador de serie vacío")
+        return f"{int(value):04d}" if value.isdigit() else value
+
+    @staticmethod
+    def _card_number(serial: str) -> int:
+        value = str(serial).strip()
+        if not value:
+            raise KeyError("Número de cartón vacío")
+        if value.isdigit():
+            number = int(value)
+            if number < 1:
+                raise KeyError(f"Número de cartón inválido: {value}")
+            return number
+        suffix = value[-6:]
+        if suffix.isdigit():
+            return int(suffix)
+        raise KeyError(f"Número de cartón inválido: {value}")
 
     def save(self, series: BingoSeries) -> None:
         with self._connect() as db:
@@ -58,10 +81,11 @@ class SQLiteSeriesRepository:
                 raise ValueError(f"La serie '{series.series_id}' ya existe o contiene seriales repetidos") from exc
 
     def get(self, series_id: str) -> BingoSeries:
+        key = self._series_key(series_id)
         with self._connect() as db:
             rows = db.execute(
                 "SELECT serial, model, grid_json FROM cards WHERE series_id = ? ORDER BY card_index",
-                (series_id,),
+                (key,),
             ).fetchall()
         if len(rows) != 6:
             raise KeyError(f"Serie no encontrada: {series_id}")
@@ -73,13 +97,14 @@ class SQLiteSeriesRepository:
             )
             for row in rows
         )
-        return BingoSeries(series_id=series_id, cards=cards)
+        return BingoSeries(series_id=key, cards=cards)
 
     def get_card(self, serial: str) -> BingoCard:
+        number = self._card_number(serial)
         with self._connect() as db:
             row = db.execute(
-                "SELECT serial, model, grid_json FROM cards WHERE serial = ?",
-                (serial,),
+                "SELECT serial, model, grid_json FROM cards WHERE serial = ? OR CAST(substr(serial, -6) AS INTEGER) = ? LIMIT 1",
+                (str(serial).strip(), number),
             ).fetchone()
         if row is None:
             raise KeyError(f"Cartón no encontrado: {serial}")
@@ -91,10 +116,11 @@ class SQLiteSeriesRepository:
 
     def get_card_position(self, serial: str) -> tuple[str, int]:
         """Devuelve la serie y posición humana (1..6) de un cartón."""
+        number = self._card_number(serial)
         with self._connect() as db:
             row = db.execute(
-                "SELECT series_id, card_index FROM cards WHERE serial = ?",
-                (serial.strip(),),
+                "SELECT series_id, card_index FROM cards WHERE serial = ? OR CAST(substr(serial, -6) AS INTEGER) = ? LIMIT 1",
+                (str(serial).strip(), number),
             ).fetchone()
         if row is None:
             raise KeyError(f"Cartón no encontrado: {serial}")
@@ -103,3 +129,18 @@ class SQLiteSeriesRepository:
     def get_series_id_for_card(self, serial: str) -> str:
         series_id, _ = self.get_card_position(serial)
         return series_id
+
+    def list_series(self) -> list[BingoSeries]:
+        with self._connect() as db:
+            rows = db.execute("SELECT series_id FROM series ORDER BY series_id").fetchall()
+        return [self.get(str(row["series_id"])) for row in rows]
+
+    def count_cards(self) -> int:
+        with self._connect() as db:
+            row = db.execute("SELECT COUNT(*) AS total FROM cards").fetchone()
+        return int(row["total"])
+
+    def count_series(self) -> int:
+        with self._connect() as db:
+            row = db.execute("SELECT COUNT(*) AS total FROM series").fetchone()
+        return int(row["total"])
