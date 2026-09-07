@@ -101,8 +101,11 @@ class ReportsWindow(QWidget):
         self.refresh()
 
     def _database_path(self) -> Path:
-        # SQLiteGameHistoryRepository keeps the DB path as a public attribute in the app.
-        return Path(getattr(self.repository, "database_path", self.output_dir.parent / "fb_bingo.db"))
+        # Both game history and sales must point to the exact same SQLite file.
+        # SQLiteGameHistoryRepository stores it as ``path``; using output_dir
+        # here could silently create a second empty database and make Reports
+        # appear to show no sales.
+        return Path(self.repository.path)
 
     @staticmethod
     def _metric(grid: QGridLayout, row: int, column: int, caption: str) -> QLabel:
