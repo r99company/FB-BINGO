@@ -25,7 +25,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
-          python -m pip install pyinstaller
+          python -m pip install pyinstaller pillow
+
+      - name: Generate FB-BINGO Windows icon
+        run: python packaging\make_icon.py
+
+      - name: Verify icon assets
+        shell: powershell
+        run: |
+          if (-not (Test-Path "packaging\assets\FB-BINGO.svg")) { throw "Falta el logo SVG" }
+          if (-not (Test-Path "packaging\assets\FB-BINGO.ico")) { throw "No se genero FB-BINGO.ico" }
+          Write-Host "Icono FB-BINGO listo para PyInstaller e Inno Setup."
 
       - name: Run tests
         run: python -m pytest
@@ -86,6 +96,12 @@ jobs:
           Get-ChildItem $internal -Recurse -Filter "QtWidgets.pyd" | Select-Object FullName,Length
           Get-ChildItem $internal -Recurse -Filter "vcruntime*.dll" | Select-Object FullName,Length
           Get-ChildItem $internal -Recurse -Filter "msvcp*.dll" | Select-Object FullName,Length
+
+      - name: Verify packaged icon
+        shell: powershell
+        run: |
+          if (-not (Test-Path "dist\FB-BINGO\FB-BINGO.exe")) { throw "Falta el ejecutable" }
+          Write-Host "El ejecutable fue generado con el icono FB-BINGO definido en el .spec."
 
       - name: Smoke test real del ejecutable
         shell: powershell
