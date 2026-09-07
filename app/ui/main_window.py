@@ -161,6 +161,7 @@ class BingoMainWindow(QMainWindow):
         footer=QFrame(objectName="BottomBar"); row=QHBoxLayout(footer); u=QLabel("◉ USUARIO\n   LOCUTORA"); u.setObjectName("FooterText"); e=QLabel("▣ EQUIPO\n   PC-LOCUTORA-01"); e.setObjectName("FooterText"); v=QLabel("★ VERSIÓN\n   1.0.0"); v.setObjectName("FooterText"); s=QLabel("● SISTEMA CONECTADO"); s.setObjectName("StatusGood"); row.addWidget(u); row.addSpacing(30); row.addWidget(e); row.addStretch(); row.addWidget(v); row.addSpacing(30); row.addWidget(s); return footer
 
     def enter_ball(self) -> bool:
+        """Registra exclusivamente la bola que acaba de salir de la máquina física."""
         raw = self.ball_input.text().strip()
         try: number = int(raw)
         except (TypeError, ValueError):
