@@ -77,9 +77,16 @@ class GameSyncServer:
             try:
                 data = conn.recv(65536).decode("utf-8").strip()
                 request = json.loads(data) if data else {}
-                action = request.get("action", "get")
-                if action == "publish":
+                action = request.get("action")
+                # Compatibilidad con el protocolo simple anterior: un objeto que
+                # contiene directamente el estado se interpreta como publicación.
+                if action is None and any(key in request for key in ("current", "history", "game")):
+                    action = "publish"
+                    state = request
+                else:
+                    action = action or "get"
                     state = request.get("state")
+                if action == "publish":
                     self._validate(state)
                     with self._lock:
                         self._state = dict(state)
