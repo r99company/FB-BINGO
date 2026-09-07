@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QCheckBox, QDoubleSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QCheckBox, QDoubleSpinBox, QSpinBox, QVBoxLayout, QWidget
 
 from app.settings.service import SettingsService
 
 
 class SettingsWindow(QMainWindow):
-    """Configuración operativa, premios y respaldo de FB-BINGO."""
+    """Configuración operativa, premios, TV y respaldo de FB-BINGO."""
 
     def __init__(self, settings_path: str | Path) -> None:
         super().__init__()
         self.setWindowTitle("FB-BINGO — Configuración")
-        self.resize(680, 620)
+        self.resize(720, 700)
         self.service = SettingsService(settings_path)
         root = QWidget()
         self.setCentralWidget(root)
@@ -43,9 +43,22 @@ class SettingsWindow(QMainWindow):
         prize_form.addRow("Serie · Bingo (%):", self.series_bingo_prize)
         layout.addLayout(prize_form)
 
-        self.prize_feedback = QLabel("Los porcentajes se guardan para las próximas partidas.")
-        self.prize_feedback.setStyleSheet("color:#555;font-size:11px;")
-        layout.addWidget(self.prize_feedback)
+        tv_title = QLabel("PANTALLA TV · CONEXIÓN")
+        tv_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
+        layout.addWidget(tv_title)
+        tv_form = QFormLayout()
+        self.tv_host = QLineEdit(str(self.service.get("tv_server_host", "127.0.0.1")))
+        self.tv_port = QSpinBox()
+        self.tv_port.setRange(1, 65535)
+        self.tv_port.setValue(int(self.service.get("tv_server_port", 8765)))
+        self.tv_host.setPlaceholderText("IP de la computadora principal, por ejemplo 192.168.1.10")
+        tv_form.addRow("IP / nombre PC principal:", self.tv_host)
+        tv_form.addRow("Puerto de sincronización:", self.tv_port)
+        layout.addLayout(tv_form)
+        tv_hint = QLabel("En la PC del TV indique aquí la IP de la PC administrativa. Ambas computadoras deben estar en la misma red.")
+        tv_hint.setWordWrap(True)
+        tv_hint.setStyleSheet("color:#555;font-size:11px;")
+        layout.addWidget(tv_hint)
 
         self.hide_sales = QCheckBox("Ocultar cantidades de ventas en la pantalla principal")
         self.hide_sales.setChecked(bool(self.service.get("hide_sales_counts", False)))
@@ -87,6 +100,10 @@ class SettingsWindow(QMainWindow):
         if any(value < 0 or value > 100 for value in values):
             QMessageBox.warning(self, "FB-BINGO", "Los premios deben estar entre 0 % y 100 %.")
             return
+        host = self.tv_host.text().strip()
+        if not host:
+            QMessageBox.warning(self, "FB-BINGO", "Debe indicar la IP o nombre de la PC principal para sincronizar la TV.")
+            return
         self.service.set("business_name", self.business_name.text().strip() or "FB-BINGO")
         self.service.set("operator_name", self.operator_name.text().strip())
         self.service.set("hide_sales_counts", self.hide_sales.isChecked())
@@ -96,8 +113,9 @@ class SettingsWindow(QMainWindow):
         self.service.set("bingo_prize_percent", self.bingo_prize.value())
         self.service.set("series_line_prize_percent", self.series_line_prize.value())
         self.service.set("series_bingo_prize_percent", self.series_bingo_prize.value())
+        self.service.set("tv_server_host", host)
+        self.service.set("tv_server_port", self.tv_port.value())
         self.service.save()
-        self.prize_feedback.setText("✓ Configuración y premios guardados correctamente.")
         QMessageBox.information(self, "FB-BINGO", "Configuración guardada correctamente.")
 
     def backup(self) -> None:
@@ -128,3 +146,5 @@ class SettingsWindow(QMainWindow):
         self.bingo_prize.setValue(float(self.service.get("bingo_prize_percent", 60.0)))
         self.series_line_prize.setValue(float(self.service.get("series_line_prize_percent", 50.0)))
         self.series_bingo_prize.setValue(float(self.service.get("series_bingo_prize_percent", 50.0)))
+        self.tv_host.setText(str(self.service.get("tv_server_host", "127.0.0.1")))
+        self.tv_port.setValue(int(self.service.get("tv_server_port", 8765)))
