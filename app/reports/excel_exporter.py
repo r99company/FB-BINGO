@@ -13,6 +13,8 @@ def export_game_history(
     game_name: str,
     series: str,
     called_numbers: list[int] | tuple[int, ...],
+    finished_at: str | None = None,
+    status: str = "finalizada",
 ) -> Path:
     """Exporta una partida en un Excel simple y utilizable por administración."""
     path = Path(output_path)
@@ -21,20 +23,22 @@ def export_game_history(
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Partidas"
-    headers = ["Fecha y hora", "Juego", "Serie", "Bolas cantadas", "Historial"]
+    headers = ["Fecha y hora", "Juego", "Serie", "Bolas cantadas", "Historial", "Estado"]
     sheet.append(headers)
     for cell in sheet[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
 
+    timestamp = finished_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append([
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        timestamp,
         game_name,
         series,
         len(called_numbers),
         ", ".join(str(number) for number in called_numbers),
+        status,
     ])
-    widths = {1: 22, 2: 24, 3: 18, 4: 16, 5: 60}
+    widths = {1: 22, 2: 24, 3: 18, 4: 16, 5: 60, 6: 16}
     for column, width in widths.items():
         sheet.column_dimensions[chr(64 + column)].width = width
     sheet.freeze_panes = "A2"
