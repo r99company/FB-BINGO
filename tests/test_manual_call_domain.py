@@ -1,39 +1,42 @@
+from __future__ import annotations
+
 import pytest
 
-from app.bingo import BingoGame, GameFinishedError, GamePausedError
+from app.bingo import BingoGame
+from app.bingo.exceptions import GameFinishedError, GamePausedError
 
 
-def test_manual_call_accepts_physical_ball_and_updates_history():
-    game = BingoGame(seed=42)
-    assert game.call_manual(37) == 37
-    assert game.current_number == 37
-    assert game.history == (37,)
-    assert 37 not in game.state.remaining_numbers
+def test_call_manual_accepts_physical_ball_and_updates_history() -> None:
+    game = BingoGame(seed=7)
+    assert game.call_manual(42) == 42
+    assert game.current_number == 42
+    assert game.history == (42,)
+    assert 42 not in game.state.remaining_numbers
 
 
-def test_manual_call_rejects_duplicate_ball():
-    game = BingoGame(seed=42)
-    game.call_manual(37)
+def test_call_manual_rejects_duplicate_ball() -> None:
+    game = BingoGame(seed=7)
+    game.call_manual(42)
     with pytest.raises(ValueError, match="ya fue cantada"):
-        game.call_manual(37)
+        game.call_manual(42)
 
 
-def test_manual_call_rejects_out_of_range_ball():
-    game = BingoGame(seed=42)
+def test_call_manual_rejects_ball_outside_90_ball_range() -> None:
+    game = BingoGame(seed=7)
     with pytest.raises(ValueError, match="1 y 90"):
         game.call_manual(91)
 
 
-def test_manual_call_respects_pause():
-    game = BingoGame(seed=42)
+def test_call_manual_rejects_when_game_is_paused() -> None:
+    game = BingoGame(seed=7)
     game.pause()
     with pytest.raises(GamePausedError):
-        game.call_manual(37)
+        game.call_manual(42)
 
 
-def test_manual_call_rejects_finished_game():
-    game = BingoGame(seed=42)
-    for number in range(1, 91):
-        game.call_manual(number)
+def test_call_manual_rejects_when_game_is_finished() -> None:
+    game = BingoGame(seed=7)
+    for _ in range(90):
+        game.draw()
     with pytest.raises(GameFinishedError):
-        game.call_manual(1)
+        game.call_manual(42)
