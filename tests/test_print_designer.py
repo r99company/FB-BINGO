@@ -55,7 +55,9 @@ def test_layout_assigns_cards_in_series_order():
 def test_layout_can_duplicate_left_column_for_troquelado():
     cards = tuple(sample_card(f"S1-{i:06d}") for i in range(1, 7))
     placements = A4PrintLayout().place_columns(cards, cards)
+    # Physical reading order is row-by-row: each row contains the same
+    # card on the left and right when duplicating the column for troquelado.
     assert [placement.card.serial for placement in placements] == [
-        f"S1-{i:06d}" for i in range(1, 7)
-    ] * 2
+        serial for i in range(1, 7) for serial in (f"S1-{i:06d}", f"S1-{i:06d}")
+    ]
     assert [placement.slot.index for placement in placements] == list(range(1, 13))
