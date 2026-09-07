@@ -28,7 +28,6 @@ class ModernA4SvgRenderer:
         left = tuple(cards)
         right = left if duplicate_column else (tuple(right_cards) if right_cards is not None else None)
         if right is None:
-            # A single-series preview uses only the six logical cards.
             placements = self.layout.place_cards(left)
         else:
             placements = self.layout.place_columns(left, right)
@@ -108,6 +107,11 @@ class ModernA4SvgRenderer:
             out.append(f'<image href="{logo}" x="5" y="3" width="34" height="14" preserveAspectRatio="xMidYMid meet"/>')
         else:
             out.append('<text x="5" y="11" font-family="Arial,sans-serif" font-size="7" font-weight="900" fill="#FFFFFF">FB-BINGO</text>')
+        if self.style.show_model:
+            out.append(
+                f'<text x="{width/2:.2f}" y="10.5" text-anchor="middle" font-family="Arial,sans-serif" '
+                f'font-size="5.2" font-weight="bold" fill="#FFFFFF">MODELO {escape(card.model.value)}</text>'
+            )
         out.append(f'<text x="{width-5:.2f}" y="10.5" text-anchor="end" font-family="Arial,sans-serif" font-size="5.2" font-weight="bold" fill="#FFFFFF">SERIE {series} · CARTÓN {card_number}</text>')
         for row in range(3):
             for column in range(9):
@@ -120,7 +124,7 @@ class ModernA4SvgRenderer:
         if self.style.show_qr_zone:
             qr_size = min(9.0, footer - 2.0)
             qr_x, qr_y = width - qr_size - 5, height - qr_size - 2
-            out.append(f'<rect x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
+            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
         if self.style.show_serial:
             out.append(f'<text x="{width/2:.2f}" y="{height-3:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="4.2" fill="{escape(self.style.number_color)}">SERIAL: {serial}</text>')
         out.append('</g>')
