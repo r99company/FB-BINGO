@@ -7,6 +7,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 # QtWidgets y sus DLL puedan cargarse en el equipo final.
 qt_datas, qt_binaries, qt_hiddenimports = collect_all("PySide6")
 app_hiddenimports = collect_submodules("app")
+app_datas = [("packaging/assets/FB-BINGO.svg", "assets")]
 
 hiddenimports = app_hiddenimports + qt_hiddenimports
 
@@ -14,7 +15,7 @@ a = Analysis(
     ["../main.py"],
     pathex=[".."],
     binaries=qt_binaries,
-    datas=qt_datas,
+    datas=qt_datas + app_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -37,6 +38,7 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
+    icon="packaging/assets/FB-BINGO.ico",
 )
 
 coll = COLLECT(
