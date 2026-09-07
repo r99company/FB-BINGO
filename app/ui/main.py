@@ -35,16 +35,17 @@ def _open_sales(self: BingoMainWindow) -> None:
 
 
 def _open_verification(self: BingoMainWindow) -> None:
+    repository = SQLiteSeriesRepository(database_path())
+    sales = SalesService(database_path(), repository=repository)
+    service = VerificationService(repository, sales)
     if getattr(self, "verification_window", None) is None:
-        repository = SQLiteSeriesRepository(database_path())
-        sales = SalesService(database_path(), repository=repository)
-        service = VerificationService(repository, sales)
         self.verification_window = VerificationWindow(
             called_numbers=self.game.history,
             verification_service=service,
         )
         self.verification_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-    self.verification_window.called_numbers = self.game.history
+    else:
+        self.verification_window.called_numbers = self.game.history
     self.verification_window.show()
     self.verification_window.raise_()
     self.verification_window.activateWindow()
@@ -124,7 +125,7 @@ def _new_game_with_history(self: BingoMainWindow) -> None:
                 game_name=self.header_values[0].text() or "PARTIDA RÁPIDA",
                 series_id=self.header_values[2].text() or "—",
             )
-        except Exception as exc:  # Keep the game usable even if Excel export fails.
+        except Exception as exc:
             export_error = exc
     _original_new_game(self)
     _start_history_game(self)
@@ -132,6 +133,36 @@ def _new_game_with_history(self: BingoMainWindow) -> None:
         self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL GENERADO")
     else:
         self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL NO GENERADO")
+
+
+def _replace_signal_connection(signal, slot) -> None:
+    """Replace all existing Qt signal slots for a control with the operational slot."""
+    try:
+        signal.disconnect()
+    except (RuntimeError, TypeError):
+        pass
+    signal.connect(slot)
+
+
+def _wire_operational_controls(self: BingoMainWindow) -> None:
+    # The original window connects controls before the integration wrappers are
+    # installed. Rewire those controls explicitly so real clicks persist state.
+    for button in self.findChildren(QPushButton):
+        text = button.text()
+        if text == "ENTER":
+            _replace_signal_connection(button.clicked, self.enter_ball)
+        elif text.startswith("▶ SORTEO AUTOMÁTICO"):
+            _replace_signal_connection(button.clicked, self.draw_number)
+        elif text.startswith("Ⅱ PAUSAR"):
+            _replace_signal_connection(button.clicked, self.toggle_pause)
+        elif text.startswith("◀ DESHACER"):
+            _replace_signal_connection(button.clicked, self.undo_number)
+        elif text.startswith("■ FINALIZAR"):
+            _replace_signal_connection(button.clicked, self.new_game)
+        elif text.isdigit() and 1 <= int(text) <= 90:
+            _replace_signal_connection(button.clicked, lambda checked=False, n=int(text): self.call_number(n))
+
+    _replace_signal_connection(self.ball_input.returnPressed, self.enter_ball)
 
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
@@ -152,6 +183,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.toggle_pause = lambda: _pause_with_history(self)
     self.new_game = lambda: _new_game_with_history(self)
     _start_history_game(self)
+    _wire_operational_controls(self)
     for button in self.findChildren(QPushButton):
         if button.text().startswith("🛒  VENTAS"):
             button.clicked.connect(self.open_sales)
