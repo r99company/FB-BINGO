@@ -41,4 +41,4 @@ def test_call_manual_rejects_when_game_is_finished() -> None:
     with pytest.raises(GameFinishedError):
         game.call_manual(42)
 
-# Stabilization regression: keep physical-ball flow covered in CI.
+# Stabilization regression: physical-ball domain remains covered by CI.
