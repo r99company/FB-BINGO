@@ -53,20 +53,25 @@ class SQLiteGameHistoryRepository:
         if not series_id.strip():
             raise ValueError("La serie no puede estar vacía")
 
-        finished_at = "CURRENT_TIMESTAMP" if status == "finalizada" else None
         with self._connect() as db:
-            cursor = db.execute(
-                """
-                INSERT INTO game_history(
-                    game_name, series_id, called_numbers_json, status, finished_at
-                ) VALUES (?, ?, ?, ?, """ + finished_at if finished_at else "NULL" + ")",
-                (
-                    game_name.strip(),
-                    series_id.strip(),
-                    json.dumps(list(called_numbers)),
-                    status,
-                ),
-            )
+            if status == "finalizada":
+                cursor = db.execute(
+                    """
+                    INSERT INTO game_history(
+                        game_name, series_id, called_numbers_json, status, finished_at
+                    ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    (game_name.strip(), series_id.strip(), json.dumps(list(called_numbers)), status),
+                )
+            else:
+                cursor = db.execute(
+                    """
+                    INSERT INTO game_history(
+                        game_name, series_id, called_numbers_json, status
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (game_name.strip(), series_id.strip(), json.dumps(list(called_numbers)), status),
+                )
             return int(cursor.lastrowid)
 
     def get_game(self, game_id: int) -> dict[str, Any]:
