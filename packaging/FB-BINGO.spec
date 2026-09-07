@@ -2,12 +2,11 @@
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-# El .spec vive en packaging/, por eso el entry point real esta un nivel arriba.
-# Tambien recopilamos los binarios, datos, plugins e imports de PySide6 para que
-# QtWidgets y sus DLL puedan cargarse en el equipo final.
+# El .spec vive en packaging/, por lo que las rutas de recursos se resuelven
+# relativas a este directorio. El entry point real sigue siendo ../main.py.
 qt_datas, qt_binaries, qt_hiddenimports = collect_all("PySide6")
 app_hiddenimports = collect_submodules("app")
-app_datas = [("packaging/assets/FB-BINGO.svg", "assets")]
+app_datas = [("assets/FB-BINGO.svg", "assets")]
 
 hiddenimports = app_hiddenimports + qt_hiddenimports
 
@@ -38,7 +37,7 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    icon="packaging/assets/FB-BINGO.ico",
+    icon="assets/FB-BINGO.ico",
 )
 
 coll = COLLECT(
