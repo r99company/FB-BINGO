@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import sys
+import threading
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
 from app.sales import SalesService
 from app.services import GameClosureService, GameHistoryService
 from app.settings.paths import application_data_dir, database_path
+from app.settings.service import SettingsService
+from app.tv_sync import GameSyncClient, GameSyncServer
 from app.ui.cartons_window import CartonsWindow
-from app.ui.main_window import BingoMainWindow
+from app.ui.main_window import BingoMainWindow, TVWindow
 from app.ui.reports_window import ReportsWindow
 from app.ui.sales_window import SalesWindow
 from app.ui.settings_window import SettingsWindow
@@ -24,12 +27,11 @@ _original_call_number = BingoMainWindow.call_number
 _original_undo_number = BingoMainWindow.undo_number
 _original_toggle_pause = BingoMainWindow.toggle_pause
 _original_new_game = BingoMainWindow.new_game
+_original_open_tv = BingoMainWindow.open_tv
 
 
 def _open_cartons(self: BingoMainWindow) -> None:
     if getattr(self, "cartons_window", None) is None:
-        # Cartones is an independent operational window, not a child of the
-        # main window, so it remains visible even while the main window is hidden.
         self.cartons_window = CartonsWindow()
         self.cartons_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.generator_window = self.cartons_window
@@ -68,7 +70,7 @@ def _open_verification(self: BingoMainWindow) -> None:
     self.verification_window.serial_input.setFocus()
 
 
-def _open_reports(self) -> None:
+def _open_reports(self: BingoMainWindow) -> None:
     if getattr(self, "reports_window", None) is None:
         self.reports_window = ReportsWindow(self.history_repository, database_path().parent / "reports")
         self.reports_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -76,11 +78,36 @@ def _open_reports(self) -> None:
     _show_window(self.reports_window)
 
 
-def _open_settings(self) -> None:
+def _open_settings(self: BingoMainWindow) -> None:
     if getattr(self, "settings_window", None) is None:
         self.settings_window = SettingsWindow(application_data_dir() / "settings.json")
         self.settings_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
     _show_window(self.settings_window)
+
+
+def _publish_tv(self: BingoMainWindow) -> None:
+    client = getattr(self, "tv_sync_client", None)
+    if client is None:
+        return
+    try:
+        client.publish({
+            "current": self.game.current_number,
+            "history": list(self.game.history),
+            "game": self.header_values[0].text() or "PARTIDA RÁPIDA",
+            "series": self.header_values[2].text() or "—",
+            "status": "PAUSADA" if self.game.state.paused else "EN CURSO",
+        })
+    except (OSError, ValueError, TimeoutError):
+        pass
+
+
+def _open_tv(self: BingoMainWindow) -> None:
+    if getattr(self, "tv_window", None) is None:
+        self.tv_window = TVWindow(self)
+        self.tv_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+    _show_window(self.tv_window)
+    self.tv_window.update_game(self.game.current_number, self.game.last_five)
+    _publish_tv(self)
 
 
 def _history_sync(self) -> None:
@@ -102,27 +129,32 @@ def _enter_ball_with_history(self) -> bool:
     result = _original_enter_ball(self)
     if result:
         _history_sync(self)
+        _publish_tv(self)
     return result
 
 
 def _draw_with_history(self) -> None:
     _original_draw_number(self)
     _history_sync(self)
+    _publish_tv(self)
 
 
 def _call_with_history(self, number: int) -> None:
     _original_call_number(self, number)
     _history_sync(self)
+    _publish_tv(self)
 
 
 def _undo_with_history(self) -> None:
     _original_undo_number(self)
     _history_sync(self)
+    _publish_tv(self)
 
 
 def _pause_with_history(self) -> None:
     _original_toggle_pause(self)
     _history_sync(self)
+    _publish_tv(self)
 
 
 def _new_game_with_history(self) -> None:
@@ -136,6 +168,7 @@ def _new_game_with_history(self) -> None:
     _original_new_game(self)
     _start_history_game(self)
     self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL GENERADO" if export_error is None else "✓ PARTIDA FINALIZADA · EXCEL NO GENERADO")
+    _publish_tv(self)
 
 
 def _replace_signal_connection(signal, slot) -> None:
@@ -144,24 +177,6 @@ def _replace_signal_connection(signal, slot) -> None:
     except (RuntimeError, TypeError):
         pass
     signal.connect(slot)
-
-
-def _wire_operational_controls(self: BingoMainWindow) -> None:
-    for button in self.findChildren(QPushButton):
-        text = button.text()
-        if text == "ENTER":
-            _replace_signal_connection(button.clicked, self.enter_ball)
-        elif text.startswith("▶ SORTEO AUTOMÁTICO"):
-            _replace_signal_connection(button.clicked, self.draw_number)
-        elif text.startswith("Ⅱ PAUSAR"):
-            _replace_signal_connection(button.clicked, self.toggle_pause)
-        elif text.startswith("◀ DESHACER"):
-            _replace_signal_connection(button.clicked, self.undo_number)
-        elif text.startswith("■ FINALIZAR"):
-            _replace_signal_connection(button.clicked, self.new_game)
-        elif text.isdigit() and 1 <= int(text) <= 90:
-            _replace_signal_connection(button.clicked, lambda checked=False, n=int(text): self.call_number(n))
-    _replace_signal_connection(self.ball_input.returnPressed, self.enter_ball)
 
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
@@ -175,11 +190,17 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.history_repository = SQLiteGameHistoryRepository(database_path())
     self.history_service = GameHistoryService(self.history_repository)
     self.history_game_id = None
+    settings = SettingsService(application_data_dir() / "settings.json")
+    self.tv_sync_server = GameSyncServer(host="0.0.0.0", port=int(settings.get("tv_server_port", 8765)))
+    self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True)
+    self.tv_sync_thread.start()
+    self.tv_sync_client = GameSyncClient(str(settings.get("tv_server_host", "127.0.0.1")), int(settings.get("tv_server_port", 8765)))
     self.open_cartons = lambda: _open_cartons(self)
     self.open_sales = lambda: _open_sales(self)
     self.open_verification = lambda: _open_verification(self)
     self.open_reports = lambda: _open_reports(self)
     self.open_settings = lambda: _open_settings(self)
+    self.open_tv = lambda: _open_tv(self)
     self.enter_ball = lambda: _enter_ball_with_history(self)
     self.draw_number = lambda: _draw_with_history(self)
     self.call_number = lambda number: _call_with_history(self, number)
@@ -200,11 +221,36 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
             _replace_signal_connection(button.clicked, self.open_reports)
         elif button.text().startswith("⚙  CONFIGURACIÓN") or button.text().startswith("⚙ CONFIGURACIÓN"):
             _replace_signal_connection(button.clicked, self.open_settings)
+        elif button.text().startswith("▣  PANTALLA TV") or button.text().startswith("▣ PANTALLA TV"):
+            _replace_signal_connection(button.clicked, self.open_tv)
 
 BingoMainWindow.__init__ = _init_with_operational_modules
 
 
+def run_tv_mode() -> int:
+    """Ejecuta únicamente la pantalla pública en una segunda computadora."""
+    app = QApplication(sys.argv)
+    settings = SettingsService(application_data_dir() / "settings.json")
+    window = TVWindow()
+    client = GameSyncClient(str(settings.get("tv_server_host", "127.0.0.1")), int(settings.get("tv_server_port", 8765)))
+    timer = QTimer(window)
+    def poll() -> None:
+        try:
+            state = client.get_state()
+            window.update_game(state.get("current"), tuple(state.get("history", []))[:5])
+            window.status.setText(f"FB-BINGO · {state.get('status', 'EN CURSO')} · {state.get('game', 'PARTIDA RÁPIDA')}")
+        except (OSError, ValueError, TimeoutError):
+            window.status.setText("FB-BINGO · ESPERANDO CONEXIÓN CON PC PRINCIPAL")
+    timer.timeout.connect(poll)
+    timer.start(500)
+    window.showFullScreen()
+    poll()
+    return app.exec()
+
+
 def main() -> int:
+    if "--tv" in sys.argv:
+        return run_tv_mode()
     app = QApplication(sys.argv)
     window = BingoMainWindow()
     window.show()
