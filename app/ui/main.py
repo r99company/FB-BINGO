@@ -9,6 +9,7 @@ from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
 from app.sales import SalesService
 from app.services import GameClosureService, GameHistoryService
 from app.settings.paths import application_data_dir, database_path
+from app.ui.cartons_window import CartonsWindow
 from app.ui.main_window import BingoMainWindow
 from app.ui.reports_window import ReportsWindow
 from app.ui.sales_window import SalesWindow
@@ -24,6 +25,15 @@ _original_call_number = BingoMainWindow.call_number
 _original_undo_number = BingoMainWindow.undo_number
 _original_toggle_pause = BingoMainWindow.toggle_pause
 _original_new_game = BingoMainWindow.new_game
+
+
+def _open_cartons(self: BingoMainWindow) -> None:
+    if getattr(self, "cartons_window", None) is None:
+        self.cartons_window = CartonsWindow(self)
+        self.cartons_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+    self.cartons_window.show()
+    self.cartons_window.raise_()
+    self.cartons_window.activateWindow()
 
 
 def _open_sales(self: BingoMainWindow) -> None:
@@ -152,6 +162,7 @@ def _wire_operational_controls(self: BingoMainWindow) -> None:
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
+    self.cartons_window = None
     self.sales_window = None
     self.verification_window = None
     self.reports_window = None
@@ -159,6 +170,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.history_repository = SQLiteGameHistoryRepository(database_path())
     self.history_service = GameHistoryService(self.history_repository)
     self.history_game_id = None
+    self.open_cartons = lambda: _open_cartons(self)
     self.open_sales = lambda: _open_sales(self)
     self.open_verification = lambda: _open_verification(self)
     self.open_reports = lambda: _open_reports(self)
@@ -172,13 +184,16 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _start_history_game(self)
     _wire_operational_controls(self)
     for button in self.findChildren(QPushButton):
-        if button.text().startswith("🛒  VENTAS"):
+        if button.text().startswith("▣  GENERADOR") or button.text().startswith("▣ GENERADOR"):
+            button.setText("🛒  CARTONES\nImprimir · Ver · Diseñar")
+            _replace_signal_connection(button.clicked, self.open_cartons)
+        elif button.text().startswith("🛒  VENTAS") or button.text().startswith("🛒 VENTAS"):
             button.clicked.connect(self.open_sales)
-        elif button.text().startswith("✓  VERIFICACIÓN"):
+        elif button.text().startswith("✓  VERIFICACIÓN") or button.text().startswith("✓ VERIFICACIÓN"):
             button.clicked.connect(self.open_verification)
-        elif button.text().startswith("▥  REPORTES"):
+        elif button.text().startswith("▥  REPORTES") or button.text().startswith("▥ REPORTES"):
             button.clicked.connect(self.open_reports)
-        elif button.text().startswith("⚙  CONFIGURACIÓN"):
+        elif button.text().startswith("⚙  CONFIGURACIÓN") or button.text().startswith("⚙ CONFIGURACIÓN"):
             button.clicked.connect(self.open_settings)
 
 
