@@ -17,7 +17,6 @@ from app.ui.settings_window import SettingsWindow
 from app.ui.verification_window import VerificationWindow
 from app.verification import VerificationService
 
-
 _original_init = BingoMainWindow.__init__
 _original_enter_ball = BingoMainWindow.enter_ball
 _original_draw_number = BingoMainWindow.draw_number
@@ -29,10 +28,10 @@ _original_new_game = BingoMainWindow.new_game
 
 def _open_cartons(self: BingoMainWindow) -> None:
     if getattr(self, "cartons_window", None) is None:
-        self.cartons_window = CartonsWindow(self)
+        # Cartones is an independent operational window, not a child of the
+        # main window, so it remains visible even while the main window is hidden.
+        self.cartons_window = CartonsWindow()
         self.cartons_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-        # Backward-compatible alias for integrations/tests that still refer to the
-        # old generator_window attribute. The visible workflow is now Cartones.
         self.generator_window = self.cartons_window
     self.show_cartons_window()
 
@@ -46,8 +45,6 @@ def _show_window(window) -> None:
 def _show_cartons(self: BingoMainWindow) -> None:
     _show_window(self.cartons_window)
 
-
-# Keep the helper name explicit while allowing the compatibility alias above.
 BingoMainWindow.show_cartons_window = lambda self: _show_cartons(self)
 
 
@@ -71,7 +68,7 @@ def _open_verification(self: BingoMainWindow) -> None:
     self.verification_window.serial_input.setFocus()
 
 
-def _open_reports(self: BingoMainWindow) -> None:
+def _open_reports(self) -> None:
     if getattr(self, "reports_window", None) is None:
         self.reports_window = ReportsWindow(self.history_repository, database_path().parent / "reports")
         self.reports_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -79,14 +76,14 @@ def _open_reports(self: BingoMainWindow) -> None:
     _show_window(self.reports_window)
 
 
-def _open_settings(self: BingoMainWindow) -> None:
+def _open_settings(self) -> None:
     if getattr(self, "settings_window", None) is None:
         self.settings_window = SettingsWindow(application_data_dir() / "settings.json")
         self.settings_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
     _show_window(self.settings_window)
 
 
-def _history_sync(self: BingoMainWindow) -> None:
+def _history_sync(self) -> None:
     game_id = getattr(self, "history_game_id", None)
     if game_id is not None:
         self.history_service.sync(game_id, self.game)
@@ -204,7 +201,6 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
         elif button.text().startswith("⚙  CONFIGURACIÓN") or button.text().startswith("⚙ CONFIGURACIÓN"):
             _replace_signal_connection(button.clicked, self.open_settings)
 
-
 BingoMainWindow.__init__ = _init_with_operational_modules
 
 
@@ -213,7 +209,6 @@ def main() -> int:
     window = BingoMainWindow()
     window.show()
     return app.exec()
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
