@@ -44,6 +44,13 @@ class SalesService:
             )
             db.execute("CREATE INDEX IF NOT EXISTS idx_sales_sold_at ON sales(sold_at)")
 
+    @staticmethod
+    def _series_key(series_id: str) -> str:
+        value = str(series_id).strip()
+        if value.isdigit():
+            return f"{int(value):04d}"
+        return value
+
     def sell(self, serial: str, sale_type: str = "carton", seller: str = "") -> Sale:
         if sale_type == "carton":
             return self.sell_card(serial, seller=seller)
@@ -52,30 +59,33 @@ class SalesService:
         raise ValueError("Tipo de venta inválido")
 
     def sell_card(self, serial: str, seller: str = "") -> Sale:
-        serial = serial.strip()
-        if not serial:
+        entered = serial.strip()
+        if not entered:
             raise ValueError("Debe indicar el número o serial")
+        canonical = entered
         if self.repository is not None:
             try:
-                self.repository.get_card(serial)
-                series_id = self.repository.get_series_id_for_card(serial)
+                card = self.repository.get_card(entered)
+                canonical = card.serial
+                series_id = self.repository.get_series_id_for_card(entered)
             except KeyError as exc:
-                raise ValueError(f"El cartón '{serial}' no existe en las series generadas") from exc
+                raise ValueError(f"El cartón '{entered}' no existe en las series generadas") from exc
             if self.is_series_sold(series_id):
                 raise ValueError(f"La serie '{series_id}' ya fue vendida completa")
-        return self._record(serial, "carton", seller)
+        return self._record(canonical, "carton", seller)
 
     def sell_series(self, series_id: str, seller: str = "") -> Sale:
-        series_id = series_id.strip()
-        if not series_id:
+        entered = series_id.strip()
+        if not entered:
             raise ValueError("Debe indicar el número o identificador de serie")
+        canonical = self._series_key(entered)
         if self.repository is not None:
             try:
-                series = self.repository.get(series_id)
+                series = self.repository.get(canonical)
             except KeyError as exc:
-                raise ValueError(f"La serie '{series_id}' no existe en las series generadas") from exc
-            if self.is_series_sold(series_id):
-                raise ValueError(f"La serie '{series_id}' ya fue vendida")
+                raise ValueError(f"La serie '{entered}' no existe en las series generadas") from exc
+            if self.is_series_sold(canonical):
+                raise ValueError(f"La serie '{canonical}' ya fue vendida")
             serials = tuple(card.serial for card in series.cards)
             with self._connect() as db:
                 placeholders = ",".join("?" for _ in serials)
@@ -84,8 +94,8 @@ class SalesService:
                     serials,
                 ).fetchone()
             if row is not None:
-                raise ValueError(f"La serie '{series_id}' no puede venderse completa: hay cartones ya vendidos")
-        return self._record(series_id, "serie", seller)
+                raise ValueError(f"La serie '{canonical}' no puede venderse completa: hay cartones ya vendidos")
+        return self._record(canonical, "serie", seller)
 
     def _record(self, serial: str, sale_type: str, seller: str) -> Sale:
         sold_at = datetime.now().isoformat(timespec="seconds")
@@ -100,18 +110,31 @@ class SalesService:
         return Sale(serial, sale_type, seller.strip(), sold_at)
 
     def is_sold(self, serial: str) -> bool:
+        value = serial.strip()
+        if self.repository is not None:
+            try:
+                value = self.repository.get_card(value).serial
+            except KeyError:
+                value = self._series_key(value)
         with self._connect() as db:
-            row = db.execute("SELECT 1 FROM sales WHERE serial = ?", (serial.strip(),)).fetchone()
+            row = db.execute("SELECT 1 FROM sales WHERE serial = ?", (value,)).fetchone()
         return row is not None
 
     def is_card_sold(self, serial: str) -> bool:
+        value = serial.strip()
+        if self.repository is not None:
+            try:
+                value = self.repository.get_card(value).serial
+            except KeyError:
+                pass
         with self._connect() as db:
-            row = db.execute("SELECT 1 FROM sales WHERE serial = ? AND sale_type = 'carton'", (serial.strip(),)).fetchone()
+            row = db.execute("SELECT 1 FROM sales WHERE serial = ? AND sale_type = 'carton'", (value,)).fetchone()
         return row is not None
 
     def is_series_sold(self, series_id: str) -> bool:
+        value = self._series_key(series_id)
         with self._connect() as db:
-            row = db.execute("SELECT 1 FROM sales WHERE serial = ? AND sale_type = 'serie'", (series_id.strip(),)).fetchone()
+            row = db.execute("SELECT 1 FROM sales WHERE serial = ? AND sale_type = 'serie'", (value,)).fetchone()
         return row is not None
 
     def list_sales(self) -> list[Sale]:
