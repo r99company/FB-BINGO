@@ -10,9 +10,12 @@ from app.ui.reports_window import ReportsWindow
 
 
 def _series() -> BingoSeries:
+    # Cartón determinista y válido: 5 números por fila, 15 en total,
+    # con los números dentro del rango de su columna y un máximo de 2
+    # números por columna para el modelo A.
     grid = (
-        (1, 10, 20, None, 40, None, 60, None, 80),
-        (2, None, 21, 30, None, 50, None, 70, 81),
+        (1, 10, 20, None, None, 50, 60, None, 80),
+        (2, None, 21, 30, None, None, None, 70, 81),
         (None, 11, None, 31, 41, None, 61, 71, None),
     )
     return BingoSeries(
