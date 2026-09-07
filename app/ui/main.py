@@ -7,9 +7,10 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
 from app.sales import SalesService
-from app.services import GameHistoryService
+from app.services import GameClosureService, GameHistoryService
 from app.settings.paths import database_path
 from app.ui.main_window import BingoMainWindow
+from app.ui.reports_window import ReportsWindow
 from app.ui.sales_window import SalesWindow
 from app.ui.verification_window import VerificationWindow
 from app.verification import VerificationService
@@ -48,6 +49,19 @@ def _open_verification(self: BingoMainWindow) -> None:
     self.verification_window.raise_()
     self.verification_window.activateWindow()
     self.verification_window.serial_input.setFocus()
+
+
+def _open_reports(self: BingoMainWindow) -> None:
+    if getattr(self, "reports_window", None) is None:
+        self.reports_window = ReportsWindow(
+            self.history_repository,
+            database_path().parent / "reports",
+        )
+        self.reports_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+    self.reports_window.refresh()
+    self.reports_window.show()
+    self.reports_window.raise_()
+    self.reports_window.activateWindow()
 
 
 def _history_sync(self: BingoMainWindow) -> None:
@@ -98,21 +112,39 @@ def _pause_with_history(self: BingoMainWindow) -> None:
 
 def _new_game_with_history(self: BingoMainWindow) -> None:
     old_game_id = getattr(self, "history_game_id", None)
-    if old_game_id is not None and self.game.history:
-        self.history_service.finish(old_game_id, self.game)
+    export_error: Exception | None = None
+    if old_game_id is not None:
+        try:
+            GameClosureService(
+                self.history_repository,
+                database_path().parent / "reports",
+            ).close(
+                old_game_id,
+                self.game,
+                game_name=self.header_values[0].text() or "PARTIDA RÁPIDA",
+                series_id=self.header_values[2].text() or "—",
+            )
+        except Exception as exc:  # Keep the game usable even if Excel export fails.
+            export_error = exc
     _original_new_game(self)
     _start_history_game(self)
+    if export_error is None:
+        self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL GENERADO")
+    else:
+        self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL NO GENERADO")
 
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
     self.sales_window = None
     self.verification_window = None
+    self.reports_window = None
     self.history_repository = SQLiteGameHistoryRepository(database_path())
     self.history_service = GameHistoryService(self.history_repository)
     self.history_game_id = None
     self.open_sales = lambda: _open_sales(self)
     self.open_verification = lambda: _open_verification(self)
+    self.open_reports = lambda: _open_reports(self)
     self.enter_ball = lambda: _enter_ball_with_history(self)
     self.draw_number = lambda: _draw_with_history(self)
     self.call_number = lambda number: _call_with_history(self, number)
@@ -125,6 +157,8 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
             button.clicked.connect(self.open_sales)
         elif button.text().startswith("✓  VERIFICACIÓN"):
             button.clicked.connect(self.open_verification)
+        elif button.text().startswith("▥  REPORTES"):
+            button.clicked.connect(self.open_reports)
 
 
 BingoMainWindow.__init__ = _init_with_operational_modules
