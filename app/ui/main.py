@@ -31,18 +31,31 @@ def _open_cartons(self: BingoMainWindow) -> None:
     if getattr(self, "cartons_window", None) is None:
         self.cartons_window = CartonsWindow(self)
         self.cartons_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-    self.cartons_window.show()
-    self.cartons_window.raise_()
-    self.cartons_window.activateWindow()
+        # Backward-compatible alias for integrations/tests that still refer to the
+        # old generator_window attribute. The visible workflow is now Cartones.
+        self.generator_window = self.cartons_window
+    self.show_cartons_window()
+
+
+def _show_window(window) -> None:
+    window.show()
+    window.raise_()
+    window.activateWindow()
+
+
+def _show_cartons(self: BingoMainWindow) -> None:
+    _show_window(self.cartons_window)
+
+
+# Keep the helper name explicit while allowing the compatibility alias above.
+BingoMainWindow.show_cartons_window = lambda self: _show_cartons(self)
 
 
 def _open_sales(self: BingoMainWindow) -> None:
     if getattr(self, "sales_window", None) is None:
         self.sales_window = SalesWindow(database_path())
         self.sales_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-    self.sales_window.show()
-    self.sales_window.raise_()
-    self.sales_window.activateWindow()
+    _show_window(self.sales_window)
 
 
 def _open_verification(self: BingoMainWindow) -> None:
@@ -54,9 +67,7 @@ def _open_verification(self: BingoMainWindow) -> None:
         self.verification_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
     else:
         self.verification_window.called_numbers = self.game.history
-    self.verification_window.show()
-    self.verification_window.raise_()
-    self.verification_window.activateWindow()
+    _show_window(self.verification_window)
     self.verification_window.serial_input.setFocus()
 
 
@@ -65,18 +76,14 @@ def _open_reports(self: BingoMainWindow) -> None:
         self.reports_window = ReportsWindow(self.history_repository, database_path().parent / "reports")
         self.reports_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
     self.reports_window.refresh()
-    self.reports_window.show()
-    self.reports_window.raise_()
-    self.reports_window.activateWindow()
+    _show_window(self.reports_window)
 
 
 def _open_settings(self: BingoMainWindow) -> None:
     if getattr(self, "settings_window", None) is None:
         self.settings_window = SettingsWindow(application_data_dir() / "settings.json")
         self.settings_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-    self.settings_window.show()
-    self.settings_window.raise_()
-    self.settings_window.activateWindow()
+    _show_window(self.settings_window)
 
 
 def _history_sync(self: BingoMainWindow) -> None:
@@ -163,6 +170,7 @@ def _wire_operational_controls(self: BingoMainWindow) -> None:
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
     self.cartons_window = None
+    self.generator_window = None
     self.sales_window = None
     self.verification_window = None
     self.reports_window = None
