@@ -4,6 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from app.ui.main_window import BingoMainWindow
+from app.ui.main import BingoMainWindow as OperationalBingoMainWindow
 
 
 def test_manual_ball_input_registers_and_marks_board():
@@ -31,5 +32,15 @@ def test_manual_ball_input_rejects_duplicate_and_out_of_range():
     window.ball_input.setText("91")
     window.ball_input.returnPressed.emit()
     assert len(window.game.history) == 1
+    window.close()
+    app.quit()
+
+
+def test_operational_board_click_does_not_register_while_paused():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    window.toggle_pause()
+    window.call_number(47)
+    assert window.game.history == ()
     window.close()
     app.quit()
