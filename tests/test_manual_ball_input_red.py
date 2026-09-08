@@ -3,6 +3,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 from app.ui.main_window import BingoMainWindow
 
+
 def test_manual_ball_input_contract():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
@@ -12,6 +13,6 @@ def test_manual_ball_input_contract():
     assert window.game.current_number == 47
     assert window._buttons[47].property("called") is True
     assert window._buttons[47].property("current") is True
-    assert window.count_label.text() == "1\nDE 90"
+    assert window.count_label.text() == "1 / 90"
     window.close()
     app.quit()

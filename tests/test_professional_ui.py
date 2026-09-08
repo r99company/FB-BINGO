@@ -41,7 +41,7 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     assert window.game.current_number is None
     window.draw_number()
     assert window.game.current_number is not None
-    assert window.count_label.text() == "1\nDE 90"
+    assert window.count_label.text() == "1 / 90"
     window.toggle_pause()
     assert window.game.state.paused is True
     window.toggle_pause()
