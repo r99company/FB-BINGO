@@ -60,14 +60,36 @@ class DistributionModel:
         for masks in choices:
             rng.shuffle(masks)
 
+        # Model A is the compact/interleaved format used by FB-BINGO: avoid
+        # visually monotonous runs longer than three occupied cells in a row.
+        # Model B keeps the more permissive legacy layout because it can place
+        # three numbers in a column.
+        max_consecutive = 3 if self.model is CardModel.A else 4
+        column_order = sorted(range(COLUMNS), key=lambda c: (counts[c], rng.random()))
         chosen = [0] * COLUMNS
         remaining = [5, 5, 5]
 
-        def backtrack(column: int) -> bool:
-            if column == COLUMNS:
+        def respects_spacing(column: int, mask: int) -> bool:
+            chosen[column] = mask
+            for row in range(ROWS):
+                run = 0
+                for current_column in range(COLUMNS):
+                    if chosen[current_column] & (1 << row):
+                        run += 1
+                        if run > max_consecutive:
+                            chosen[column] = 0
+                            return False
+                    else:
+                        run = 0
+            chosen[column] = 0
+            return True
+
+        def backtrack(position: int) -> bool:
+            if position == COLUMNS:
                 return remaining == [0, 0, 0]
 
-            slots_left = COLUMNS - column - 1
+            column = column_order[position]
+            slots_left = COLUMNS - position - 1
             for mask in choices[column]:
                 next_remaining = remaining[:]
                 for row in range(ROWS):
@@ -77,12 +99,16 @@ class DistributionModel:
                     continue
                 if any(value > slots_left * 3 for value in next_remaining):
                     continue
+                if not respects_spacing(column, mask):
+                    continue
+
                 chosen[column] = mask
                 old = remaining[:]
                 remaining[:] = next_remaining
-                if backtrack(column + 1):
+                if backtrack(position + 1):
                     return True
                 remaining[:] = old
+                chosen[column] = 0
             return False
 
         return chosen if backtrack(0) else None

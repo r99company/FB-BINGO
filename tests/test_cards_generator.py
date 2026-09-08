@@ -60,3 +60,32 @@ def test_model_is_metadata_and_both_models_generate_valid_series() -> None:
 def test_generator_rejects_series_past_supported_serial_limit() -> None:
     with pytest.raises(ValueError, match="30000"):
         SeriesGenerator(seed=1).generate("SER-LIMIT", CardModel.A, serial_start=29_996)
+
+
+def _layout_signature(card) -> tuple[tuple[bool, ...], ...]:
+    return tuple(tuple(value is not None for value in row) for row in card.grid)
+
+
+def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
+    generator_a = SeriesGenerator(seed=2026)
+    first = generator_a.generate("SER-001", CardModel.A)
+    generator_b = SeriesGenerator(seed=2026)
+    later = generator_b.generate("SER-150", CardModel.A)
+
+    assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
+
+
+def test_model_a_rows_are_interleaved_without_runs_longer_than_three() -> None:
+    for seed in range(30):
+        series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
+        for card in series.cards:
+            for row in card.grid:
+                longest_run = 0
+                current_run = 0
+                for value in row:
+                    if value is None:
+                        current_run = 0
+                    else:
+                        current_run += 1
+                        longest_run = max(longest_run, current_run)
+                assert longest_run <= 3
