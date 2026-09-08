@@ -149,7 +149,11 @@ def _call_with_history(self, number: int) -> None:
 
 
 def _undo_with_history(self) -> None:
+    was_paused = self.game.state.paused
     _original_undo_number(self)
+    if was_paused and self.game.history:
+        self.game.pause()
+        self._sync_ui()
     _history_sync(self)
     _publish_tv(self)
 
