@@ -44,3 +44,16 @@ def test_operational_board_click_does_not_register_while_paused():
     assert window.game.history == ()
     window.close()
     app.quit()
+
+
+def test_undo_preserves_paused_state():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    window.call_number(47)
+    window.toggle_pause()
+    assert window.game.state.paused is True
+    window.undo_number()
+    assert window.game.history == ()
+    assert window.game.state.paused is True
+    window.close()
+    app.quit()
