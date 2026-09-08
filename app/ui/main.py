@@ -4,6 +4,7 @@ import sys
 import threading
 
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
@@ -242,6 +243,22 @@ def _replace_signal_connection(signal, slot) -> None:
     signal.connect(slot)
 
 
+def _install_operator_shortcuts(self: BingoMainWindow) -> None:
+    """Atajos reales de teclado para la operación de la partida."""
+    self._operator_shortcuts = []
+    actions = (
+        ("F1", self.draw_number),
+        ("F2", self.toggle_pause),
+        ("F3", self.undo_number),
+        ("F4", lambda: self.new_game() if getattr(self, "_finalized", False) else self.finalize_game()),
+    )
+    for sequence, callback in actions:
+        shortcut = QShortcut(QKeySequence(sequence), self)
+        shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        shortcut.activated.connect(callback)
+        self._operator_shortcuts.append(shortcut)
+
+
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
     self._finalized = False
@@ -291,6 +308,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
         elif button.text().startswith("■ FINALIZAR"):
             button.setProperty("fb_bingo_finish_button", True)
             _replace_signal_connection(button.clicked, self.finalize_game)
+    _install_operator_shortcuts(self)
 
 BingoMainWindow.__init__ = _init_with_operational_modules
 
