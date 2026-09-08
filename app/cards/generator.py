@@ -81,6 +81,8 @@ class SeriesGenerator:
             }
             if len(mask_signatures) != CARDS_PER_SERIES:
                 continue
+            if model is CardModel.A and not self._has_unique_row_layouts(grids):
+                continue
             cards = tuple(
                 BingoCard(
                     serial=f"{series_id}-{serial_start + index:06d}",
@@ -92,6 +94,20 @@ class SeriesGenerator:
             return BingoSeries(series_id=series_id, cards=cards)
 
         raise RuntimeError("No se pudo generar una serie válida")
+
+    @staticmethod
+    def _has_unique_row_layouts(
+        grids: Sequence[Sequence[Sequence[int | None]]],
+    ) -> bool:
+        """Require each row position to have six distinct occupancy patterns."""
+        for row in range(ROWS):
+            signatures = {
+                tuple(grid[row][column] is not None for column in range(COLUMNS))
+                for grid in grids
+            }
+            if len(signatures) != CARDS_PER_SERIES:
+                return False
+        return True
 
     def _column_counts(
         self,
