@@ -5,8 +5,9 @@ import threading
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
+from app.bingo.game import BingoGame
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
 from app.sales import SalesService
 from app.services import GameClosureService, GameHistoryService
@@ -334,13 +335,47 @@ def run_tv_mode() -> int:
     return app.exec()
 
 
-def main() -> int:
-    if "--tv" in sys.argv:
-        return run_tv_mode()
-    app = QApplication(sys.argv)
-    window = BingoMainWindow()
-    window.show()
-    return app.exec()
+def _run_self_test() -> int:
+    """Comprobación rápida sin abrir ventanas ni iniciar el servidor de TV."""
+    game = BingoGame()
+    repository = SQLiteSeriesRepository(database_path())
+    print("FB-BINGO OK")
+    print(f"bola_actual={game.current_number}")
+    print(f"series_en_bd={repository.count_series()}")
+    return 0
+
+
+def _show_startup_error(exc: Exception) -> None:
+    message = "No se pudo iniciar FB-BINGO.\n\n" + str(exc)
+    try:
+        app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.critical(None, "FB-BINGO · Error de inicio", message)
+    except Exception:
+        print(message, file=sys.stderr)
+
+
+def main(argv=None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if "--test" in args:
+        try:
+            return _run_self_test()
+        except Exception as exc:
+            print(f"FB-BINGO ERROR: {exc}", file=sys.stderr)
+            return 1
+    if "--tv" in args:
+        try:
+            return run_tv_mode()
+        except Exception as exc:
+            _show_startup_error(exc)
+            return 1
+    try:
+        app = QApplication.instance() or QApplication(sys.argv)
+        window = BingoMainWindow()
+        window.show()
+        return app.exec()
+    except Exception as exc:
+        _show_startup_error(exc)
+        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())
