@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from app.cards import CardModel
 
 
-DEFAULT_PRODUCTION_CAPACITY = 15_000
+# Capacidad oficial: 5.000 series × 6 cartones = 30.000 cartones.
+DEFAULT_PRODUCTION_CAPACITY = 30_000
 
 
 @dataclass(frozen=True, slots=True)
