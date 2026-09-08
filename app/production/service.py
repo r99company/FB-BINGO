@@ -147,13 +147,26 @@ class ProductionService:
                 (status, lot_id),
             )
 
-    def _series_is_persisted(self, series_id: str) -> bool:
+    def _series_is_persisted(self, series_id: str, expected_start: int) -> bool:
+        """Return true only when the exact six expected serials are persisted."""
+        expected = [
+            f"{series_id}-{expected_start + index:06d}"
+            for index in range(6)
+        ]
         with self.repository._connect() as db:
-            row = db.execute(
-                "SELECT COUNT(*) AS card_count FROM cards WHERE series_id = ?",
+            rows = db.execute(
+                "SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index",
                 (series_id,),
-            ).fetchone()
-        return int(row["card_count"]) == 6
+            ).fetchall()
+        persisted = [str(row["serial"]) for row in rows]
+        if not persisted:
+            return False
+        if persisted != expected:
+            raise DuplicateProductionError(
+                f"La serie {series_id} ya existe pero no corresponde al rango de cartones esperado "
+                f"({expected_start}-{expected_start + 5})"
+            )
+        return True
 
     def generate_lot(
         self,
@@ -172,7 +185,7 @@ class ProductionService:
             series_number = (first_card - 1) // 6 + 1
             series_id = f"{series_number:04d}"
 
-            if self._series_is_persisted(series_id):
+            if self._series_is_persisted(series_id, first_card):
                 completed += 6
                 if progress_callback:
                     progress_callback(completed)
