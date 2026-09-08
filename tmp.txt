@@ -1,1 +1,0 @@
-Atajos F1-F4 se verifican en CI.
