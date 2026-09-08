@@ -15,6 +15,7 @@ from app.settings.service import SettingsService
 from app.tv_sync import GameSyncClient, GameSyncServer, wire_operational_controls
 from app.ui.cartons_window import CartonsWindow
 from app.ui.main_window import BingoMainWindow, TVWindow
+from app.ui.model_selector import GameModelSelector
 from app.ui.reports_window import ReportsWindow
 from app.ui.sales_window import SalesWindow
 from app.ui.settings_window import SettingsWindow
@@ -63,10 +64,15 @@ def _open_verification(self: BingoMainWindow) -> None:
     sales = SalesService(database_path(), repository=repository)
     service = VerificationService(repository, sales)
     if getattr(self, "verification_window", None) is None:
-        self.verification_window = VerificationWindow(called_numbers=self.game.history, verification_service=service)
+        self.verification_window = VerificationWindow(
+            called_numbers=self.game.history,
+            verification_service=service,
+            expected_model=self.model_selector.current_model,
+        )
         self.verification_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
     else:
         self.verification_window.called_numbers = self.game.history
+        self.verification_window.set_expected_model(self.model_selector.current_model)
     _show_window(self.verification_window)
     self.verification_window.serial_input.setFocus()
 
@@ -96,6 +102,7 @@ def _publish_tv(self: BingoMainWindow) -> None:
             "history": list(self.game.history),
             "game": self.header_values[0].text() or "PARTIDA RÁPIDA",
             "series": self.header_values[2].text() or "—",
+            "model": self.model_selector.current_model.value,
             "status": "FINALIZADA" if getattr(self, "_finalized", False) else ("PAUSADA" if self.game.state.paused else "EN CURSO"),
         })
     except (OSError, ValueError, TimeoutError):
@@ -259,6 +266,17 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
         self._operator_shortcuts.append(shortcut)
 
 
+def _install_model_selector(self: BingoMainWindow) -> None:
+    """Instala el selector A/B en la cabecera de operación."""
+    self.model_selector = GameModelSelector(self)
+    self.model_selector.set_change_guard(
+        lambda: not self.game.history or getattr(self, "_finalized", False)
+    )
+    top = self.series_label.parentWidget()
+    row = top.layout()
+    row.insertWidget(max(0, row.count() - 1), self.model_selector)
+
+
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
     self._finalized = False
@@ -271,6 +289,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.history_repository = SQLiteGameHistoryRepository(database_path())
     self.history_service = GameHistoryService(self.history_repository)
     self.history_game_id = None
+    _install_model_selector(self)
     settings = SettingsService(application_data_dir() / "settings.json")
     self.tv_sync_server = GameSyncServer(host="0.0.0.0", port=int(settings.get("tv_server_port", 8765)))
     self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True)
