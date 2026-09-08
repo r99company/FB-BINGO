@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget
 
@@ -36,6 +39,7 @@ class GeneratorWidget(QWidget):
 
         self.model = QComboBox()
         self.model.addItem("Modelo A", CardModel.A.value)
+        self.model.addItem("Modelo B", CardModel.B.value)
         series_capacity = self.production_service.max_cards // 6
         serial_max = self.production_service.max_cards - 5
 
@@ -61,14 +65,15 @@ class GeneratorWidget(QWidget):
         logo_button = QPushButton("SELECCIONAR LOGO"); logo_button.setObjectName("Secondary"); logo_button.clicked.connect(self._choose_logo)
         generate = QPushButton("GENERAR PRODUCCIÓN"); generate.setObjectName("Primary"); generate.clicked.connect(self.generate_series)
         preview = QPushButton("ACTUALIZAR VISTA A4"); preview.setObjectName("Secondary"); preview.clicked.connect(self.preview_a4)
+        print_button = QPushButton("IMPRIMIR A4"); print_button.setObjectName("Primary"); print_button.clicked.connect(self.print_a4)
         save = QPushButton("GUARDAR A4 (SVG)"); save.setObjectName("Secondary"); save.clicked.connect(self.save_a4)
 
         for label, widget in (("Modelo", self.model), ("Serie inicial", self.series_id), ("Cantidad de series", self.quantity), ("Serial inicial", self.serial_start), ("Color espacios", self.empty_color), ("Color principal", self.accent_color), ("Color secundario", self.secondary_color), ("QR", self.qr)):
             form.addRow(label, widget)
         form.addRow("Impresión", self.duplicate_column)
-        form.addRow(self.logo, logo_button); form.addRow(generate); form.addRow(preview); form.addRow(save)
+        form.addRow(self.logo, logo_button); form.addRow(generate); form.addRow(preview); form.addRow(print_button); form.addRow(save)
 
-        info = QLabel("Cada serie contiene 6 cartones. La hoja A4 de producción usa 2 columnas × 6 filas: modo normal coloca 1–6 a la izquierda y 7–12 a la derecha; Duplicar columna coloca 1–6 en ambos lados. Los cartones se leen de SQLite y nunca se regeneran al imprimir.")
+        info = QLabel("Cada serie contiene 6 cartones. Una serie sola ocupa 2 columnas × 3 filas; si existe la siguiente serie, el modo normal puede colocar 1–6 a la izquierda y 7–12 a la derecha. Duplicar columna repite 1–6 a ambos lados. Los cartones se leen de SQLite y nunca se regeneran al imprimir.")
         info.setObjectName("Muted"); info.setWordWrap(True); form.addRow(info)
         layout.addWidget(controls)
 
@@ -132,6 +137,36 @@ class GeneratorWidget(QWidget):
             derecha = "1–6" if self.duplicate_column.isChecked() else "7–12"
             self.preview_label.setText(f"Vista A4 · izquierda 1–6 · derecha {derecha} · {modo}")
         except (ValueError, OSError) as exc: QMessageBox.warning(self, "Error de vista previa", str(exc))
+
+    def print_a4(self) -> None:
+        """Envía exactamente la vista A4 actual al diálogo de impresión de Windows."""
+        try:
+            if self._series is None:
+                self.generate_series()
+            if self._series is None:
+                raise ValueError("No hay una serie generada")
+            if not self._svg:
+                self._render_preview()
+
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            dialog = QPrintDialog(printer, self)
+            dialog.setWindowTitle("FB-BINGO — Imprimir hoja A4")
+            if dialog.exec() != QPrintDialog.DialogCode.Accepted:
+                return
+
+            renderer = QSvgRenderer(self._svg.encode("utf-8"))
+            if not renderer.isValid():
+                raise ValueError("La vista A4 generada no es válida para imprimir")
+
+            painter = QPainter(printer)
+            try:
+                page = printer.pageRect(QPrinter.Unit.DevicePixel)
+                renderer.render(painter, QRectF(page))
+            finally:
+                painter.end()
+            QMessageBox.information(self, "Impresión enviada", "La hoja A4 fue enviada correctamente a la impresora seleccionada.")
+        except (ValueError, OSError, RuntimeError) as exc:
+            QMessageBox.warning(self, "Error al imprimir", str(exc))
 
     def save_a4(self) -> None:
         try:
