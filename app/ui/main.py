@@ -95,7 +95,7 @@ def _publish_tv(self: BingoMainWindow) -> None:
             "history": list(self.game.history),
             "game": self.header_values[0].text() or "PARTIDA RÁPIDA",
             "series": self.header_values[2].text() or "—",
-            "status": "PAUSADA" if self.game.state.paused else "EN CURSO",
+            "status": "FINALIZADA" if getattr(self, "_finalized", False) else ("PAUSADA" if self.game.state.paused else "EN CURSO"),
         })
     except (OSError, ValueError, TimeoutError):
         pass
@@ -121,6 +121,11 @@ def _start_history_game(self) -> None:
 
 
 def _enter_ball_with_history(self) -> bool:
+    if getattr(self, "_finalized", False):
+        self.ball_message.setText("✕ PARTIDA FINALIZADA · INICIE UNA NUEVA PARTIDA")
+        self.ball_input.selectAll()
+        self.ball_input.setFocus()
+        return False
     if self.game.state.paused:
         self.ball_message.setText("Ⅱ PARTIDA PAUSADA · NO SE PUEDE DIGITAR")
         self.ball_input.selectAll()
@@ -134,12 +139,18 @@ def _enter_ball_with_history(self) -> bool:
 
 
 def _draw_with_history(self) -> None:
+    if getattr(self, "_finalized", False):
+        self.ball_message.setText("✕ PARTIDA FINALIZADA · INICIE UNA NUEVA PARTIDA")
+        return
     _original_draw_number(self)
     _history_sync(self)
     _publish_tv(self)
 
 
 def _call_with_history(self, number: int) -> None:
+    if getattr(self, "_finalized", False):
+        self.ball_message.setText("✕ PARTIDA FINALIZADA · INICIE UNA NUEVA PARTIDA")
+        return
     if self.game.state.paused:
         self.ball_message.setText("Ⅱ PARTIDA PAUSADA · NO SE PUEDE CANTAR BOLA")
         return
@@ -149,6 +160,9 @@ def _call_with_history(self, number: int) -> None:
 
 
 def _undo_with_history(self) -> None:
+    if getattr(self, "_finalized", False):
+        self.ball_message.setText("✕ PARTIDA FINALIZADA · NO SE PUEDE DESHACER")
+        return
     was_paused = self.game.state.paused
     _original_undo_number(self)
     if was_paused and self.game.history:
@@ -159,22 +173,64 @@ def _undo_with_history(self) -> None:
 
 
 def _pause_with_history(self) -> None:
+    if getattr(self, "_finalized", False):
+        self.ball_message.setText("✕ PARTIDA FINALIZADA · INICIE UNA NUEVA PARTIDA")
+        return
     _original_toggle_pause(self)
     _history_sync(self)
     _publish_tv(self)
 
 
-def _new_game_with_history(self) -> None:
+def _finalize_game_with_history(self) -> None:
+    if getattr(self, "_finalized", False):
+        return
     old_game_id = getattr(self, "history_game_id", None)
     export_error: Exception | None = None
     if old_game_id is not None:
         try:
-            GameClosureService(self.history_repository, database_path().parent / "reports").close(old_game_id, self.game, game_name=self.header_values[0].text() or "PARTIDA RÁPIDA", series_id=self.header_values[2].text() or "—")
+            GameClosureService(self.history_repository, database_path().parent / "reports").close(
+                old_game_id,
+                self.game,
+                game_name=self.header_values[0].text() or "PARTIDA RÁPIDA",
+                series_id=self.header_values[2].text() or "—",
+            )
         except Exception as exc:
             export_error = exc
+    self._finalized = True
+    self.game.resume()
+    self.header_values[1].setText("FINALIZADA")
+    self.ball_message.setText(
+        "✓ PARTIDA FINALIZADA · EXCEL GENERADO" if export_error is None else "✓ PARTIDA FINALIZADA · EXCEL NO GENERADO"
+    )
+    self.ball_input.clear()
+    self.ball_input.setEnabled(False)
+    self._sync_ui()
+    self.header_values[1].setText("FINALIZADA")
+    _publish_tv(self)
+    for button in self.findChildren(QPushButton):
+        if button.text().startswith("■ FINALIZAR") or button.property("fb_bingo_finish_button") is True:
+            button.setProperty("fb_bingo_finish_button", True)
+            button.setText("▶ NUEVA PARTIDA\nF4")
+            button.style().unpolish(button)
+            button.style().polish(button)
+
+
+def _new_game_with_history(self) -> None:
+    if not getattr(self, "_finalized", False):
+        _finalize_game_with_history(self)
     _original_new_game(self)
+    self._finalized = False
+    self.ball_input.setEnabled(True)
+    self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA")
+    self._sync_ui()
+    self.header_values[1].setText("EN ESPERA")
     _start_history_game(self)
-    self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL GENERADO" if export_error is None else "✓ PARTIDA FINALIZADA · EXCEL NO GENERADO")
+    for button in self.findChildren(QPushButton):
+        if button.property("fb_bingo_finish_button") is True:
+            button.setText("■ FINALIZAR\nF4")
+            button.setProperty("fb_bingo_finish_button", True)
+            button.style().unpolish(button)
+            button.style().polish(button)
     _publish_tv(self)
 
 
@@ -188,6 +244,7 @@ def _replace_signal_connection(signal, slot) -> None:
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _original_init(self)
+    self._finalized = False
     self.cartons_window = None
     self.generator_window = None
     self.sales_window = None
@@ -213,6 +270,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.call_number = lambda number: _call_with_history(self, number)
     self.undo_number = lambda: _undo_with_history(self)
     self.toggle_pause = lambda: _pause_with_history(self)
+    self.finalize_game = lambda: _finalize_game_with_history(self)
     self.new_game = lambda: _new_game_with_history(self)
     _start_history_game(self)
     wire_operational_controls(self)
@@ -230,6 +288,9 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
             _replace_signal_connection(button.clicked, self.open_settings)
         elif button.text().startswith("▣  PANTALLA TV") or button.text().startswith("▣ PANTALLA TV"):
             _replace_signal_connection(button.clicked, self.open_tv)
+        elif button.text().startswith("■ FINALIZAR"):
+            button.setProperty("fb_bingo_finish_button", True)
+            _replace_signal_connection(button.clicked, self.finalize_game)
 
 BingoMainWindow.__init__ = _init_with_operational_modules
 

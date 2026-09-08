@@ -57,3 +57,44 @@ def test_undo_preserves_paused_state():
     assert window.game.state.paused is True
     window.close()
     app.quit()
+
+
+def test_finalize_keeps_history_and_blocks_more_balls():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    window.ball_input.setText("47")
+    window.ball_input.returnPressed.emit()
+    window.finalize_game()
+    assert window.game.history == (47,)
+    assert window.game.current_number == 47
+    assert window.game.state.finished is False
+    window.ball_input.setText("12")
+    window.ball_input.returnPressed.emit()
+    assert window.game.history == (47,)
+    assert "FINALIZADA" in window.ball_message.text()
+    window.close()
+    app.quit()
+
+
+def test_new_game_clears_previous_game():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    window.ball_input.setText("47")
+    window.ball_input.returnPressed.emit()
+    window.finalize_game()
+    window.new_game()
+    assert window.game.history == ()
+    assert window.game.current_number is None
+    assert window.game.state.finished is False
+    assert window.count_label.text() == "0 / 90"
+    window.close()
+    app.quit()
+
+
+def test_verify_card_uses_current_game_history():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    assert hasattr(window, "verify_card")
+    assert window.game.history == ()
+    window.close()
+    app.quit()
