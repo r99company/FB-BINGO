@@ -43,6 +43,17 @@ class SeriesGenerator:
         self._rng = random.Random(seed)
         self._max_serial = max_serial
 
+    def _series_rng(self, series_id: str) -> random.Random:
+        """Create an isolated RNG so the visual layout varies by series.
+
+        The series identifier is part of the entropy on purpose: generating
+        series 001 and 150 with the same base seed must not reproduce the same
+        card positions. The master RNG keeps successive generated series
+        independent when the generator is reused.
+        """
+        entropy = self._rng.getrandbits(128)
+        return random.Random(f"FB-BINGO:{series_id}:{entropy}")
+
     def generate(
         self,
         series_id: str,
@@ -57,10 +68,11 @@ class SeriesGenerator:
         if serial_start + CARDS_PER_SERIES - 1 > self._max_serial:
             raise ValueError(f"Una serie no puede superar el serial {self._max_serial}")
 
+        rng = self._series_rng(series_id)
         distribution = DistributionModel.for_model(model)
         for _ in range(1000):
-            column_counts = self._column_counts(model, distribution)
-            grids = self._build_grids(column_counts, distribution)
+            column_counts = self._column_counts(model, distribution, rng)
+            grids = self._build_grids(column_counts, distribution, rng)
             if grids is None:
                 continue
             mask_signatures = {
@@ -82,19 +94,23 @@ class SeriesGenerator:
         raise RuntimeError("No se pudo generar una serie válida")
 
     def _column_counts(
-        self, model: CardModel, distribution: DistributionModel | None = None
+        self,
+        model: CardModel,
+        distribution: DistributionModel | None = None,
+        rng: random.Random | None = None,
     ) -> list[list[int]]:
         """Build model-specific column loads for a six-card series."""
         distribution = distribution or DistributionModel.for_model(model)
+        rng = rng or self._rng
         if model is CardModel.A:
-            return distribution.column_counts(self._rng)
+            return distribution.column_counts(rng)
 
         targets = [9] + [10] * 7 + [11]
         max_extra = 2
         remaining = [15 - COLUMNS] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         columns = list(range(COLUMNS))
-        self._rng.shuffle(columns)
+        rng.shuffle(columns)
         cache: dict[int, list[tuple[int, ...]]] = {}
 
         def candidates(extra: int) -> list[tuple[int, ...]]:
@@ -106,7 +122,7 @@ class SeriesGenerator:
                     )
                     if sum(allocation) == extra
                 ]
-                self._rng.shuffle(values)
+                rng.shuffle(values)
                 cache[extra] = values
             return cache[extra]
 
@@ -151,11 +167,13 @@ class SeriesGenerator:
         self,
         column_counts: Sequence[Sequence[int]],
         distribution: DistributionModel | None = None,
+        rng: random.Random | None = None,
     ) -> list[tuple[tuple[int | None, ...], ...]] | None:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
+        rng = rng or self._rng
         row_masks: list[list[int]] = []
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, self._rng)
+            masks = distribution.row_masks_for_counts(counts, rng)
             if masks is None:
                 return None
             row_masks.append(masks)
@@ -163,7 +181,7 @@ class SeriesGenerator:
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
             values = list(self._values_for_column(column))
-            self._rng.shuffle(values)
+            rng.shuffle(values)
             cursor = 0
             for card_index in range(CARDS_PER_SERIES):
                 count = column_counts[card_index][column]
