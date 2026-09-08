@@ -14,7 +14,7 @@ def _series() -> BingoSeries:
     # con los números dentro del rango de su columna y un máximo de 2
     # números por columna para el modelo A.
     grid = (
-        (1, 10, 20, None, None, 50, 60, None, 80),
+        (1, 10, None, None, None, 50, 60, None, 80),
         (2, None, 21, 30, None, None, None, 70, 81),
         (None, 11, None, 31, 41, None, 61, 71, None),
     )
