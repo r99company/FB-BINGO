@@ -16,20 +16,20 @@ def test_lot_must_use_complete_six_card_series() -> None:
         plan_lot(1, 1499)
 
 
-def test_initial_capacity_is_15000_but_can_be_configured_to_30000() -> None:
-    with pytest.raises(ValueError):
-        plan_lot(15001, 15006)
+def test_official_capacity_is_30000() -> None:
+    lot = plan_lot(29_995, 30_000)
+    assert lot.card_count == 6
+    assert lot.series_count == 1
 
-    lot = plan_lot(15001, 30000, max_cards=30000)
-    assert lot.card_count == 15000
-    assert lot.series_count == 2500
+    with pytest.raises(ValueError):
+        plan_lot(30_001, 30_006)
 
 
 def test_configured_capacity_must_be_positive_and_cover_requested_range() -> None:
     with pytest.raises(ValueError):
         plan_lot(1, 6, max_cards=0)
     with pytest.raises(ValueError):
-        plan_lot(29995, 30000, max_cards=29999)
+        plan_lot(29_995, 30_000, max_cards=29_999)
 
 
 def test_service_uses_configured_capacity(tmp_path) -> None:
