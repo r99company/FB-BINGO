@@ -94,6 +94,19 @@ def test_generation_can_resume_after_a_failure(tmp_path) -> None:
     assert len(repository.get("0002").cards) == 6
 
 
+def test_mismatched_persisted_series_is_not_silently_reused(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    repository.save(SeriesGenerator(seed=10).generate("0002", CardModel.A, serial_start=1))
+
+    service = ProductionService(repository, max_cards=30_000)
+    lot = service.create_lot(7, 12, CardModel.A, operator="test")
+
+    with pytest.raises(DuplicateProductionError, match="0002"):
+        service.generate_lot(lot.lot_id)
+
+    assert service.get_lot(lot.lot_id).status == "generating"
+
+
 def test_generated_lot_can_be_marked_printed_and_cannot_be_reprinted(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository)
