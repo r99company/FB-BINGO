@@ -89,3 +89,15 @@ def test_model_a_rows_are_interleaved_without_runs_longer_than_three() -> None:
                         current_run += 1
                         longest_run = max(longest_run, current_run)
                 assert longest_run <= 3
+
+
+def test_representative_series_do_not_repeat_row_layouts_within_a_strip() -> None:
+    """The six cards should look varied, not reuse a row pattern in the strip."""
+    for series_id in ("001", "002", "003", "150", "151"):
+        series = SeriesGenerator(seed=2026).generate(f"SER-{series_id}", CardModel.A)
+        for row in range(3):
+            patterns = [
+                tuple(card.grid[row][column] is not None for column in range(9))
+                for card in series.cards
+            ]
+            assert len(set(patterns)) == 6
