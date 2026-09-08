@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 import json
 import socket
 import threading
@@ -114,6 +113,10 @@ class GameSyncServer:
             raise ValueError("El historial contiene una bola inválida")
         if len(history) > 90:
             raise ValueError("El historial no puede superar 90 bolas")
+        if len(history) != len(set(history)):
+            raise ValueError("El historial no puede contener bolas repetidas")
+        if current is not None and history and history[-1] != current:
+            raise ValueError("La bola actual debe coincidir con la última bola del historial")
 
 
 class GameSyncClient:
@@ -140,8 +143,8 @@ class GameSyncClient:
         return self._request({"action": "get"})["state"]
 
 
-def _wire_operational_controls(window: Any) -> None:
-    """Conecta los controles operativos; mantiene compatibilidad con main.py."""
+def wire_operational_controls(window: Any) -> None:
+    """Conecta los controles operativos de la ventana principal."""
     from PySide6.QtWidgets import QPushButton
 
     def replace(signal: Any, slot: Any) -> None:
@@ -166,6 +169,3 @@ def _wire_operational_controls(window: Any) -> None:
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
     replace(window.ball_input.returnPressed, window.enter_ball)
-
-
-builtins._wire_operational_controls = _wire_operational_controls
