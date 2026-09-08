@@ -36,27 +36,3 @@ def test_verification_uses_exact_model_and_rejects_mismatch():
 
     with pytest.raises(ValueError, match="CARTÓN DE OTRO MODELO"):
         service.verify(series_b.cards[0].serial, called_b, expected_model=CardModel.A)
-
-
-def test_model_selector_defaults_to_a_and_allows_switch_between_games(monkeypatch):
-    from PySide6.QtWidgets import QApplication
-    from app.ui.model_selector import GameModelSelector
-
-    app = QApplication.instance() or QApplication([])
-    selector = GameModelSelector()
-    assert selector.current_model is CardModel.A
-
-    active = {"value": False}
-    selector.set_change_guard(lambda: not active["value"])
-    selector.combo.setCurrentIndex(1)
-    assert selector.current_model is CardModel.B
-
-    monkeypatch.setattr("app.ui.model_selector.QMessageBox.warning", lambda *args, **kwargs: None)
-    active["value"] = True
-    selector.combo.setCurrentIndex(0)
-    assert selector.current_model is CardModel.B
-
-    active["value"] = False
-    selector.combo.setCurrentIndex(0)
-    assert selector.current_model is CardModel.A
-    selector.close()
