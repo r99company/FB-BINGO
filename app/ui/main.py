@@ -140,6 +140,9 @@ def _draw_with_history(self) -> None:
 
 
 def _call_with_history(self, number: int) -> None:
+    if self.game.state.paused:
+        self.ball_message.setText("Ⅱ PARTIDA PAUSADA · NO SE PUEDE CANTAR BOLA")
+        return
     _original_call_number(self, number)
     _history_sync(self)
     _publish_tv(self)
