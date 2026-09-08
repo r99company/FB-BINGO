@@ -60,4 +60,3 @@ def test_model_selector_defaults_to_a_and_allows_switch_between_games(monkeypatc
     selector.combo.setCurrentIndex(0)
     assert selector.current_model is CardModel.A
     selector.close()
-    app.quit()
