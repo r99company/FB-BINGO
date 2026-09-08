@@ -4,27 +4,21 @@ from PySide6.QtWidgets import QApplication
 
 from app.database.game_repository import SQLiteGameHistoryRepository
 from app.database.series_repository import SQLiteSeriesRepository
-from app.cards import BingoCard, BingoSeries, CardModel
+from app.cards import BingoCard, BingoSeries, CardModel, SeriesGenerator
 from app.sales import SalesService
 from app.ui.reports_window import ReportsWindow
 
 
 def _series() -> BingoSeries:
-    # Cartón determinista y válido: 5 números por fila, 15 en total,
-    # con los números dentro del rango de su columna y un máximo de 2
-    # números por columna para el modelo A.
-    grid = (
-        (1, 10, None, None, None, 50, 60, None, 80),
-        (2, None, 21, 30, None, None, None, 70, 81),
-        (None, 11, None, 31, 41, None, 61, 71, None),
+    # Usa el generador real para garantizar que los 6 cartones cubran
+    # 1-90 exactamente una vez; luego conserva los seriales que necesita
+    # esta prueba para verificar la búsqueda por número humano.
+    generated = SeriesGenerator(seed=123).generate("1", model=CardModel.A, serial_start=1)
+    cards = tuple(
+        BingoCard(serial=f"{i:06d}", model=card.model, grid=card.grid)
+        for i, card in enumerate(generated.cards, start=1)
     )
-    return BingoSeries(
-        series_id=1,
-        cards=tuple(
-            BingoCard(serial=f"{i:06d}", model=CardModel.A, grid=grid)
-            for i in range(1, 7)
-        ),
-    )
+    return BingoSeries(series_id=1, cards=cards)
 
 
 def test_reports_window_lists_games_and_exports_selected(tmp_path: Path):
