@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication
 
 from app.ui.main_window import BingoMainWindow
@@ -96,5 +97,15 @@ def test_verify_card_uses_current_game_history():
     window = OperationalBingoMainWindow()
     assert hasattr(window, "verify_card")
     assert window.game.history == ()
+    window.close()
+    app.quit()
+
+
+def test_operator_has_f1_to_f4_shortcuts():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    shortcuts = window.findChildren(QShortcut)
+    sequences = {shortcut.key().toString() for shortcut in shortcuts}
+    assert {"F1", "F2", "F3", "F4"}.issubset(sequences)
     window.close()
     app.quit()
