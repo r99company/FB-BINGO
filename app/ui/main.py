@@ -11,7 +11,7 @@ from app.sales import SalesService
 from app.services import GameClosureService, GameHistoryService
 from app.settings.paths import application_data_dir, database_path
 from app.settings.service import SettingsService
-from app.tv_sync import GameSyncClient, GameSyncServer
+from app.tv_sync import GameSyncClient, GameSyncServer, wire_operational_controls
 from app.ui.cartons_window import CartonsWindow
 from app.ui.main_window import BingoMainWindow, TVWindow
 from app.ui.reports_window import ReportsWindow
@@ -208,7 +208,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.toggle_pause = lambda: _pause_with_history(self)
     self.new_game = lambda: _new_game_with_history(self)
     _start_history_game(self)
-    _wire_operational_controls(self)
+    wire_operational_controls(self)
     for button in self.findChildren(QPushButton):
         if button.text().startswith("▣  GENERADOR") or button.text().startswith("▣ GENERADOR"):
             button.setText("🛒  CARTONES\nGenerador · Imprimir · Ver · Diseñar")
