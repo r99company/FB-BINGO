@@ -181,15 +181,15 @@ class ProductionService:
                 (status, lot_id),
             )
 
-    def _series_is_persisted(self, series_id: str, expected_start: int) -> bool:
-        """Return true only when the exact six expected serials are persisted."""
+    def _series_is_persisted(self, series_id: str, expected_start: int, expected_model: CardModel) -> bool:
+        """Return true only when the exact six expected serials and model are persisted."""
         expected = [
             f"{series_id}-{expected_start + index:06d}"
             for index in range(6)
         ]
         with self.repository._connect() as db:
             rows = db.execute(
-                "SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index",
+                "SELECT serial, model FROM cards WHERE series_id = ? ORDER BY card_index",
                 (series_id,),
             ).fetchall()
         persisted = [str(row["serial"]) for row in rows]
@@ -199,6 +199,12 @@ class ProductionService:
             raise DuplicateProductionError(
                 f"La serie {series_id} ya existe pero no corresponde al rango de cartones esperado "
                 f"({expected_start}-{expected_start + 5})"
+            )
+        persisted_models = {CardModel(row["model"]) for row in rows}
+        if persisted_models != {expected_model}:
+            stored = ", ".join(sorted(model.value for model in persisted_models))
+            raise DuplicateProductionError(
+                f"La serie {series_id} ya existe como Modelo {stored} y no puede cargarse como Modelo {expected_model.value}"
             )
         return True
 
@@ -219,7 +225,7 @@ class ProductionService:
             series_number = (first_card - 1) // 6 + 1
             series_id = f"{series_number:04d}"
 
-            if self._series_is_persisted(series_id, first_card):
+            if self._series_is_persisted(series_id, first_card, lot.model):
                 completed += 6
                 if progress_callback:
                     progress_callback(completed)
