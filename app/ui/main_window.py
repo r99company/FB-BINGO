@@ -302,7 +302,7 @@ class BingoMainWindow(QMainWindow):
         self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.current_label.setMinimumHeight(175)
         cl.addWidget(self.current_label)
-        cl.addSpacing(8)
+        cl.addSpacing(12)
         self.call_state = QLabel("¡LISTO PARA JUGAR!")
         self.call_state.setObjectName("HeaderValuePink")
         self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
