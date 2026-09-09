@@ -28,8 +28,8 @@ def qapp():
 def repository(tmp_path):
     repo = SQLiteSeriesRepository(tmp_path / "bingo.db")
     cards = tuple(
-        BingoCard(serial=f"0001-{index:06d}", model=CardModel.A, grid=MATRIX)
-        for index in range(1, 7)
+        BingoCard(serial=f"0001-{12500 + index:06d}", model=CardModel.A, grid=MATRIX)
+        for index in range(6)
     )
     repo.save(BingoSeries(series_id=1, cards=cards))
     return repo
@@ -41,7 +41,7 @@ def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, re
         called_numbers={1, 21, 41, 61},
         expected_model=CardModel.A,
     )
-    window.serial_input.setText("1")
+    window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None
     assert result.line_rows == ()
@@ -57,13 +57,13 @@ def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, re
 
 
 def test_verification_marks_full_card_as_bingo(qapp, repository):
-    card = BingoCard(serial="0001-000001", model=CardModel.A, grid=MATRIX)
+    card = BingoCard(serial="0001-012500", model=CardModel.A, grid=MATRIX)
     window = VerificationWindow(
         verification_service=VerificationService(repository),
         called_numbers=set(card.numbers),
         expected_model=CardModel.A,
     )
-    window.serial_input.setText("1")
+    window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None and result.bingo is True
     assert all(cell.property("called") is True for cell in window.card_cells.values() if cell.text())
@@ -77,10 +77,10 @@ def test_verification_accepts_human_card_number_without_sale(qapp, repository):
         called_numbers={1},
         expected_model=CardModel.A,
     )
-    window.serial_input.setText("1")
+    window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None
-    assert result.serial == "0001-000001"
+    assert result.serial == "0001-012500"
     assert result.sold is False
     assert "NO VENDIDO" in window.detail_label.text()
     window.close()
