@@ -9,7 +9,7 @@ from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
-    """Raised when a production range would reuse an existing card/series."""
+    """Raised when a production range conflicts with existing card data."""
 
 
 class ProductionService:
@@ -60,6 +60,37 @@ class ProductionService:
             created_at=row["created_at"],
         )
 
+    def _existing_serials_for_range(self, start_card: int, end_card: int) -> list[str]:
+        with self.repository._connect() as db:
+            rows = db.execute(
+                """
+                SELECT serial FROM cards
+                WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
+                ORDER BY CAST(substr(serial, -6) AS INTEGER)
+                """,
+                (start_card, end_card),
+            ).fetchall()
+        return [str(row["serial"]) for row in rows]
+
+    @staticmethod
+    def _expected_serials(start_card: int, end_card: int) -> list[str]:
+        return [
+            f"{((number - 1) // 6 + 1):04d}-{number:06d}"
+            for number in range(start_card, end_card + 1)
+        ]
+
+    def _range_is_fully_persisted(self, start_card: int, end_card: int) -> bool:
+        """True when the requested range already exists exactly and is safe to reprint."""
+        persisted = self._existing_serials_for_range(start_card, end_card)
+        if not persisted:
+            return False
+        expected = self._expected_serials(start_card, end_card)
+        if persisted != expected:
+            raise DuplicateProductionError(
+                f"El rango {start_card}-{end_card} contiene datos existentes que no corresponden exactamente al rango solicitado"
+            )
+        return True
+
     def create_lot(
         self,
         start_card: int,
@@ -74,6 +105,8 @@ class ProductionService:
             operator=operator,
             max_cards=self.max_cards,
         )
+        range_is_reprint = self._range_is_fully_persisted(planned.start_card, planned.end_card)
+
         with self.repository._connect() as db:
             overlap = db.execute(
                 """
@@ -83,23 +116,24 @@ class ProductionService:
                 """,
                 (planned.end_card, planned.start_card),
             ).fetchone()
-            if overlap is not None:
+            if overlap is not None and not range_is_reprint:
                 raise DuplicateProductionError(
                     f"El rango {planned.start_card}-{planned.end_card} se superpone al lote {overlap['lot_id']}"
                 )
 
-            existing = db.execute(
-                """
-                SELECT serial FROM cards
-                WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
-                LIMIT 1
-                """,
-                (planned.start_card, planned.end_card),
-            ).fetchone()
-            if existing is not None:
-                raise DuplicateProductionError(
-                    f"El rango {planned.start_card}-{planned.end_card} contiene el cartón existente {existing['serial']}"
-                )
+            if not range_is_reprint:
+                existing = db.execute(
+                    """
+                    SELECT serial FROM cards
+                    WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
+                    LIMIT 1
+                    """,
+                    (planned.start_card, planned.end_card),
+                ).fetchone()
+                if existing is not None:
+                    raise DuplicateProductionError(
+                        f"El rango {planned.start_card}-{planned.end_card} contiene el cartón existente {existing['serial']}"
+                    )
 
             row = db.execute(
                 "SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots"
