@@ -14,13 +14,7 @@ except ImportError:  # pragma: no cover
 class VerificationWindow(QWidget):
     """Verificación operativa con cartón completo y bolas marcadas."""
 
-    def __init__(
-        self,
-        card_lookup=None,
-        called_numbers=None,
-        verification_service: VerificationService | None = None,
-        expected_model: CardModel | str | None = None,
-    ):
+    def __init__(self, card_lookup=None, called_numbers=None, verification_service: VerificationService | None = None, expected_model: CardModel | str | None = None):
         super().__init__()
         self.setWindowTitle("FB-BINGO — Verificación de cartón")
         self.resize(650, 620)
@@ -165,7 +159,7 @@ class VerificationWindow(QWidget):
         if line_rows:
             rows = ", ".join(str(row + 1) for row in line_rows)
             return f"✓ LÍNEA · CARTÓN {serial} · FILA(S): {rows}"
-        return f"✕ SIN PREMIO · CARTÓN {serial}"
+        return f"✕ NO HAY LÍNEA · NO HAY BINGO · CARTÓN {serial}"
 
     @staticmethod
     def _prize_detail(bingo: bool, line_rows: tuple[int, ...]) -> str:
