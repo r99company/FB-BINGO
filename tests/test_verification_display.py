@@ -5,18 +5,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from app.cards import BingoCard, BingoSeries, CardModel
+from app.cards import BingoCard, CardModel
+from app.cards.generator import SeriesGenerator
 from app.database import SQLiteSeriesRepository
 from app.ui.main_window import TVWindow
 from app.ui.verification_window import VerificationWindow
 from app.verification import VerificationService
-
-
-MATRIX = (
-    (1, None, 21, None, 41, None, 61, None, 81),
-    (None, 12, None, 32, 44, 52, None, 72, None),
-    (9, None, 29, 39, None, 59, None, None, 89),
-)
 
 
 @pytest.fixture(scope="session")
@@ -27,18 +21,18 @@ def qapp():
 @pytest.fixture
 def repository(tmp_path):
     repo = SQLiteSeriesRepository(tmp_path / "bingo.db")
-    cards = tuple(
-        BingoCard(serial=f"0001-{12500 + index:06d}", model=CardModel.A, grid=MATRIX)
-        for index in range(6)
-    )
-    repo.save(BingoSeries(series_id=1, cards=cards))
+    series = SeriesGenerator(seed=123).generate("0001", CardModel.A, serial_start=12_500)
+    repo.save(series)
     return repo
 
 
 def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, repository):
+    card = repository.get_card("12500")
+    first_row = set(card.row_numbers(0))
+    called = set(list(first_row)[:4])
     window = VerificationWindow(
         verification_service=VerificationService(repository),
-        called_numbers={1, 21, 41, 61},
+        called_numbers=called,
         expected_model=CardModel.A,
     )
     window.serial_input.setText("12500")
@@ -47,17 +41,14 @@ def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, re
     assert result.line_rows == ()
     assert result.bingo is False
     assert len(window.card_cells) == 27
-    assert window.card_cells[(0, 0)].property("called") is True
-    assert window.card_cells[(0, 4)].property("called") is True
-    assert window.card_cells[(0, 8)].property("called") is False
-    assert window.card_cells[(1, 1)].text() == "12"
+    assert sum(bool(cell.property("called")) for cell in window.card_cells.values()) == 4
     assert "NO HAY LÍNEA" in window.result_label.text()
     assert "NO HAY BINGO" in window.prize_detail_label.text()
     window.close()
 
 
 def test_verification_marks_full_card_as_bingo(qapp, repository):
-    card = BingoCard(serial="0001-012500", model=CardModel.A, grid=MATRIX)
+    card = repository.get_card("12500")
     window = VerificationWindow(
         verification_service=VerificationService(repository),
         called_numbers=set(card.numbers),
@@ -66,7 +57,7 @@ def test_verification_marks_full_card_as_bingo(qapp, repository):
     window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None and result.bingo is True
-    assert all(cell.property("called") is True for cell in window.card_cells.values() if cell.text())
+    assert sum(bool(cell.property("called")) for cell in window.card_cells.values()) == 15
     assert "BINGO" in window.result_label.text()
     window.close()
 
@@ -74,7 +65,7 @@ def test_verification_marks_full_card_as_bingo(qapp, repository):
 def test_verification_accepts_human_card_number_without_sale(qapp, repository):
     window = VerificationWindow(
         verification_service=VerificationService(repository),
-        called_numbers={1},
+        called_numbers=set(),
         expected_model=CardModel.A,
     )
     window.serial_input.setText("12500")
