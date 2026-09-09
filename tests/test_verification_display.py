@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from app.cards import BingoCard, CardModel
+from app.cards import BingoCard, BingoSeries, CardModel
 from app.database import SQLiteSeriesRepository
 from app.ui.main_window import TVWindow
 from app.ui.verification_window import VerificationWindow
@@ -31,8 +31,6 @@ def repository(tmp_path):
         BingoCard(serial=f"0001-{index:06d}", model=CardModel.A, grid=MATRIX)
         for index in range(1, 7)
     )
-    # A real series uses unique serials but the same matrix is sufficient for this UI test.
-    from app.cards import BingoSeries
     repo.save(BingoSeries(series_id=1, cards=cards))
     return repo
 
@@ -61,9 +59,10 @@ def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, re
 
 
 def test_verification_marks_full_card_as_bingo(qapp, repository):
+    card = BingoCard(serial="0001-000001", model=CardModel.A, grid=MATRIX)
     window = VerificationWindow(
         verification_service=VerificationService(repository),
-        called_numbers=set(BingoCard(serial="x", model=CardModel.A, grid=MATRIX).numbers),
+        called_numbers=set(card.numbers),
         expected_model=CardModel.A,
     )
     window.serial_input.setText("1")
@@ -73,6 +72,23 @@ def test_verification_marks_full_card_as_bingo(qapp, repository):
     assert result is not None and result.bingo is True
     assert all(cell.property("called") is True for cell in window.card_cells.values() if cell.text())
     assert "BINGO" in window.result_label.text()
+    window.close()
+
+
+def test_verification_accepts_human_card_number_without_sale(qapp, repository):
+    window = VerificationWindow(
+        verification_service=VerificationService(repository),
+        called_numbers={1},
+        expected_model=CardModel.A,
+    )
+    window.serial_input.setText("1")
+
+    result = window.verify()
+
+    assert result is not None
+    assert result.serial == "0001-000001"
+    assert result.sold is False
+    assert "NO VENDIDO" in window.detail_label.text()
     window.close()
 
 
