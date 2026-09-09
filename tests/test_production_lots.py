@@ -55,14 +55,31 @@ def test_generation_persists_series_and_reports_progress(tmp_path) -> None:
     assert sorted(n for card in stored.cards for n in card.numbers) == list(range(1, 91))
 
 
-def test_existing_card_number_cannot_be_generated_again(tmp_path) -> None:
+def test_existing_card_number_can_be_reprinted_without_duplicate_error(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository)
     first = service.create_lot(1, 6, CardModel.A, operator="test")
     service.generate_lot(first.lot_id)
 
-    with pytest.raises(DuplicateProductionError):
-        service.create_lot(1, 6, CardModel.A, operator="test")
+    reprint = service.create_lot(1, 6, CardModel.A, operator="reimpresion")
+    result = service.generate_lot(reprint.lot_id)
+
+    assert result.status == "generated"
+    assert repository.count_series() == 1
+    assert repository.count_cards() == 6
+
+
+def test_same_series_can_be_reprinted_repeatedly_with_identical_cards(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    service = ProductionService(repository)
+    first = service.create_lot(1, 6, CardModel.A, operator="test")
+    service.generate_lot(first.lot_id)
+    original = repository.get("0001")
+
+    for _ in range(3):
+        reprint = service.create_lot(1, 6, CardModel.B, operator="reimpresion")
+        service.generate_lot(reprint.lot_id)
+        assert repository.get("0001") == original
 
 
 def test_generation_can_resume_after_a_failure(tmp_path) -> None:
