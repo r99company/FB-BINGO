@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -15,15 +15,19 @@ from app.verification.live_prizes import LivePrize, LivePrizeTracker
 
 
 class LivePrizesWindow(QDialog):
-    """Panel privado del operador: premios que ya están disponibles en la partida."""
+    """Panel privado del operador: premios potenciales ya disponibles en la partida."""
 
     def __init__(self, tracker: LivePrizeTracker, parent=None) -> None:
         super().__init__(parent)
         self.tracker = tracker
         self.setWindowTitle("FB-BINGO · Premios en juego")
-        self.resize(720, 560)
+        self.resize(760, 580)
         self.setModal(False)
         self._build_ui()
+        self._timer = QTimer(self)
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self._poll_game)
+        self._timer.start()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -33,6 +37,13 @@ class LivePrizesWindow(QDialog):
         self.summary = QLabel("Sin bolas cantadas")
         self.summary.setStyleSheet("font-size:14px;font-weight:700;")
         root.addWidget(self.summary)
+        self.notice = QLabel(
+            "CONTROL INTERNO · Estos son cartones que ya cumplen línea o BINGO con las bolas cantadas. "
+            "No se muestran en la pantalla pública ni sustituyen la reclamación/verificación del jugador."
+        )
+        self.notice.setWordWrap(True)
+        self.notice.setStyleSheet("font-size:12px;")
+        root.addWidget(self.notice)
 
         self.list = QListWidget()
         self.list.setAlternatingRowColors(True)
@@ -42,6 +53,16 @@ class LivePrizesWindow(QDialog):
         close.clicked.connect(self.close)
         row = QHBoxLayout(); row.addStretch(); row.addWidget(close)
         root.addLayout(row)
+
+    def _poll_game(self) -> None:
+        parent = self.parentWidget()
+        game = getattr(parent, "game", None)
+        if game is not None:
+            self.refresh(game.history)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._poll_game()
 
     def refresh(self, called_numbers: set[int] | frozenset[int]) -> None:
         self.tracker.update(called_numbers)
@@ -54,8 +75,7 @@ class LivePrizesWindow(QDialog):
         )
         self.list.clear()
         for prize in prizes:
-            row_text = self._format_prize(prize)
-            item = QListWidgetItem(row_text)
+            item = QListWidgetItem(self._format_prize(prize))
             item.setData(Qt.ItemDataRole.UserRole, prize.serial)
             self.list.addItem(item)
         if not prizes:
