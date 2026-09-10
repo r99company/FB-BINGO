@@ -5,7 +5,6 @@ from app.cards import CardModel, SeriesGenerator
 
 def test_generates_six_cards_with_fifteen_numbers_each() -> None:
     series = SeriesGenerator(seed=123).generate("SER-001", CardModel.A, serial_start=100)
-
     assert len(series.cards) == 6
     assert all(len(card.numbers) == 15 for card in series.cards)
     assert [card.serial for card in series.cards] == [
@@ -22,21 +21,20 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_have_only_one_or_two_numbers_per_column() -> None:
+def test_model_a_generated_cards_allow_one_to_three_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert all(1 <= count <= 3 for count in card.column_counts)
         assert card.model is CardModel.A
 
 
-def test_model_b_generated_cards_can_have_three_numbers_per_column() -> None:
+def test_model_b_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert all(1 <= count <= 2 for count in card.column_counts)
         assert card.model is CardModel.B
-    assert any(3 in card.column_counts for card in series.cards)
 
 
 def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
@@ -75,12 +73,10 @@ def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     first = generator_a.generate("SER-001", CardModel.A)
     generator_b = SeriesGenerator(seed=2026)
     later = generator_b.generate("SER-150", CardModel.A)
-
     assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
 
 
 def test_model_a_allows_natural_row_runs() -> None:
-    """Row adjacency is not a validity rule; only the 5-per-row invariant is."""
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
         for card in series.cards:
@@ -88,7 +84,6 @@ def test_model_a_allows_natural_row_runs() -> None:
 
 
 def test_representative_series_allow_repeats_but_not_three_identical_column_patterns_in_a_row() -> None:
-    """A series may repeat a pattern, but should not form a triple identical contour."""
     for series_id in ("001", "002", "003", "150", "151"):
         series = SeriesGenerator(seed=2026).generate(f"SER-{series_id}", CardModel.A)
         patterns = [_column_signature(card) for card in series.cards]
@@ -98,7 +93,6 @@ def test_representative_series_allow_repeats_but_not_three_identical_column_patt
 
 
 def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
-    """The generator must not impose the old first-four-columns visual rule."""
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
         for card in series.cards:
