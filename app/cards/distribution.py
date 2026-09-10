@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import itertools
 import random
 from typing import Sequence
 
@@ -14,8 +15,10 @@ NUMBERS_PER_CARD = 15
 class DistributionModel:
     """Reglas de ocupación de casillas para un cartón de Bingo 90.
 
-    Las reglas matemáticas son estrictas; la estética se resuelve mediante
-    puntuación y elección aleatoria entre muchas soluciones válidas.
+    Las reglas matemáticas son estrictas; la variedad visual se obtiene
+    muestreando un número limitado de soluciones válidas. Nunca se enumeran
+    todas las combinaciones posibles, porque eso hacía que la generación de
+    muchas series fuese innecesariamente lenta.
     """
 
     model: CardModel
@@ -74,9 +77,9 @@ class DistributionModel:
     ) -> list[int] | None:
         """Construye tres máscaras de cinco casillas con las cargas dadas.
 
-        En lugar de recorrer cientos de miles de pares de máscaras, se hace
-        una pequeña búsqueda por columnas. Esto mantiene la variedad visual
-        sin convertir la generación en un cuello de botella.
+        La búsqueda está acotada: obtiene varias soluciones válidas y escoge
+        la de mejor apariencia entre ellas. Esto conserva la variedad de los
+        cartones de referencia sin bloquear la generación de series.
         """
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
@@ -86,82 +89,60 @@ class DistributionModel:
         if forbidden is None:
             forbidden = [set(), set(), set()]
 
-        # Las columnas más cargadas primero reducen mucho el espacio de búsqueda.
         columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
-        remaining = [5, 5, 5]
-        masks = [0, 0, 0]
-        best: tuple[int, tuple[int, int, int]] | None = None
+        best_score: int | None = None
+        best_triple: tuple[int, int, int] | None = None
 
-        def recurse(position: int) -> None:
-            nonlocal best
-            if position == len(columns):
-                if remaining != [0, 0, 0]:
-                    return
-                triple = tuple(masks)
-                if any(triple[row] in forbidden[row] for row in range(3)):
-                    return
-                if len(set(triple)) < 2:
-                    # Se evita repetir las tres filas completas cuando existe
-                    # otra solución; no es una regla matemática del cartón.
-                    return
-                score = self._triple_score(triple) * 100 + rng.randrange(100)
-                if best is None or score > best[0]:
-                    best = (score, triple)
-                return
+        def find_one() -> tuple[int, int, int] | None:
+            remaining = [5, 5, 5]
+            masks = [0, 0, 0]
 
-            column = columns[position]
-            count = counts[column]
-            choices = list(__import__("itertools").combinations(range(3), count))
-            rng.shuffle(choices)
-            for rows in choices:
-                if any(remaining[row] <= 0 for row in rows):
-                    continue
-                for row in rows:
-                    remaining[row] -= 1
-                    masks[row] |= 1 << column
-                # Poda: cada fila debe poder completar exactamente 5.
+            def recurse(position: int) -> bool:
+                if position == len(columns):
+                    return remaining == [0, 0, 0] and not any(
+                        masks[row] in forbidden[row] for row in range(3)
+                    )
+
+                column = columns[position]
+                count = counts[column]
+                choices = list(itertools.combinations(range(3), count))
+                rng.shuffle(choices)
                 future = len(columns) - position - 1
-                feasible = all(0 <= value <= future for value in remaining)
-                if feasible:
-                    recurse(position + 1)
-                for row in rows:
-                    remaining[row] += 1
-                    masks[row] &= ~(1 << column)
 
-        recurse(0)
-        if best is not None:
-            return list(best[1])
+                for rows in choices:
+                    if any(remaining[row] <= 0 for row in rows):
+                        continue
+                    for row in rows:
+                        remaining[row] -= 1
+                        masks[row] |= 1 << column
 
-        # Fallback: en el improbable caso de que la preferencia de variedad
-        # elimine la única forma posible, devolvemos cualquier solución válida.
-        remaining = [5, 5, 5]
-        masks = [0, 0, 0]
-        result: list[int] | None = None
+                    # Cada fila debe poder consumir exactamente las casillas
+                    # que faltan en las columnas todavía no asignadas.
+                    feasible = all(0 <= value <= future for value in remaining)
+                    if feasible and recurse(position + 1):
+                        return True
 
-        def fallback(position: int) -> bool:
-            nonlocal result
-            if position == len(columns):
-                if remaining == [0, 0, 0]:
-                    result = list(masks)
-                    return True
+                    for row in rows:
+                        remaining[row] += 1
+                        masks[row] &= ~(1 << column)
                 return False
-            column = columns[position]
-            choices = list(__import__("itertools").combinations(range(3), counts[column]))
-            rng.shuffle(choices)
-            for rows in choices:
-                if any(remaining[row] <= 0 for row in rows):
-                    continue
-                for row in rows:
-                    remaining[row] -= 1
-                    masks[row] |= 1 << column
-                future = len(columns) - position - 1
-                feasible = all(0 <= value <= future for value in remaining)
-                ok = feasible and fallback(position + 1)
-                for row in rows:
-                    remaining[row] += 1
-                    masks[row] &= ~(1 << column)
-                if ok:
-                    return True
-            return False
 
-        return result if fallback(0) else None
+            return tuple(masks) if recurse(0) else None
+
+        # Con cargas de 1/2 (Modelo A) y 1/3 (Modelo B), encontrar una solución
+        # es pequeño; limitamos los intentos para que generar miles de series
+        # sea predecible en tiempo.
+        for _ in range(24):
+            triple = find_one()
+            if triple is None:
+                break
+            if len(set(triple)) < 2 and best_triple is not None:
+                continue
+            score = self._triple_score(triple) * 100 + rng.randrange(100)
+            if best_score is None or score > best_score:
+                best_score = score
+                best_triple = triple
+
+        if best_triple is not None:
+            return list(best_triple)
+        return None
