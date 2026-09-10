@@ -2,10 +2,38 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QAction, QKeyEvent
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget
 
 from app.cards import CardModel
+
+
+class _F4NewGameFilter(QObject):
+    """Protege F4 para que nunca cambie de partida sin confirmación."""
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() != QEvent.Type.KeyPress:
+            return super().eventFilter(watched, event)
+        if not isinstance(event, QKeyEvent) or event.key() != Qt.Key.Key_F4:
+            return super().eventFilter(watched, event)
+
+        window = watched
+        if not hasattr(window, "new_game"):
+            return super().eventFilter(watched, event)
+
+        answer = QMessageBox.question(
+            window,
+            "FB-BINGO · NUEVA PARTIDA",
+            "¿Va a comenzar una nueva partida?\n\n"
+            "Si selecciona SÍ, se cerrará la partida actual y se limpiarán las bolas llamadas.\n"
+            "Si selecciona NO, la partida continuará exactamente como está.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            window.new_game()
+        return True
 
 
 class GameModelSelector(QWidget):
@@ -80,6 +108,10 @@ def _install_clean_operator_ui() -> None:
 
     def _init_with_clean_operator_ui(self, *args, **kwargs):
         _original_bingo_main_window_init(self, *args, **kwargs)
+        # F4 queda protegido a nivel de ventana, antes de que QShortcut pueda
+        # ejecutar su acción. Así un toque accidental nunca borra la partida.
+        self._fb_f4_filter = _F4NewGameFilter(self)
+        self.installEventFilter(self._fb_f4_filter)
         for button in self.findChildren(QPushButton):
             text = button.text()
             if "F1" in text or "F2" in text or "F3" in text or "F4" in text:
@@ -93,11 +125,11 @@ def _install_clean_operator_ui() -> None:
             "<p><b>F1</b> · 🎱 Jugar / sortear una nueva bola</p>"
             "<p><b>F2</b> · ⏸️ Pausar / reanudar la partida</p>"
             "<p><b>F3</b> · ↩️ Deshacer la última bola</p>"
-            "<p><b>F4</b> · ■ Finalizar partida / 🆕 Nueva partida</p>"
+            "<p><b>F4</b> · 🆕 Nueva partida (siempre pide confirmación)</p>"
             "<hr>"
             "<p><b>ENTER</b> · Registrar la bola física digitada.</p>"
             "<p>También puede pulsar directamente una bola del tablero para cantarla.</p>"
-            "<p><b>F4</b> cambia automáticamente entre finalizar la partida y comenzar una nueva.</p>",
+            "<p><b>F4</b> pregunta antes de cerrar la partida actual y comenzar una nueva.</p>",
         ))
         help_menu.addAction(help_action)
         self.menuBar().setStyleSheet(
