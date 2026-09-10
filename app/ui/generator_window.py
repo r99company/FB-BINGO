@@ -109,7 +109,7 @@ class GeneratorWidget(QWidget):
 
         advanced = QWidget()
         advanced_form = QFormLayout(advanced)
-        self.empty_color = QLineEdit("#F2E9FF")
+        self.empty_color = QLineEdit("#F7DDE7")
         self.accent_color = QLineEdit("#FF4FA3")
         self.secondary_color = QLineEdit("#8FD9FF")
         self.qr = QComboBox()
@@ -169,7 +169,7 @@ class GeneratorWidget(QWidget):
 
     def _style(self) -> PrintStyle:
         return PrintStyle(
-            empty_cell_color=self.empty_color.text().strip() or "#F2E9FF",
+            empty_cell_color=self.empty_color.text().strip() or "#F7DDE7",
             accent_color=self.accent_color.text().strip() or "#FF4FA3",
             secondary_accent_color=self.secondary_color.text().strip() or "#8FD9FF",
             logo_path=self._logo_path,
