@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
     QPushButton, QSizePolicy, QVBoxLayout, QWidget, QMenu,
@@ -15,7 +16,6 @@ from app.settings.paths import database_path
 from app.ui.generator_window import GeneratorWidget
 from app.ui.public_display import format_ball_count
 from app.verification import CardVerifier
-
 
 NEON_QSS = """
 QWidget#Root { background:#030719; color:#F7F9FF; font-family:'Segoe UI'; }
@@ -31,7 +31,7 @@ QLabel#HeaderValuePink { font-size:22px; font-weight:900; color:#FF4FA3; }
 QLabel#HeaderSmall { font-size:11px; color:#AFC7E8; }
 QLabel#SectionTitle { font-size:15px; font-weight:900; color:#FFFFFF; }
 QLabel#CurrentCaption { background:#D51A83; color:#FFFFFF; font-size:14px; font-weight:900; padding:7px; border-radius:8px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:100px; font-weight:900; background:#081C42; border:3px solid #FF2E98; border-radius:86px; padding:8px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:90px; font-weight:900; background:#081C42; border:3px solid #FF2E98; border-radius:80px; padding:8px; }
 QLabel#Called { color:#18D9FF; font-size:34px; font-weight:900; }
 QLabel#Muted { color:#9FB4D1; font-size:12px; }
 QLabel#StatusGood { color:#72FF2F; font-size:13px; font-weight:900; }
@@ -101,18 +101,22 @@ class BingoMainWindow(QMainWindow):
         for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True), ("FECHA Y HORA", "—", True)):
             card = QFrame(objectName="HeaderCard"); lay = QVBoxLayout(card); small = QLabel(title); small.setObjectName("HeaderSmall"); val = QLabel(value); val.setObjectName("HeaderValuePink" if pink else "HeaderValue"); val.setAlignment(Qt.AlignmentFlag.AlignCenter); lay.addWidget(small); lay.addWidget(val); hr.addWidget(card, 1); self.header_values.append(val)
         outer.addWidget(header); outer.addWidget(self._build_control_bar()); outer.addLayout(self._build_center(), 1); outer.addWidget(self._build_footer())
+        self._operator_shortcuts = []
+        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self)
+        verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        verify_shortcut.setAutoRepeat(False)
+        verify_shortcut.activated.connect(lambda: getattr(self, "open_verification", lambda: None)())
+        self._operator_shortcuts.append(verify_shortcut)
 
     def _build_control_bar(self) -> QFrame:
         bar = QFrame(objectName="TopBar")
         layout = QHBoxLayout(bar); layout.setContentsMargins(8, 5, 8, 5); layout.setSpacing(6)
-
         def add_menu(title: str, entries: list[tuple[str, object]]) -> QPushButton:
             button = QPushButton(title + " ▾"); button.setObjectName("Secondary")
             menu = QMenu(button)
             for label, callback in entries:
                 action = menu.addAction(label); action.triggered.connect(callback)
             button.setMenu(menu); return button
-
         controls = add_menu("CONTROLES DE SALA", [
             ("🎙 Partida", lambda: self.ball_input.setFocus()),
             ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()),
@@ -138,37 +142,28 @@ class BingoMainWindow(QMainWindow):
         content = QVBoxLayout(); content.setSpacing(8)
         top = QFrame(objectName="TopBar"); row = QHBoxLayout(top); t = QLabel("TABLERO DE BINGO · 90 BOLAS"); t.setObjectName("HeaderTitle"); row.addWidget(t); row.addStretch(); self.series_label = QLabel("SERIE — | CARTÓN — / 6"); self.series_label.setObjectName("HeaderTitle"); row.addWidget(self.series_label); content.addWidget(top)
         center = QHBoxLayout(); center.setSpacing(8)
-
         board_panel = QFrame(objectName="Panel"); bl = QVBoxLayout(board_panel); bt = QLabel("TABLERO"); bt.setObjectName("SectionTitle"); bl.addWidget(bt); grid = QGridLayout(); grid.setSpacing(3)
         for number in range(1, 91):
             btn = QPushButton(str(number)); btn.setObjectName("Ball"); btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); btn.clicked.connect(lambda checked=False, n=number: self.call_number(n)); self._buttons[number] = btn; grid.addWidget(btn, (number - 1) // 10, (number - 1) % 10)
         bl.addLayout(grid, 1); center.addWidget(board_panel, 1)
-
         current = QFrame(objectName="Panel"); current.setFixedWidth(360); cl = QVBoxLayout(current); cl.setContentsMargins(12, 12, 12, 12); cl.setSpacing(8)
         cap = QLabel("NÚMERO ACTUAL"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
-        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setMinimumHeight(175); cl.addWidget(self.current_label)
+        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setMinimumHeight(150); cl.addWidget(self.current_label)
         self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("HeaderValuePink"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.call_state)
-
         cap = QLabel("ÚLTIMAS 5 BOLAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
         history_row = QHBoxLayout(); history_row.setSpacing(7); self.history_balls = []
         for index in range(5):
             ball = QLabel("—"); ball.setObjectName("HistoryBall"); ball.setProperty("history_index", index); ball.setProperty("tone", "pink" if index % 2 == 0 else "blue"); ball.setAlignment(Qt.AlignmentFlag.AlignCenter); history_row.addWidget(ball, 1); self.history_balls.append(ball)
         cl.addLayout(history_row)
-
         cap = QLabel("DIGITA EL NÚMERO"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
         hint = QLabel("La locutora escribe la bola física y presiona ENTER"); hint.setObjectName("PublicHint"); hint.setAlignment(Qt.AlignmentFlag.AlignCenter); hint.setWordWrap(True); cl.addWidget(hint)
         self.ball_input = QLineEdit(); self.ball_input.setObjectName("BallInput"); self.ball_input.setPlaceholderText("1–90"); self.ball_input.setMaxLength(2); self.ball_input.setAlignment(Qt.AlignmentFlag.AlignCenter); self.ball_input.setInputMethodHints(Qt.InputMethodHint.ImhDigitsOnly); self.ball_input.returnPressed.connect(self.enter_ball); cl.addWidget(self.ball_input)
         self.ball_message = QLabel("LISTO · ESPERANDO BOLA FÍSICA"); self.ball_message.setObjectName("Muted"); self.ball_message.setWordWrap(True); self.ball_message.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.ball_message)
-
-        cap = QLabel("BOLA EXTRAÍDA"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
-        self.extracted_label = QLabel("—"); self.extracted_label.setObjectName("ExtractedValue"); self.extracted_label.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.extracted_label)
+        self.extracted_label = QLabel("—"); self.extracted_label.setObjectName("ExtractedValue"); self.extracted_label.setVisible(False)
         cap = QLabel("BOLAS JUGADAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
         self.count_label = QLabel("0 / 90"); self.count_label.setObjectName("Called"); self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.count_label)
-        center.addWidget(current)
-        content.addLayout(center, 1)
-
-        self.pause_button = QPushButton(); self.pause_button.setVisible(False)
-        self.pause_button.clicked.connect(self.toggle_pause)
+        center.addWidget(current); content.addLayout(center, 1)
+        self.pause_button = QPushButton(); self.pause_button.setVisible(False); self.pause_button.clicked.connect(self.toggle_pause)
         return content
 
     def _build_footer(self) -> QFrame:
