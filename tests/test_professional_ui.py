@@ -4,7 +4,9 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
@@ -48,18 +50,37 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     app.processEvents()
 
 
-def test_f4_shortcut_calls_finalize_then_new_game():
+def test_f4_requires_confirmation_and_no_preserves_active_game(monkeypatch):
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
-    assert len(window._operator_shortcuts) == 4
+    window.draw_number()
+    history_before = tuple(window.game.history)
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.No)
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F4, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(window, event)
+
+    assert tuple(window.game.history) == history_before
     assert window._finalized is False
+    window.close()
+    app.processEvents()
 
-    window._operator_shortcuts[3].activated.emit()
-    assert window._finalized is True
 
-    window._operator_shortcuts[3].activated.emit()
+def test_f4_yes_starts_a_clean_new_game(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    window.draw_number()
+    assert window.game.history
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Yes)
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F4, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(window, event)
+
     assert window._finalized is False
     assert window.game.history == []
+    assert window.game.current_number is None
+    assert window.ball_input.isEnabled()
+    assert window.header_values[1].text() == "EN ESPERA"
     window.close()
     app.processEvents()
 
