@@ -1,62 +1,73 @@
 from __future__ import annotations
 
 from app.cards import BingoCard, CardModel
+from app.printing import A4SvgRenderer, PrintStyle
 from app.verification import CardCheckService, VerificationRecord, VerificationService
 
 try:
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QLabel, QGridLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
+    from PySide6.QtCore import QByteArray, Qt
+    from PySide6.QtSvgWidgets import QSvgWidget
+    from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 except ImportError:  # pragma: no cover
     class QWidget:  # type: ignore[no-redef]
         pass
 
 
 class VerificationWindow(QWidget):
-    """Verificación operativa con cartón completo y bolas marcadas."""
+    """Ventana compacta de verificación que muestra el cartón con el mismo estilo de impresión."""
 
     def __init__(self, card_lookup=None, called_numbers=None, verification_service: VerificationService | None = None, expected_model: CardModel | str | None = None):
         super().__init__()
         self.setWindowTitle("FB-BINGO — Verificación de cartón")
-        self.resize(650, 620)
+        self.resize(720, 760)
+        self.setMinimumSize(620, 680)
         self.card_lookup = card_lookup
         self.called_numbers = called_numbers if called_numbers is not None else set()
         self.verification_service = verification_service
         self.expected_model = expected_model
         self.result: VerificationRecord | None = None
-        self.card_cells: dict[tuple[int, int], QLabel] = {}
+        self.card_preview = QSvgWidget()
+        self.card_preview.setMinimumHeight(390)
+        self.card_preview.setProperty("svg_content", "")
         self.setStyleSheet("""
-            QWidget { background:#07132D; color:#F7F9FF; font-family:'Segoe UI'; }
-            QLabel#Title { font-size:20px; font-weight:900; color:#FFFFFF; }
-            QLabel#Model { font-size:13px; font-weight:800; color:#18D9FF; }
-            QLineEdit { background:#06142E; border:2px solid #216CA9; border-radius:7px; color:#FFFFFF; padding:9px; font-size:18px; }
+            QWidget { background:#030719; color:#F7F9FF; font-family:'Segoe UI'; }
+            QLabel#Title { font-size:22px; font-weight:900; color:#FFFFFF; }
+            QLabel#Model { font-size:12px; font-weight:800; color:#18D9FF; }
+            QLabel#Hint { color:#AFC7E8; font-size:11px; }
+            QLineEdit { background:#06142E; border:2px solid #216CA9; border-radius:8px; color:#FFFFFF; padding:10px; font-size:22px; font-weight:900; }
+            QLineEdit:focus { border-color:#FF3FA4; }
             QPushButton { min-height:44px; background:#08A7D7; border:1px solid #52E6FF; border-radius:8px; color:#FFFFFF; font-weight:900; }
-            QLabel#Result { font-size:20px; font-weight:900; color:#FF62B5; }
-            QLabel#PrizeDetail { font-size:15px; font-weight:800; color:#DDE8FF; }
-            QLabel#Cell { background:#06142E; border:1px solid #1D6CA7; border-radius:8px; font-size:18px; font-weight:900; min-width:55px; min-height:42px; }
-            QLabel#Cell[called="true"] { background:#E72A98; border:3px solid #FFFFFF; color:#FFFFFF; border-radius:21px; }
-            QLabel#EmptyCell { background:#030B1D; border:1px solid #153A66; border-radius:8px; min-width:55px; min-height:42px; }
+            QLabel#Result { font-size:19px; font-weight:900; color:#FF62B5; }
+            QLabel#PrizeDetail { font-size:14px; font-weight:800; color:#DDE8FF; }
+            QSvgWidget { background:#FFFFFF; border:1px solid #216CA9; border-radius:10px; }
         """)
+
         self.serial_input = QLineEdit()
-        self.serial_input.setPlaceholderText("Número del cartón (ej. 12500)")
+        self.serial_input.setPlaceholderText("Número del cartón")
         self.serial_input.setMaxLength(32)
         self.serial_input.returnPressed.connect(self.verify)
+
         self.model_label = QLabel(self._model_text())
         self.model_label.setObjectName("Model")
+        self.model_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.result_label = QLabel("Ingrese el número del cartón")
         self.result_label.setObjectName("Result")
         self.result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.detail_label = QLabel("")
-        self.detail_label.setWordWrap(True)
+        self.detail_label.setObjectName("Hint")
         self.detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.detail_label.setWordWrap(True)
         self.prize_detail_label = QLabel("")
         self.prize_detail_label.setObjectName("PrizeDetail")
         self.prize_detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.prize_detail_label.setWordWrap(True)
+
         button = QPushButton("VERIFICAR CARTÓN")
         button.clicked.connect(self.verify)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 14)
-        layout.setSpacing(9)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
         title = QLabel("VERIFICACIÓN DE CARTÓN")
         title.setObjectName("Title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -65,16 +76,7 @@ class VerificationWindow(QWidget):
         layout.addWidget(self.serial_input)
         layout.addWidget(button)
         layout.addWidget(self.result_label)
-        self.card_grid = QGridLayout()
-        self.card_grid.setSpacing(4)
-        for row in range(3):
-            for column in range(9):
-                cell = QLabel("")
-                cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                cell.setObjectName("EmptyCell")
-                self.card_cells[(row, column)] = cell
-                self.card_grid.addWidget(cell, row, column)
-        layout.addLayout(self.card_grid)
+        layout.addWidget(self.card_preview, 1)
         layout.addWidget(self.prize_detail_label)
         layout.addWidget(self.detail_label)
 
@@ -89,24 +91,17 @@ class VerificationWindow(QWidget):
         return f"Modelo de partida: {model}"
 
     def _clear_card(self) -> None:
-        for cell in self.card_cells.values():
-            cell.setText("")
-            cell.setObjectName("EmptyCell")
-            cell.setProperty("called", False)
-            cell.style().unpolish(cell)
-            cell.style().polish(cell)
+        self.card_preview.load(QByteArray())
+        self.card_preview.setProperty("svg_content", "")
 
     def _render_card(self, card: BingoCard, called_numbers: set[int] | frozenset[int]) -> None:
-        called = set(called_numbers)
-        for row in range(3):
-            for column in range(9):
-                value = card.grid[row][column]
-                cell = self.card_cells[(row, column)]
-                cell.setText("" if value is None else str(value))
-                cell.setObjectName("EmptyCell" if value is None else "Cell")
-                cell.setProperty("called", bool(value is not None and value in called))
-                cell.style().unpolish(cell)
-                cell.style().polish(cell)
+        # Se utiliza exactamente el renderer moderno de impresión para que la
+        # verificación no cree una tabla distinta del cartón que se imprime.
+        renderer = A4SvgRenderer(style=PrintStyle(show_qr_zone=True, show_serial=True, show_model=False))
+        svg = renderer.render((card, card, card, card, card, card), duplicate_column=True)
+        self.card_preview.load(QByteArray(svg.encode("utf-8")))
+        self.card_preview.setProperty("svg_content", svg)
+        self.card_preview.update()
 
     def verify(self) -> VerificationRecord | None:
         serial = self.serial_input.text().strip()
