@@ -62,6 +62,14 @@ class SQLiteSeriesRepository:
             return int(suffix)
         raise KeyError(f"Número de cartón inválido: {value}")
 
+    @staticmethod
+    def _card_from_row(row: sqlite3.Row) -> BingoCard:
+        return BingoCard(
+            serial=row["serial"],
+            model=CardModel(row["model"]),
+            grid=tuple(tuple(value for value in line) for line in json.loads(row["grid_json"])),
+        )
+
     def save(self, series: BingoSeries) -> None:
         key = self._series_key(series.series_id)
         if len(series.cards) != 6:
@@ -92,16 +100,7 @@ class SQLiteSeriesRepository:
             ).fetchall()
         if len(rows) != 6:
             raise KeyError(f"Serie no encontrada: {series_id}")
-        cards = tuple(
-            BingoCard(
-                serial=row["serial"],
-                model=CardModel(row["model"]),
-                grid=tuple(tuple(value for value in line) for line in json.loads(row["grid_json"])),
-            )
-            for row in rows
-        )
-        # Keep the public API compatible with callers that pass numeric series IDs,
-        # while storage remains canonicalized (0001, 0002, ...).
+        cards = tuple(self._card_from_row(row) for row in rows)
         result_id = int(series_id) if isinstance(series_id, int) else key
         return BingoSeries(series_id=result_id, cards=cards)
 
@@ -114,11 +113,27 @@ class SQLiteSeriesRepository:
             ).fetchone()
         if row is None:
             raise KeyError(f"Cartón no encontrado: {serial}")
-        return BingoCard(
-            serial=row["serial"],
-            model=CardModel(row["model"]),
-            grid=tuple(tuple(value for value in line) for line in json.loads(row["grid_json"])),
-        )
+        return self._card_from_row(row)
+
+    def get_cards_range(self, start_card: int, end_card: int) -> tuple[BingoCard, ...]:
+        """Load an arbitrary consecutive card range for printing/reprinting."""
+        if start_card < 1 or end_card < start_card:
+            raise ValueError("El rango de cartones no es válido")
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT serial, model, grid_json
+                FROM cards
+                WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
+                ORDER BY CAST(substr(serial, -6) AS INTEGER)
+                """,
+                (start_card, end_card),
+            ).fetchall()
+        cards = tuple(self._card_from_row(row) for row in rows)
+        expected = end_card - start_card + 1
+        if len(cards) != expected:
+            raise KeyError(f"No están disponibles todos los cartones {start_card}-{end_card}")
+        return cards
 
     def get_card_position(self, serial: str) -> tuple[str, int]:
         """Devuelve la serie y posición humana (1..6) de un cartón."""
