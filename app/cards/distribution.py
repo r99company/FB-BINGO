@@ -12,7 +12,12 @@ NUMBERS_PER_CARD = 15
 
 @dataclass(frozen=True, slots=True)
 class DistributionModel:
-    """Define how a card model distributes occupied cells within a series."""
+    """Reglas de ocupación de casillas para un cartón de Bingo 90.
+
+    Las reglas matemáticas son estrictas; la estética se resuelve mediante
+    puntuación y elección aleatoria entre muchas soluciones válidas. Así no
+    sacrificamos generación por intentar imponer una sola máscara "bonita".
+    """
 
     model: CardModel
 
@@ -23,18 +28,26 @@ class DistributionModel:
         return cls(model=model)
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
+        """Reparte 90 posiciones entre 6 cartones de forma equilibrada.
+
+        Cada columna del 1-9, 10-19, ... 80-90 aporta 9, 10 u 11 números a
+        la serie. Cada cartón recibe exactamente 15 números y, en A, nunca
+        más de dos por columna.
+        """
         targets = [9] + [10] * 7 + [11]
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         loads = [0] * CARDS_PER_SERIES
 
-        for column, target in enumerate(targets):
-            extra = target - CARDS_PER_SERIES
+        columns = list(range(COLUMNS))
+        rng.shuffle(columns)
+        for column in columns:
+            extra = targets[column] - CARDS_PER_SERIES
             order = list(range(CARDS_PER_SERIES))
             rng.shuffle(order)
-            if self.model is CardModel.A:
-                order.sort(key=lambda i: (loads[i], i, rng.random()))
-            else:
-                order.sort(key=lambda i: (loads[i], -i, rng.random()))
+            # Elegimos primero los cartones con menor carga y mezclamos los
+            # empates. Esto mantiene 15 números por cartón sin crear un orden
+            # fijo de máscaras entre series.
+            order.sort(key=lambda i: (loads[i], rng.random()))
             for card_index in order[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
@@ -45,52 +58,27 @@ class DistributionModel:
 
     @staticmethod
     def _row_patterns(max_run: int) -> list[int]:
-        patterns: list[tuple[int, int]] = []
-        for mask in range(1, 1 << COLUMNS):
+        patterns: list[int] = []
+        for mask in range(1 << COLUMNS):
             if mask.bit_count() != 5:
                 continue
 
             longest = current = 0
-            transitions = 0
-            previous = False
             for column in range(COLUMNS):
-                occupied = bool(mask & (1 << column))
-                if occupied:
+                if mask & (1 << column):
                     current += 1
                     longest = max(longest, current)
                 else:
                     current = 0
-                if column and occupied != previous:
-                    transitions += 1
-                previous = occupied
-
-            # Las series de referencia tienen una lectura visual aireada:
-            # nunca aparecen 3 o 4 casillas ocupadas seguidas.
             if longest > max_run:
                 continue
-
-            # La primera y la última zona no deben quedar sobrecargadas.
-            # Esto evita el efecto de "cuatro números pegados" y hace que
-            # el patrón tenga movimiento desde el centro hacia los extremos.
-            prefix = sum(bool(mask & (1 << column)) for column in range(4))
-            suffix = sum(bool(mask & (1 << column)) for column in range(5, 9))
-            if not 1 <= prefix <= 2:
-                continue
-            if not 1 <= suffix <= 2:
-                continue
-
-            # Más transiciones = más espacios intercalados y menos aspecto
-            # de "bloque". Las máscaras con la misma puntuación se mezclan
-            # después usando el generador aleatorio de la serie.
-            patterns.append((transitions, mask))
-
-        patterns.sort(key=lambda item: item[0], reverse=True)
-        return [mask for _, mask in patterns]
+            patterns.append(mask)
+        return patterns
 
     @staticmethod
-    def _pattern_transitions(mask: int) -> int:
-        transitions = 0
+    def _transitions(mask: int) -> int:
         previous = False
+        transitions = 0
         for column in range(COLUMNS):
             occupied = bool(mask & (1 << column))
             if column and occupied != previous:
@@ -98,36 +86,47 @@ class DistributionModel:
             previous = occupied
         return transitions
 
+    @classmethod
+    def _triple_score(cls, triple: tuple[int, int, int]) -> int:
+        """Puntuación estética, nunca una regla de validez."""
+        score = sum(cls._transitions(mask) for mask in triple) * 5
+
+        # Preferimos que las cuatro primeras columnas y las cuatro últimas
+        # tengan presencia repartida entre las tres filas, pero sin exigirlo.
+        prefix = [sum(bool(mask & (1 << c)) for c in range(4)) for mask in triple]
+        suffix = [sum(bool(mask & (1 << c)) for c in range(5, 9)) for mask in triple]
+        score -= (max(prefix) - min(prefix)) * 3
+        score -= (max(suffix) - min(suffix)) * 3
+
+        # Recompensa una distribución menos "en bloque" en el centro.
+        center = [sum(bool(mask & (1 << c)) for c in range(2, 7)) for mask in triple]
+        score -= sum(abs(value - 3) for value in center)
+        return score
+
     def row_masks_for_counts(
-        self, counts: Sequence[int], rng: random.Random
+        self,
+        counts: Sequence[int],
+        rng: random.Random,
+        forbidden: Sequence[set[int]] | None = None,
     ) -> list[int] | None:
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        if any(count < 1 or count > (2 if self.model is CardModel.A else 3) for count in counts):
+
+        max_per_column = 2 if self.model is CardModel.A else 3
+        if any(count < 1 or count > max_per_column for count in counts):
             return None
 
-        # Ambos modelos conservan el aspecto visual de las series de referencia:
-        # puede haber pares consecutivos, pero nunca bloques largos de 3+.
-        max_run = 2
-        raw_patterns = self._row_patterns(max_run)
+        # Modelo A busca un patrón muy aireado (máximo 2 consecutivos). Para B
+        # permitimos hasta 3, porque su propia definición admite columnas más
+        # cargadas y no queremos deformar artificialmente la distribución.
+        max_run = 2 if self.model is CardModel.A else 3
+        patterns = self._row_patterns(max_run)
+        rng.shuffle(patterns)
 
-        # Priorizamos máscaras con más alternancia, pero aleatorizamos las que
-        # tienen la misma puntuación para que las series no sean idénticas.
-        groups: dict[int, list[int]] = {}
-        for mask in raw_patterns:
-            groups.setdefault(self._pattern_transitions(mask), []).append(mask)
+        if forbidden is None:
+            forbidden = [set(), set(), set()]
 
-        patterns: list[int] = []
-        for score in sorted(groups, reverse=True):
-            group = groups[score]
-            rng.shuffle(group)
-            patterns.extend(group)
-
-        pattern_set = set(patterns)
-
-        # Pick the first two rows randomly, then derive the third row directly
-        # from the required column loads. This is much faster and more reliable
-        # than blind backtracking while preserving visual variety.
+        best: tuple[int, tuple[int, int, int]] | None = None
         for first in patterns:
             for second in patterns:
                 third = 0
@@ -140,21 +139,21 @@ class DistributionModel:
                         break
                     if remaining:
                         third |= 1 << column
-                if not valid or third not in pattern_set:
+
+                if not valid or third.bit_count() != 5 or third not in set(patterns):
                     continue
 
-                prefixes = [
-                    sum(bool(mask & (1 << column)) for column in range(4))
-                    for mask in (first, second, third)
-                ]
-                if min(prefixes) < 1 or max(prefixes) - min(prefixes) > 1:
+                triple = (first, second, third)
+                if len(set(triple)) != 3:
+                    continue
+                if any(triple[row] in forbidden[row] for row in range(3)):
                     continue
 
-                # Reject an identical row mask inside one card when alternatives
-                # exist; this improves the visual rhythm without changing Bingo
-                # validity.
-                if len({first, second, third}) < 3:
-                    continue
-                return [first, second, third]
+                score = self._triple_score(triple)
+                # Añadimos ruido pequeño para que dos series con la misma
+                # calidad visual no terminen escogiendo siempre el mismo patrón.
+                score = score * 100 + rng.randrange(100)
+                if best is None or score > best[0]:
+                    best = (score, triple)
 
-        return None
+        return list(best[1]) if best is not None else None
