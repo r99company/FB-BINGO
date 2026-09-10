@@ -55,7 +55,9 @@ class SeriesGenerator:
         best_grids: list[tuple[tuple[int | None, ...], ...]] | None = None
         best_score = -10**9
 
-        for _ in range(96):
+        # Se prueban muchas series candidatas y se elige la de mayor diversidad.
+        # La diversidad se mide por la forma de las casillas ocupadas, no por los números.
+        for _ in range(192):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -89,29 +91,49 @@ class SeriesGenerator:
         return tuple(counts)
 
     @classmethod
+    def _pair_distance(
+        cls,
+        first: tuple[tuple[bool, ...], ...],
+        second: tuple[tuple[bool, ...], ...],
+    ) -> int:
+        return sum(cls._hamming(first[row], second[row]) for row in range(ROWS))
+
+    @classmethod
     def _dynamic_layout_score(
         cls,
         grids: Sequence[Sequence[Sequence[int | None]]],
         column_counts: Sequence[Sequence[int]] | None = None,
     ) -> int:
+        """Puntúa diversidad real de formas para evitar series visualmente clonadas."""
         score = 0
         signatures = [[cls._row_signature(grid, row) for row in range(ROWS)] for grid in grids]
         full_masks = [cls._card_mask_signature(grid) for grid in grids]
 
         unique_masks = len(set(full_masks))
-        score += unique_masks * 80
+        # Una forma repetida debe ser muy costosa; buscamos seis formas distintas.
+        score += unique_masks * 900
+
+        pair_distances: list[int] = []
         for left in range(len(full_masks)):
             for right in range(left + 1, len(full_masks)):
-                distance = sum(
-                    cls._hamming(full_masks[left][row], full_masks[right][row])
-                    for row in range(ROWS)
-                )
-                score += distance * 4
-                if full_masks[left] == full_masks[right]:
-                    score -= 220
+                distance = cls._pair_distance(full_masks[left], full_masks[right])
+                pair_distances.append(distance)
+                score += distance * 14
+                if distance == 0:
+                    score -= 8_000
+                elif distance < 8:
+                    score -= (8 - distance) * 450
+                elif distance >= 10:
+                    score += (distance - 9) * 35
+
+        # Prioridad explícita al peor par: evita que cinco cartones sean distintos
+        # mientras dos sigan siendo casi idénticos.
+        if pair_distances:
+            score += min(pair_distances) * 180
+            score += sorted(pair_distances)[1] * 60
 
         for row in range(ROWS):
-            weight = 3 if row == 1 else 2
+            weight = 7 if row == 1 else 5
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
@@ -132,14 +154,14 @@ class SeriesGenerator:
 
         if column_counts is not None:
             column_signatures = [cls._column_signature(counts) for counts in column_counts]
-            score += len(set(column_signatures)) * 18
+            score += len(set(column_signatures)) * 40
             for index in range(1, len(column_signatures)):
                 if column_signatures[index] == column_signatures[index - 1]:
-                    score -= 24
+                    score -= 50
             for left in range(len(column_signatures)):
                 for right in range(left + 1, len(column_signatures)):
                     if column_signatures[left] == column_signatures[right]:
-                        score -= 4
+                        score -= 12
         return score
 
     @staticmethod
