@@ -62,8 +62,8 @@ class SeriesGenerator:
         best_grids = None
         best_score = -1
 
-        # La distribución visual se optimiza entre muchas soluciones válidas.
-        # No dependemos de que una única combinación aleatoria tenga éxito.
+        # La estética es una preferencia, nunca una condición que pueda
+        # impedir generar una serie matemáticamente válida.
         for _ in range(80):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng)
@@ -141,19 +141,6 @@ class SeriesGenerator:
     def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
         return sum(x != y for x, y in zip(a, b))
 
-    @staticmethod
-    def _has_unique_row_layouts(
-        grids: Sequence[Sequence[Sequence[int | None]]],
-    ) -> bool:
-        for row in range(ROWS):
-            signatures = {
-                tuple(grid[row][column] is not None for column in range(COLUMNS))
-                for grid in grids
-            }
-            if len(signatures) != CARDS_PER_SERIES:
-                return False
-        return True
-
     def _column_counts(
         self,
         model: CardModel,
@@ -225,10 +212,13 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks: list[list[int]] = []
-        forbidden = [set(), set(), set()]
 
+        # No bloqueamos un patrón porque ya apareció en otro cartón. Lo que
+        # importa es que cada cartón tenga tres filas distintas y que la serie
+        # final tenga seis máscaras completas distintas. Esto evita que la
+        # búsqueda estética convierta la generación en una operación frágil.
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng, forbidden=forbidden)
+            masks = distribution.row_masks_for_counts(counts, rng)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
             if any(
@@ -237,8 +227,6 @@ class SeriesGenerator:
             ):
                 return None
             row_masks.append(masks)
-            for row in range(ROWS):
-                forbidden[row].add(masks[row])
 
         grids = [
             [[None for _ in range(COLUMNS)] for _ in range(ROWS)]
