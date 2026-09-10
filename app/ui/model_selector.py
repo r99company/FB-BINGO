@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QKeyEvent
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget
 
 from app.cards import CardModel
 
@@ -18,8 +18,8 @@ class _F4NewGameFilter(QObject):
         if not isinstance(event, QKeyEvent) or event.key() != Qt.Key.Key_F4:
             return super().eventFilter(watched, event)
 
-        window = watched
-        if not hasattr(window, "new_game"):
+        window = watched.window() if isinstance(watched, QWidget) else None
+        if window is None or not hasattr(window, "new_game"):
             return super().eventFilter(watched, event)
 
         answer = QMessageBox.question(
@@ -108,10 +108,12 @@ def _install_clean_operator_ui() -> None:
 
     def _init_with_clean_operator_ui(self, *args, **kwargs):
         _original_bingo_main_window_init(self, *args, **kwargs)
-        # F4 queda protegido a nivel de ventana, antes de que QShortcut pueda
-        # ejecutar su acción. Así un toque accidental nunca borra la partida.
-        self._fb_f4_filter = _F4NewGameFilter(self)
-        self.installEventFilter(self._fb_f4_filter)
+        # F4 queda protegido a nivel de aplicación, antes de que QShortcut
+        # pueda ejecutar su acción, incluso cuando el foco está en un campo.
+        app = QApplication.instance()
+        if app is not None:
+            self._fb_f4_filter = _F4NewGameFilter(self)
+            app.installEventFilter(self._fb_f4_filter)
         for button in self.findChildren(QPushButton):
             text = button.text()
             if "F1" in text or "F2" in text or "F3" in text or "F4" in text:
