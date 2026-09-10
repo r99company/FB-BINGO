@@ -49,18 +49,41 @@ class DistributionModel:
         for mask in range(1, 1 << COLUMNS):
             if mask.bit_count() != 5:
                 continue
+
             longest = current = 0
+            transitions = 0
+            previous = 0
             for column in range(COLUMNS):
-                if mask & (1 << column):
+                occupied = bool(mask & (1 << column))
+                if occupied:
                     current += 1
                     longest = max(longest, current)
                 else:
                     current = 0
-            if longest <= max_run:
-                prefix = sum(bool(mask & (1 << column)) for column in range(4))
-                if 1 <= prefix <= 3:
-                    patterns.append(mask)
-        return patterns
+                if column and occupied != previous:
+                    transitions += 1
+                previous = occupied
+
+            # Las series de referencia tienen una lectura visual aireada:
+            # nunca aparecen 3 o 4 casillas ocupadas seguidas.
+            if longest > max_run:
+                continue
+
+            prefix = sum(bool(mask & (1 << column)) for column in range(4))
+            if not 1 <= prefix <= 3:
+                continue
+
+            # Entre dos máscaras válidas, damos preferencia a las que alternan
+            # más y dejan espacios repartidos. No cambia la validez matemática;
+            # solo evita que el generador se vea rígido o "amontonado".
+            patterns.append((transitions, mask))
+
+        patterns.sort(key=lambda item: item[0], reverse=True)
+        return [mask for _, mask in patterns]
+
+    @staticmethod
+    def _prefix_signature(mask: int) -> tuple[bool, ...]:
+        return tuple(bool(mask & (1 << column)) for column in range(4))
 
     def row_masks_for_counts(
         self, counts: Sequence[int], rng: random.Random
@@ -70,7 +93,9 @@ class DistributionModel:
         if any(count < 1 or count > (2 if self.model is CardModel.A else 3) for count in counts):
             return None
 
-        max_run = 2 if self.model is CardModel.A else 4
+        # Ambos modelos conservan el aspecto visual de las series de referencia:
+        # puede haber pares consecutivos, pero nunca bloques largos de 3+.
+        max_run = 2
         patterns = self._row_patterns(max_run)
         rng.shuffle(patterns)
         pattern_set = set(patterns)
