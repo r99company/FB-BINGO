@@ -56,9 +56,10 @@ class DistributionModel:
         for masks in choices:
             rng.shuffle(masks)
 
-        # Solve from left to right so visual spacing is evaluated in the same
-        # order in which the customer sees the printed card.
-        max_consecutive = 3 if self.model is CardModel.A else 4
+        # Solve from left to right so spacing follows the printed card.
+        # Model A deliberately avoids runs of three occupied cells; this gives
+        # the alternating visual rhythm expected from a professional ticket.
+        max_consecutive = 2 if self.model is CardModel.A else 4
         chosen = [0] * COLUMNS
         remaining = [5, 5, 5]
 
@@ -116,10 +117,8 @@ class DistributionModel:
                 chosen[column] = mask
                 if column == 3:
                     first_four = prefix_counts()
-                    # In the first four columns every row must participate,
-                    # and their occupancy may differ by at most one. This
-                    # prevents the visibly coarse top/middle/bottom clumping
-                    # seen in earlier generated cards.
+                    # All three rows participate in the first four columns and
+                    # their occupation is balanced by at most one cell.
                     if min(first_four) == 0 or max(first_four) - min(first_four) > 1:
                         chosen[column] = 0
                         continue
