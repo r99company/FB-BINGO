@@ -82,19 +82,36 @@ def test_generator_uses_production_service_for_persistent_generation(tmp_path):
     app.processEvents()
 
 
-def test_generator_can_be_configured_for_30000_cards(tmp_path):
+def test_generator_uses_card_quantity_and_calculates_series(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository, max_cards=30_000)
 
     assert widget.production_service.max_cards == 30_000
-    assert widget.series_id.maximum() == 5_000
-    assert not hasattr(widget, "serial_start")
+    assert widget.start_card.value() == 1
+    assert widget.card_count.maximum() == 30_000
 
-    widget.series_id.setValue(5_000)
-    widget.quantity.setValue(1)
-    assert widget.range_label.text().startswith("29,995")
-    assert "30,000" in widget.range_label.text()
+    widget.card_count.setValue(1_500)
+    assert widget.series_count_label.text() == "250"
+    assert widget.range_label.text() == "1 – 1,500 (1,500 cartones)"
+
+    widget.close()
+    app.processEvents()
+
+
+def test_generator_keeps_complete_series_boundaries(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    widget = GeneratorWidget(repository)
+
+    widget.card_count.setValue(1_499)
+    assert "series completas" in widget.range_label.text()
+    with_error = None
+    try:
+        widget._requested_range()
+    except ValueError as exc:
+        with_error = str(exc)
+    assert with_error is not None
 
     widget.close()
     app.processEvents()
