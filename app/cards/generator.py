@@ -63,7 +63,13 @@ class SeriesGenerator:
 
         rng = self._series_rng(series_id)
         distribution = DistributionModel.for_model(model)
-        for _ in range(1000):
+        best_grids = None
+        best_score = -1
+
+        # No usamos el primer patrón válido: buscamos unas pocas alternativas
+        # y nos quedamos con la serie que tenga mejor ritmo visual. Así se evita
+        # que los primeros cartones terminen con una fila demasiado parecida.
+        for _ in range(24):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng)
             if grids is None:
@@ -76,18 +82,20 @@ class SeriesGenerator:
                 continue
             if model is CardModel.A and not self._has_unique_row_layouts(grids):
                 continue
-            # La unicidad exacta no basta: dos cartones pueden ser distintos
-            # y, aun así, verse prácticamente iguales. Esta comprobación fuerza
-            # una separación visual real entre las seis tarjetas.
-            if not self._has_dynamic_series_layout(grids):
-                continue
+
+            score = self._dynamic_layout_score(grids)
+            if score > best_score:
+                best_score = score
+                best_grids = grids
+
+        if best_grids is not None:
             cards = tuple(
                 BingoCard(
                     serial=f"{series_id}-{serial_start + index:06d}",
                     model=model,
                     grid=grid,
                 )
-                for index, grid in enumerate(grids)
+                for index, grid in enumerate(best_grids)
             )
             return BingoSeries(series_id=series_id, cards=cards)
 
@@ -99,43 +107,40 @@ class SeriesGenerator:
     ) -> tuple[bool, ...]:
         return tuple(grid[row][column] is not None for column in range(COLUMNS))
 
-    @staticmethod
-    def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
-        return sum(x != y for x, y in zip(a, b))
-
     @classmethod
-    def _has_dynamic_series_layout(
+    def _dynamic_layout_score(
         cls,
         grids: Sequence[Sequence[Sequence[int | None]]],
-    ) -> bool:
-        """Evita seis cartones con el mismo ritmo visual.
+    ) -> int:
+        """Mide variedad visual sin cambiar ninguna regla matemática.
 
-        Se presta especial atención a la primera fila, porque es donde el
-        problema se percibía con mayor claridad. Como cada fila tiene cinco
-        casillas, una distancia Hamming de 4 significa que dos filas comparten
-        como máximo tres posiciones ocupadas.
+        La primera fila pesa más porque era el punto problemático observado.
+        Una serie con más separación entre máscaras obtiene mayor puntuación.
         """
+        score = 0
         signatures = [
             [cls._row_signature(grid, row) for row in range(ROWS)]
             for grid in grids
         ]
-
         for row in range(ROWS):
+            weight = 2 if row == 0 else 1
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
-                    minimum = 4 if row == 0 else 2
-                    if cls._hamming(signatures[left][row], signatures[right][row]) < minimum:
-                        return False
+                    score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
 
-        # Además, no permitimos que las tres filas de demasiados cartones
-        # comiencen con el mismo ritmo. Esto evita una serie visualmente rígida.
-        prefixes = [
-            tuple(sum(sig[:4]) for sig in card_signatures)
-            for card_signatures in signatures
-        ]
-        if len(set(prefixes)) < 4:
-            return False
-        return True
+        first_row_prefixes = {
+            sum(signature for signature in signatures[index][0][:4])
+            for index in range(len(signatures))
+        }
+        score += len(first_row_prefixes) * 12
+
+        first_row_signatures = {signatures[index][0] for index in range(len(signatures))}
+        score += len(first_row_signatures) * 8
+        return score
+
+    @staticmethod
+    def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
+        return sum(x != y for x, y in zip(a, b))
 
     @staticmethod
     def _has_unique_row_layouts(
