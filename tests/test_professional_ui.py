@@ -19,9 +19,8 @@ def test_modern_renderer_has_qr_zone_and_serials():
     series = SeriesGenerator(seed=7).generate("12", CardModel.A, 1)
     svg = A4SvgRenderer(style=PrintStyle(show_qr_zone=True)).render(series.cards)
     assert svg.count('class="bingo-card"') == 6
-    assert svg.count("SERIAL") >= 6
+    assert svg.count("ID:") >= 6
     assert svg.count('class="qr-zone"') == 6
-    assert "ESCANEA PARA VERIFICAR" in svg
     assert "FB-BINGO" in svg
 
 
@@ -29,9 +28,8 @@ def test_modern_renderer_can_print_without_qr_zone():
     series = SeriesGenerator(seed=8).generate("13", CardModel.A, 7)
     svg = A4SvgRenderer(style=PrintStyle(show_qr_zone=False)).render(series.cards)
     assert svg.count('class="bingo-card"') == 6
-    assert svg.count("SERIAL") >= 6
+    assert svg.count("ID:") >= 6
     assert 'class="qr-zone"' not in svg
-    assert "ESCANEA PARA VERIFICAR" not in svg
 
 
 def test_operator_screen_is_connected_to_90_ball_engine():
@@ -55,7 +53,7 @@ def test_generator_navigation_opens_generator_window():
     window = BingoMainWindow()
     generator_buttons = [
         b for b in window.findChildren(type(window.pause_button))
-        if "GENERADOR" in b.text().upper()
+        if "GENERADOR" in b.text().upper() or "CARTONES" in b.text().upper()
     ]
     assert len(generator_buttons) == 1
     assert window.generator_window is None
@@ -95,17 +93,20 @@ def test_generator_uses_card_quantity_and_calculates_series(tmp_path):
     assert widget.series_count_label.text() == "250"
     assert widget.range_label.text() == "1 – 1,500 (1,500 cartones)"
 
+    widget.start_card.setValue(2)
+    assert widget.range_label.text() == "2 – 1,501 (1,500 cartones)"
+
     widget.close()
     app.processEvents()
 
 
-def test_generator_keeps_complete_series_boundaries(tmp_path):
+def test_generator_rejects_only_incomplete_series_quantity(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository)
 
     widget.card_count.setValue(1_499)
-    assert "series completas" in widget.range_label.text()
+    assert "múltiplo de 6" in widget.series_count_label.text()
     with_error = None
     try:
         widget._requested_range()
