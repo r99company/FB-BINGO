@@ -8,6 +8,7 @@ from typing import Sequence
 from .card import BingoCard, CardModel, COLUMNS, ROWS
 from .distribution import CARDS_PER_SERIES, DistributionModel
 
+# 5.000 series x 6 cartones = 30.000 cartones físicos.
 MAX_SERIAL = 30_000
 
 
@@ -54,9 +55,13 @@ class SeriesGenerator:
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
-        # Las reglas matemáticas son obligatorias; la variedad visual solo decide
-        # cuál de varias series válidas se conserva. Nunca puede bloquear la generación.
-        for _ in range(64):
+
+        # Una distribución de cargas por columna puede ser válida en cantidad
+        # pero imposible de acomodar en tres filas de cinco. Por eso se prueba
+        # repetidamente la pareja (cargas + máscaras), y solo se acepta una
+        # solución completa. La estética nunca convierte una serie válida en
+        # inválida.
+        for _ in range(512):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -159,10 +164,6 @@ class SeriesGenerator:
         rng = rng or self._rng
         row_masks: list[list[int]] = []
 
-        # No imponemos una lista global de máscaras prohibidas: hacerlo convierte
-        # una preferencia estética en una condición que puede volver imposible una
-        # combinación matemáticamente válida. La variedad se obtiene por muestreo y
-        # puntuación entre candidatos completos.
         for counts in column_counts:
             masks = distribution.row_masks_for_counts(counts, rng)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
