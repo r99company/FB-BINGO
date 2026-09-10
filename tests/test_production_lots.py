@@ -59,6 +59,22 @@ def test_generation_persists_series_and_reports_progress(tmp_path) -> None:
     assert sorted(n for card in stored.cards for n in card.numbers) == list(range(1, 91))
 
 
+def test_arbitrary_print_start_generates_canonical_series_then_loads_requested_six(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    service = ProductionService(repository)
+
+    lot = service.create_lot(2, 7, CardModel.A, operator="test")
+    result = service.generate_lot(lot.lot_id)
+
+    assert result.status == "generated"
+    requested = repository.get_cards_range(2, 7)
+    assert [int(card.serial.split("-")[-1]) for card in requested] == list(range(2, 8))
+    assert repository.get_card("1").serial.endswith("000001")
+    assert repository.get_card("12").serial.endswith("000012")
+    assert repository.get_series_id_for_card("2") == "0001"
+    assert repository.get_series_id_for_card("7") == "0002"
+
+
 def test_existing_card_number_can_be_reprinted_without_duplicate_error(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository)
