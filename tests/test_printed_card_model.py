@@ -15,6 +15,11 @@ def card(serial: str) -> BingoCard:
     )
 
 
+def test_printed_card_defaults_to_clean_customer_facing_model():
+    style = PrintStyle()
+    assert style.show_model is False
+
+
 def test_printed_card_uses_clean_physical_card_model_without_internal_model_label():
     renderer = ModernA4SvgRenderer(style=PrintStyle(show_model=False, show_serial=True))
     svg = renderer.render([card(f"0001-{i:05d}") for i in range(1, 7)])
