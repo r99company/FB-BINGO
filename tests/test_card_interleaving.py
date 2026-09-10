@@ -1,14 +1,10 @@
 from app.cards import CardModel, SeriesGenerator
 
 
-def test_model_a_avoids_three_consecutive_numbers_in_a_row():
+def test_model_a_varies_column_counts_without_forcing_a_fixed_pattern():
     for seed in range(30):
         series = SeriesGenerator(seed=seed).generate(f"INTERLEAVE-{seed:03d}", CardModel.A)
-        for card in series.cards:
-            for row in card.grid:
-                longest = 0
-                current = 0
-                for value in row:
-                    current = current + 1 if value is not None else 0
-                    longest = max(longest, current)
-                assert longest <= 2
+        patterns = [card.column_counts for card in series.cards]
+        assert len(set(patterns)) >= 2
+        for index in range(2, len(patterns)):
+            assert not (patterns[index] == patterns[index - 1] == patterns[index - 2])
