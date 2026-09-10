@@ -69,8 +69,14 @@ class DistributionModel:
             if longest > max_run:
                 continue
 
+            # La primera y la última zona no deben quedar sobrecargadas.
+            # Esto evita el efecto de "cuatro números pegados" y hace que
+            # el patrón tenga movimiento desde el centro hacia los extremos.
             prefix = sum(bool(mask & (1 << column)) for column in range(4))
-            if not 1 <= prefix <= 3:
+            suffix = sum(bool(mask & (1 << column)) for column in range(5, 9))
+            if not 1 <= prefix <= 2:
+                continue
+            if not 1 <= suffix <= 2:
                 continue
 
             # Más transiciones = más espacios intercalados y menos aspecto
