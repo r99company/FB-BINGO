@@ -209,7 +209,9 @@ class ProductionService:
     ) -> ProductionLot:
         lot = self.get_lot(lot_id)
         if lot.status in {"generated", "printed"}:
-            raise DuplicateProductionError(f"El lote {lot_id} ya fue generado")
+            # Generation is deliberately idempotent: an already generated or
+            # printed lot is a valid source for unlimited reprints.
+            return lot
 
         self._set_status(lot_id, "generating")
         total = lot.card_count
@@ -247,10 +249,10 @@ class ProductionService:
         )
 
     def mark_printed(self, lot_id: int) -> ProductionLot:
-        """Register that a fully generated production lot has been printed."""
+        """Mark a generated lot as printed; repeating this is intentionally idempotent."""
         lot = self.get_lot(lot_id)
         if lot.status == "printed":
-            raise DuplicateProductionError(f"El lote {lot_id} ya fue marcado como impreso")
+            return lot
         if lot.status != "generated":
             raise ValueError("El lote debe estar generado antes de marcarlo como impreso")
         self._set_status(lot_id, "printed")
