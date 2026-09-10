@@ -1,5 +1,5 @@
 from app.cards import BingoCard, CardModel
-from app.printing.layout import A4PrintLayout, PrintStyle
+from app.printing.layout import A4PrintLayout, MM_TO_PT, PrintStyle
 
 
 def sample_card(serial: str, model: CardModel = CardModel.A) -> BingoCard:
@@ -35,10 +35,20 @@ def test_default_a4_card_size_is_95x44_mm_for_two_series_per_page():
     slots = layout.card_slots()
     assert layout.card_width_mm == 95.0
     assert layout.card_height_mm == 44.0
-    assert abs(slots[0].width / layout.MM_TO_PT - 95.0) < 0.01
-    assert abs(slots[0].height / layout.MM_TO_PT - 44.0) < 0.01
-    assert abs((slots[1].x - slots[0].x - slots[0].width) / layout.MM_TO_PT - 3.0) < 0.01
-    assert abs((slots[2].y - slots[0].y - slots[0].height) / layout.MM_TO_PT - 2.5) < 0.01
+    assert abs(slots[0].width / MM_TO_PT - 95.0) < 0.01
+    assert abs(slots[0].height / MM_TO_PT - 44.0) < 0.01
+    assert abs((slots[1].x - slots[0].x - slots[0].width) / MM_TO_PT - 3.0) < 0.01
+    assert abs((slots[2].y - slots[0].y - slots[0].height) / MM_TO_PT - 2.5) < 0.01
+
+
+def test_custom_a4_card_size_is_configurable_without_changing_two_by_six_grid():
+    layout = A4PrintLayout(card_width_mm=90.0, card_height_mm=39.0)
+    slots = layout.card_slots()
+    assert layout.card_width_mm == 90.0
+    assert layout.card_height_mm == 39.0
+    assert len(slots) == 12
+    assert abs(slots[0].width / MM_TO_PT - 90.0) < 0.01
+    assert abs(slots[0].height / MM_TO_PT - 39.0) < 0.01
 
 
 def test_a4_slots_do_not_overlap():
