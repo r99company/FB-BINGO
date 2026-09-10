@@ -24,22 +24,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.cards import CardModel
+from app.cards import BingoCard, CardModel
 from app.database import SQLiteSeriesRepository
 from app.printing import A4SvgRenderer, PrintStyle
-from app.printing.batches import iter_a4_series_batches
 from app.production import DuplicateProductionError, ProductionService
 from app.settings.paths import database_path
 
 
 class GeneratorWidget(QWidget):
-    """Generador y productor de cartones con impresión A4 masiva y reimpresión libre."""
+    """Generador e impresor A4 masivo con reimpresión libre."""
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None, max_cards: int = 30_000) -> None:
         super().__init__()
         self.repository = repository or SQLiteSeriesRepository(database_path())
         self.production_service = ProductionService(self.repository, max_cards=max_cards)
-        self._series = None
+        self._series = None  # compatibilidad con el resto de la aplicación
+        self._cards: tuple[BingoCard, ...] = ()
         self._loaded_start_card: int | None = None
         self._loaded_card_count: int | None = None
         self._logo_path: str | None = None
@@ -51,7 +51,7 @@ class GeneratorWidget(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(16)
 
-        controls = QGroupBox("GENERADOR DE CARTONES")
+        controls = QGroupBox("IMPRESOR DE CARTONES")
         controls.setMinimumWidth(390)
         form = QFormLayout(controls)
 
@@ -59,9 +59,9 @@ class GeneratorWidget(QWidget):
         self.model.addItem("Modelo A · PRINCIPAL", CardModel.A.value)
         self.model.addItem("Modelo B · ESPECIAL", CardModel.B.value)
 
+        # The starting card is completely independent from series boundaries.
         self.start_card = QSpinBox()
         self.start_card.setRange(1, self.production_service.max_cards)
-        self.start_card.setSingleStep(6)
         self.start_card.setValue(1)
 
         self.card_count = QSpinBox()
@@ -69,30 +69,33 @@ class GeneratorWidget(QWidget):
         self.card_count.setSingleStep(6)
         self.card_count.setValue(6)
 
-        self.series_count_label = QLabel()
-        self.series_count_label.setObjectName("Muted")
         self.range_label = QLabel()
         self.range_label.setObjectName("Muted")
+        self.series_count_label = QLabel()
+        self.series_count_label.setObjectName("Muted")
+        self.pages_label = QLabel()
+        self.pages_label.setObjectName("Muted")
         self._update_range_label()
         self.start_card.valueChanged.connect(self._update_range_label)
         self.card_count.valueChanged.connect(self._update_range_label)
 
         form.addRow("Modelo", self.model)
-        form.addRow("Cartón inicial", self.start_card)
+        form.addRow("Seguir desde cartón Nº", self.start_card)
         form.addRow("Cantidad de cartones", self.card_count)
-        form.addRow("Producción", self.range_label)
-        form.addRow("Series", self.series_count_label)
+        form.addRow("Rango", self.range_label)
+        form.addRow("Series de 6", self.series_count_label)
+        form.addRow("Hojas A4", self.pages_label)
 
         generate = QPushButton("GENERAR / CARGAR")
         generate.setObjectName("Primary")
         generate.clicked.connect(self.generate_series)
-        print_button = QPushButton("IMPRIMIR PRODUCCIÓN A4")
+        print_button = QPushButton("IMPRIMIR CARTONES")
         print_button.setObjectName("Primary")
         print_button.clicked.connect(self.print_a4)
-        reprint_button = QPushButton("REIMPRIMIR PRODUCCIÓN A4")
+        reprint_button = QPushButton("REIMPRIMIR")
         reprint_button.setObjectName("Secondary")
         reprint_button.clicked.connect(self.print_a4)
-        preview = QPushButton("ACTUALIZAR VISTA A4")
+        preview = QPushButton("VISTA PREVIA A4")
         preview.setObjectName("Secondary")
         preview.clicked.connect(self.preview_a4)
         save = QPushButton("GUARDAR A4 (SVG)")
@@ -139,8 +142,10 @@ class GeneratorWidget(QWidget):
         form.addRow(advanced)
 
         info = QLabel(
-            "Cada serie tiene 6 cartones. Si el rango ya existe, FB-BINGO reutiliza exactamente los mismos cartones para imprimirlos otra vez; no los regenera. "
-            "La cantidad se expresa en cartones y el programa calcula automáticamente las series."
+            "Puedes empezar desde cualquier cartón (1, 2, 3, 1501, etc.). "
+            "La cantidad se agrupa en bloques de 6 para impresión. Si esos cartones ya fueron generados, "
+            "FB-BINGO los carga exactamente iguales y permite imprimirlos de nuevo sin avisos de duplicado. "
+            "DUPLICAR repite físicamente la misma serie 1–6 en ambos lados de la hoja."
         )
         info.setObjectName("Muted")
         info.setWordWrap(True)
@@ -153,7 +158,7 @@ class GeneratorWidget(QWidget):
         self.preview_widget.setMinimumSize(650, 760)
         self.preview_widget.setStyleSheet("background:#FFFFFF;border:1px solid #34405B;border-radius:12px;")
         preview_layout.addWidget(self.preview_widget, 1)
-        self.preview_label = QLabel("Ingresa la cantidad de cartones y pulsa GENERAR / CARGAR.")
+        self.preview_label = QLabel("Ingresa el cartón inicial y la cantidad.")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setObjectName("Muted")
         preview_layout.addWidget(self.preview_label)
@@ -164,22 +169,27 @@ class GeneratorWidget(QWidget):
         count = self.card_count.value()
         end = start + count - 1
         if end > self.production_service.max_cards:
-            self.range_label.setText("El rango supera la capacidad configurada")
+            self.range_label.setText("Supera la capacidad configurada")
             self.series_count_label.setText("—")
+            self.pages_label.setText("—")
             return
-        if (start - 1) % 6 != 0 or count % 6 != 0:
-            self.range_label.setText(f"{start:,} – {end:,} · debe comenzar y terminar en series completas")
-            self.series_count_label.setText("—")
+        if count % 6 != 0:
+            self.range_label.setText(f"{start:,} – {end:,}")
+            self.series_count_label.setText("Cantidad debe ser múltiplo de 6")
+            self.pages_label.setText("—")
             return
+        series = count // 6
+        pages = series if self.duplicate_column.isChecked() else (series + 1) // 2
         self.range_label.setText(f"{start:,} – {end:,} ({count:,} cartones)")
-        self.series_count_label.setText(f"{count // 6:,}")
+        self.series_count_label.setText(f"{series:,}")
+        self.pages_label.setText(f"{pages:,}")
 
     def _choose_logo(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Seleccionar logo FB-BINGO", "", "Imágenes (*.png *.jpg *.jpeg)")
         if path:
             self._logo_path = path
             self.logo.setText(Path(path).name)
-            if self._series is not None:
+            if self._cards:
                 self._render_preview()
 
     def _style(self) -> PrintStyle:
@@ -197,24 +207,22 @@ class GeneratorWidget(QWidget):
         start_card = self.start_card.value()
         card_count = self.card_count.value()
         end_card = start_card + card_count - 1
-        if (start_card - 1) % 6 != 0 or card_count % 6 != 0:
-            raise ValueError("La producción debe comenzar en el primer cartón de una serie y contener series completas de 6 cartones")
         if end_card > self.production_service.max_cards:
             raise ValueError(f"El rango supera la capacidad configurada de {self.production_service.max_cards:,} cartones")
-        first_series = (start_card - 1) // 6 + 1
-        return first_series, start_card, end_card
+        if card_count % 6 != 0:
+            raise ValueError("La cantidad de cartones debe ser múltiplo de 6")
+        return start_card, end_card, card_count
 
-    def _load_requested_series(self, first_series: int, start_card: int, card_count: int) -> None:
-        self._series = self.repository.get(f"{first_series:04d}")
+    def _load_requested_cards(self, start_card: int, end_card: int) -> None:
+        self._cards = self.repository.get_cards_range(start_card, end_card)
         self._loaded_start_card = start_card
-        self._loaded_card_count = card_count
+        self._loaded_card_count = end_card - start_card + 1
         self._svg = ""
 
     def generate_series(self) -> None:
         model = CardModel(self.model.currentData())
         try:
-            first_series, start_card, end_card = self._requested_range()
-            card_count = end_card - start_card + 1
+            start_card, end_card, card_count = self._requested_range()
             lot = self.production_service.create_lot(
                 start_card,
                 end_card,
@@ -222,87 +230,60 @@ class GeneratorWidget(QWidget):
                 operator="generador-ui",
             )
             result = self.production_service.generate_lot(lot.lot_id)
-            self._load_requested_series(first_series, start_card, card_count)
+            self._load_requested_cards(start_card, end_card)
             self._render_preview()
             self.preview_label.setText(
-                f"LISTO · {result.series_count:,} serie(s) · {result.card_count:,} cartones · "
-                f"series {first_series:04d}–{first_series + result.series_count - 1:04d}. "
-                "Los cartones pueden imprimirse nuevamente cuando quieras."
+                f"LISTO · {result.card_count:,} cartones · {result.series_count:,} series de 6 · "
+                f"rango {start_card:,}–{end_card:,}. Puede imprimir o reimprimir sin límite."
             )
         except DuplicateProductionError as exc:
             QMessageBox.warning(self, "No se pudo cargar la producción", str(exc))
         except (ValueError, RuntimeError, KeyError) as exc:
             QMessageBox.warning(self, "No se pudo generar", str(exc))
 
-    def _series_by_number(self, series_number: int):
-        return self.repository.get(f"{series_number:04d}")
-
-    def _next_series(self):
-        if self._series is None:
-            return None
-        try:
-            return self._series_by_number(int(self._series.series_id) + 1)
-        except KeyError:
-            return None
+    def _cards_for_page(self, offset: int) -> tuple[tuple[BingoCard, ...], tuple[BingoCard, ...] | None]:
+        if not self._cards:
+            raise ValueError("No hay cartones cargados")
+        left = self._cards[offset : offset + 6]
+        if len(left) != 6:
+            raise ValueError("La producción no contiene una serie completa de 6 cartones")
+        if self.duplicate_column.isChecked():
+            return left, left
+        right = self._cards[offset + 6 : offset + 12]
+        return left, right if len(right) == 6 else None
 
     def _render_preview(self) -> None:
-        if self._series is None:
-            raise ValueError("No hay una serie cargada")
+        if len(self._cards) < 6:
+            raise ValueError("No hay una serie completa cargada")
         renderer = A4SvgRenderer(style=self._style())
-        right = self._series.cards if self.duplicate_column.isChecked() else (self._next_series().cards if self._next_series() is not None else None)
-        self._svg = renderer.render_columns(
-            self._series.cards,
-            right,
-            duplicate_column=self.duplicate_column.isChecked(),
-        ) if right is not None else renderer.render(self._series.cards)
+        left, right = self._cards_for_page(0)
+        self._svg = renderer.render_columns(left, right, duplicate_column=right is left) if right is not None else renderer.render(left)
         self.preview_widget.load(self._svg.encode("utf-8"))
+        self._update_range_label()
 
     def preview_a4(self) -> None:
         try:
-            first_series, start_card, card_count = self._requested_range()[0], self.start_card.value(), self.card_count.value()
-            if (
-                self._series is None
-                or self._loaded_start_card != start_card
-                or self._loaded_card_count != card_count
-            ):
+            start_card, end_card, card_count = self._requested_range()
+            if self._loaded_start_card != start_card or self._loaded_card_count != card_count:
                 self.generate_series()
                 return
             self._render_preview()
-            derecha = first_series if self.duplicate_column.isChecked() else first_series + 1
-            self.preview_label.setText(f"Vista A4 · izquierda {first_series:04d} · derecha {derecha:04d}")
+            self.preview_label.setText("Vista A4 · 12 posiciones · la primera hoja de la producción")
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "Error de vista previa", str(exc))
 
-    def _print_page(self, printer: QPrinter, left_series_number: int, right_series_number: int | None, renderer: A4SvgRenderer, painter: QPainter) -> None:
-        left = self._series_by_number(left_series_number)
-        if right_series_number is None:
-            svg = renderer.render(left.cards)
-        else:
-            right = self._series_by_number(right_series_number)
-            svg = renderer.render_columns(left.cards, right.cards, duplicate_column=left_series_number == right_series_number)
-        svg_renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-        if not svg_renderer.isValid():
-            raise RuntimeError(f"No se pudo preparar la hoja A4 de la serie {left_series_number:04d}")
-        svg_renderer.render(painter)
-
     def print_a4(self) -> None:
         try:
-            first_series, start_card, end_card = self._requested_range()
-            card_count = end_card - start_card + 1
-            series_count = card_count // 6
-            if (
-                self._series is None
-                or self._loaded_start_card != start_card
-                or self._loaded_card_count != card_count
-            ):
+            start_card, end_card, card_count = self._requested_range()
+            if self._loaded_start_card != start_card or self._loaded_card_count != card_count:
                 self.generate_series()
-            if self._series is None:
-                raise ValueError("No hay una producción cargada")
+            if len(self._cards) != card_count:
+                raise ValueError("No se pudieron cargar todos los cartones solicitados")
 
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
             printer.setPageSize(QPrinter.PageSize.A4)
             dialog = QPrintDialog(printer, self)
-            dialog.setWindowTitle("Imprimir producción FB-BINGO · A4")
+            dialog.setWindowTitle("Imprimir cartones FB-BINGO · A4")
             if dialog.exec() != QPrintDialog.DialogCode.Accepted:
                 return
 
@@ -310,38 +291,41 @@ class GeneratorWidget(QWidget):
             painter = QPainter(printer)
             pages = 0
             try:
-                for left_series, right_series in iter_a4_series_batches(
-                    first_series,
-                    series_count,
-                    duplicate=self.duplicate_column.isChecked(),
-                ):
-                    if pages:
-                        if not printer.newPage():
-                            raise RuntimeError("La impresora no pudo crear una nueva página A4")
-                    self._print_page(printer, left_series, right_series, renderer, painter)
+                for offset in range(0, card_count, 6 if self.duplicate_column.isChecked() else 12):
+                    left, right = self._cards_for_page(offset)
+                    svg = renderer.render_columns(left, right, duplicate_column=True) if right is left else (
+                        renderer.render_columns(left, right) if right is not None else renderer.render(left)
+                    )
+                    svg_renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+                    if not svg_renderer.isValid():
+                        raise RuntimeError(f"No se pudo preparar la hoja A4 que comienza en el cartón {start_card + offset:,}")
+                    if pages and not printer.newPage():
+                        raise RuntimeError("La impresora no pudo crear una nueva página A4")
+                    svg_renderer.render(painter)
                     pages += 1
             finally:
                 painter.end()
 
+            physical_cards = card_count * (2 if self.duplicate_column.isChecked() else 1)
             self.preview_label.setText(
-                f"IMPRESIÓN COMPLETADA · {pages:,} hojas A4 · {self.card_count.value():,} cartones. "
-                "Puede volver a imprimir esta producción cuando quiera."
+                f"IMPRESIÓN COMPLETADA · {pages:,} hojas A4 · {physical_cards:,} cartones físicos. "
+                "Puedes volver a imprimir exactamente el mismo rango cuando quieras."
             )
         except (ValueError, OSError, RuntimeError, KeyError) as exc:
             QMessageBox.warning(self, "Error de impresión", str(exc))
 
     def save_a4(self) -> None:
         try:
-            if self._series is None:
+            if not self._cards:
                 self.generate_series()
-            if self._series is None:
-                raise ValueError("No hay una serie cargada")
+            if not self._cards:
+                raise ValueError("No hay cartones cargados")
             if not self._svg:
                 self._render_preview()
             path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Guardar hoja A4",
-                f"fb_bingo_serie_{self._series.series_id}.svg",
+                f"fb_bingo_cartones_{self.start_card.value()}-{self.start_card.value() + 5}.svg",
                 "SVG (*.svg)",
             )
             if path:
