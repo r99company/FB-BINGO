@@ -31,12 +31,7 @@ class BingoSeries:
 
 
 class SeriesGenerator:
-    """Genera series de Bingo 90 con variedad matemática y visual.
-
-    Las reglas del cartón son obligatorias. La estética se usa como criterio
-    de selección entre soluciones válidas, nunca como motivo para romper las
-    reglas del Bingo.
-    """
+    """Genera series de Bingo 90 con variedad matemática y visual."""
 
     def __init__(self, seed: int | None = None, max_serial: int = MAX_SERIAL) -> None:
         if max_serial < CARDS_PER_SERIES:
@@ -67,10 +62,9 @@ class SeriesGenerator:
         best_grids = None
         best_score = -1
 
-        # Generamos varias series candidatas. Esto es intencional: no queremos
-        # quedarnos con la primera solución matemática si otra tiene una
-        # distribución visual mucho más natural.
-        for _ in range(12):
+        # La distribución visual se optimiza entre muchas soluciones válidas.
+        # No dependemos de que una única combinación aleatoria tenga éxito.
+        for _ in range(80):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng)
             if grids is None:
@@ -112,7 +106,6 @@ class SeriesGenerator:
         cls,
         grids: Sequence[Sequence[Sequence[int | None]]],
     ) -> int:
-        """Premia variedad, separación y ritmo visual entre los seis cartones."""
         score = 0
         signatures = [
             [cls._row_signature(grid, row) for row in range(ROWS)]
@@ -125,8 +118,6 @@ class SeriesGenerator:
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
 
-        # Más variedad en la zona izquierda y en la primera fila evita el
-        # aspecto de "bloque" que se detectó en las pruebas visuales.
         prefix_values = {
             sum(signature for signature in signatures[index][0][:4])
             for index in range(len(signatures))
@@ -134,7 +125,6 @@ class SeriesGenerator:
         score += len(prefix_values) * 12
         score += len({signatures[index][0] for index in range(len(signatures))}) * 8
 
-        # Penaliza columnas de una fila que formen un bloque de 3 consecutivos.
         for signature_group in signatures:
             for signature in signature_group:
                 run = longest = 0
