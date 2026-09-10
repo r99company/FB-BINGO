@@ -55,9 +55,6 @@ class SeriesGenerator:
         best_grids: list[tuple[tuple[int | None, ...], ...]] | None = None
         best_score = -10**9
 
-        # Muchas distribuciones son matemáticamente válidas. Probamos suficientes
-        # candidatos para que la variedad visual sea estable, incluso en lotes de
-        # cientos de series. La validez siempre la comprueba BingoCard/BingoSeries.
         for _ in range(96):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
@@ -97,7 +94,6 @@ class SeriesGenerator:
         grids: Sequence[Sequence[Sequence[int | None]]],
         column_counts: Sequence[Sequence[int]] | None = None,
     ) -> int:
-        """Puntúa diversidad visual entre los seis cartones."""
         score = 0
         signatures = [[cls._row_signature(grid, row) for row in range(ROWS)] for grid in grids]
         full_masks = [cls._card_mask_signature(grid) for grid in grids]
@@ -159,7 +155,8 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         targets = [9] + [10] * 7 + [11]
-        max_extra = 2 if model is CardModel.A else 1
+        # Modelo A: máximo 2 por columna. Modelo B: máximo 3 por columna.
+        max_extra = 1 if model is CardModel.A else 2
 
         remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
