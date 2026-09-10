@@ -2,18 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QCheckBox, QDoubleSpinBox, QSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QPushButton, QCheckBox, QDoubleSpinBox,
+    QSpinBox, QVBoxLayout, QWidget,
+)
 
 from app.settings.service import SettingsService
 
 
 class SettingsWindow(QMainWindow):
-    """Configuración operativa, premios, TV y respaldo de FB-BINGO."""
+    """Configuración operativa, premios, TV y conexión entre PCs de FB-BINGO."""
 
     def __init__(self, settings_path: str | Path) -> None:
         super().__init__()
         self.setWindowTitle("FB-BINGO — Configuración")
-        self.resize(720, 700)
+        self.resize(760, 760)
         self.service = SettingsService(settings_path)
         root = QWidget()
         self.setCentralWidget(root)
@@ -29,6 +33,26 @@ class SettingsWindow(QMainWindow):
         form.addRow("Operador:", self.operator_name)
         layout.addLayout(form)
 
+        station_title = QLabel("RED · DOS COMPUTADORAS")
+        station_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
+        layout.addWidget(station_title)
+        station_form = QFormLayout()
+        self.station_role = QComboBox()
+        self.station_role.addItem("LOCUTORA · EQUIPO QUE DIGITA LAS BOLAS", "locutora")
+        self.station_role.addItem("ADMINISTRADOR · RECIBE LAS BOLAS AUTOMÁTICAMENTE", "administrador")
+        current_role = str(self.service.get("station_role", "locutora")).lower()
+        index = self.station_role.findData(current_role)
+        self.station_role.setCurrentIndex(index if index >= 0 else 0)
+        station_form.addRow("Función de esta PC:", self.station_role)
+        layout.addLayout(station_form)
+        station_hint = QLabel(
+            "La PC LOCUTORA es la autoridad de la partida: cuando digita 26, la PC ADMINISTRADOR "
+            "recibe y marca el 26 automáticamente. Ambas deben estar en la misma red local."
+        )
+        station_hint.setWordWrap(True)
+        station_hint.setStyleSheet("color:#555;font-size:11px;")
+        layout.addWidget(station_hint)
+
         prize_title = QLabel("PREMIOS")
         prize_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
         layout.addWidget(prize_title)
@@ -43,7 +67,7 @@ class SettingsWindow(QMainWindow):
         prize_form.addRow("Serie · Bingo (%):", self.series_bingo_prize)
         layout.addLayout(prize_form)
 
-        tv_title = QLabel("PANTALLA TV · CONEXIÓN")
+        tv_title = QLabel("CONEXIÓN · IP Y PUERTO")
         tv_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
         layout.addWidget(tv_title)
         tv_form = QFormLayout()
@@ -51,11 +75,14 @@ class SettingsWindow(QMainWindow):
         self.tv_port = QSpinBox()
         self.tv_port.setRange(1, 65535)
         self.tv_port.setValue(int(self.service.get("tv_server_port", 8765)))
-        self.tv_host.setPlaceholderText("IP de la computadora principal, por ejemplo 192.168.1.10")
-        tv_form.addRow("IP / nombre PC principal:", self.tv_host)
+        self.tv_host.setPlaceholderText("IP de la PC locutora, por ejemplo 192.168.1.10")
+        tv_form.addRow("IP / nombre de la PC locutora:", self.tv_host)
         tv_form.addRow("Puerto de sincronización:", self.tv_port)
         layout.addLayout(tv_form)
-        tv_hint = QLabel("En la PC del TV indique aquí la IP de la PC administrativa. Ambas computadoras deben estar en la misma red.")
+        tv_hint = QLabel(
+            "En la PC LOCUTORA puede dejar la IP en blanco/127.0.0.1. En la PC ADMINISTRADOR "
+            "coloque la IP de la PC LOCUTORA. El puerto debe ser igual en ambas."
+        )
         tv_hint.setWordWrap(True)
         tv_hint.setStyleSheet("color:#555;font-size:11px;")
         layout.addWidget(tv_hint)
@@ -100,12 +127,14 @@ class SettingsWindow(QMainWindow):
         if any(value < 0 or value > 100 for value in values):
             QMessageBox.warning(self, "FB-BINGO", "Los premios deben estar entre 0 % y 100 %.")
             return
+        role = self.station_role.currentData() or "locutora"
         host = self.tv_host.text().strip()
-        if not host:
-            QMessageBox.warning(self, "FB-BINGO", "Debe indicar la IP o nombre de la PC principal para sincronizar la TV.")
+        if role == "administrador" and not host:
+            QMessageBox.warning(self, "FB-BINGO", "En la PC ADMINISTRADOR debe indicar la IP de la PC LOCUTORA.")
             return
         self.service.set("business_name", self.business_name.text().strip() or "FB-BINGO")
         self.service.set("operator_name", self.operator_name.text().strip())
+        self.service.set("station_role", role)
         self.service.set("hide_sales_counts", self.hide_sales.isChecked())
         self.service.set("hide_production_counts", self.hide_production.isChecked())
         self.service.set("tv_show_internal_counts", self.tv_internal.isChecked())
@@ -113,10 +142,14 @@ class SettingsWindow(QMainWindow):
         self.service.set("bingo_prize_percent", self.bingo_prize.value())
         self.service.set("series_line_prize_percent", self.series_line_prize.value())
         self.service.set("series_bingo_prize_percent", self.series_bingo_prize.value())
-        self.service.set("tv_server_host", host)
+        self.service.set("tv_server_host", host or "127.0.0.1")
         self.service.set("tv_server_port", self.tv_port.value())
         self.service.save()
-        QMessageBox.information(self, "FB-BINGO", "Configuración guardada correctamente.")
+        QMessageBox.information(
+            self,
+            "FB-BINGO",
+            "Configuración guardada. Reinicie FB-BINGO en ambas computadoras para aplicar el rol de red.",
+        )
 
     def backup(self) -> None:
         target, _ = QFileDialog.getSaveFileName(self, "Guardar respaldo", "fb-bingo-settings.json", "JSON (*.json)")
@@ -139,6 +172,7 @@ class SettingsWindow(QMainWindow):
     def _load_fields(self) -> None:
         self.business_name.setText(str(self.service.get("business_name", "FB-BINGO")))
         self.operator_name.setText(str(self.service.get("operator_name", "")))
+        self.station_role.setCurrentIndex(max(0, self.station_role.findData(str(self.service.get("station_role", "locutora")))))
         self.hide_sales.setChecked(bool(self.service.get("hide_sales_counts", False)))
         self.hide_production.setChecked(bool(self.service.get("hide_production_counts", False)))
         self.tv_internal.setChecked(bool(self.service.get("tv_show_internal_counts", False)))
