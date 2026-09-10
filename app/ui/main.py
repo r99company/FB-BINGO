@@ -210,7 +210,7 @@ def _set_finish_button_mode(self: BingoMainWindow, new_game: bool) -> None:
         return
     button.setProperty("fb_bingo_finish_button", True)
     _replace_signal_connection(button.clicked, self.new_game if new_game else self.finalize_game)
-    button.setText("▶ NUEVA PARTIDA\nF4" if new_game else "■ FINALIZAR\nF4")
+    button.setText("▶ NUEVA PARTIDA\nF4 · Ctrl+4" if new_game else "■ FINALIZAR\nF4 · Ctrl+4")
     button.style().unpolish(button)
     button.style().polish(button)
     button.update()
@@ -273,7 +273,7 @@ def _replace_signal_connection(signal, slot) -> None:
 
 
 def _f4_action(self: BingoMainWindow) -> None:
-    """F4 alternates between finalizing the current game and starting a new one."""
+    """F4 alterna entre finalizar la partida y comenzar una nueva."""
     if getattr(self, "_finalized", False):
         self.new_game()
     else:
@@ -282,14 +282,20 @@ def _f4_action(self: BingoMainWindow) -> None:
 
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
     self._operator_shortcuts = []
-    for sequence, callback in (
+    shortcuts = (
         ("F1", self.draw_number),
+        ("Ctrl+1", self.draw_number),
         ("F2", self.toggle_pause),
+        ("Ctrl+2", self.toggle_pause),
         ("F3", self.undo_number),
+        ("Ctrl+3", self.undo_number),
         ("F4", lambda: _f4_action(self)),
-    ):
+        ("Ctrl+4", lambda: _f4_action(self)),
+    )
+    for sequence, callback in shortcuts:
         shortcut = QShortcut(QKeySequence(sequence), self)
         shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        shortcut.setAutoRepeat(False)
         shortcut.activated.connect(callback)
         self._operator_shortcuts.append(shortcut)
 
