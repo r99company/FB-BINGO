@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 
 from app.cards import BingoCard, CardModel
 from app.cards.generator import SeriesGenerator
-from app.printing import A4SvgRenderer, PrintStyle
+from app.printing import A4PrintLayout, A4SvgRenderer, PrintStyle
 from app.settings.paths import application_data_dir
 
 SECTIONS = ("General", "Colores", "Logo", "Numeración", "QR y Seguridad", "Texto inferior", "Tamaño", "Vista previa")
@@ -34,7 +34,7 @@ class DesignerWindow(QWidget):
 
     def _defaults(self):
         return {"FB-BINGO Profesional": {
-            "font": "Arial", "font_size": 18, "width_mm": 120, "height_mm": 77,
+            "font": "Arial", "font_size": 18, "width_mm": 95, "height_mm": 44,
             "title": "FB-BINGO", "tagline": "¡LA DIVERSIÓN QUE NOS UNE!",
             "footer": "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA", "logo": "",
             "bg": "#FFFFFF", "empty": "#F7DDE7", "accent": "#FF4FA3",
@@ -79,10 +79,10 @@ class DesignerWindow(QWidget):
         actions.addWidget(n); actions.addStretch(); actions.addWidget(r); actions.addWidget(d); actions.addWidget(s); cl.addLayout(actions); root.addWidget(center, 1)
 
         prev = QFrame(); prev.setObjectName("Panel"); pl = QVBoxLayout(prev); ph = QHBoxLayout(); pt = QLabel("VISTA PREVIA DE IMPRESIÓN"); pt.setObjectName("PageTitle"); ph.addWidget(pt, 1)
-        self.preview_info = QLabel("A4 · 2 columnas · 6 filas"); self.preview_info.setObjectName("Muted"); ph.addWidget(self.preview_info); pl.addLayout(ph)
+        self.preview_info = QLabel("A4 · 2 columnas · 6 filas · 95 × 44 mm"); self.preview_info.setObjectName("Muted"); ph.addWidget(self.preview_info); pl.addLayout(ph)
         from PySide6.QtSvgWidgets import QSvgWidget
         self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(650, 720); pl.addWidget(self.preview_widget, 1)
-        note = QLabel("Vista real con el mismo renderer de impresión. Los 6 cartones forman una serie y DUPLICAR repite exactamente la misma serie."); note.setObjectName("Muted"); note.setWordWrap(True); pl.addWidget(note); root.addWidget(prev, 2)
+        note = QLabel("Vista real con el mismo renderer de impresión. El tamaño por defecto es 95 × 44 mm: 6 cartones por columna y dos series por A4. Puedes seleccionar otra medida en TAMAÑO."); note.setObjectName("Muted"); note.setWordWrap(True); pl.addWidget(note); root.addWidget(prev, 2)
 
     def _title(self, p, text):
         l = QVBoxLayout(p); x = QLabel(text); x.setObjectName("SectionTitle"); l.addWidget(x); return l
@@ -124,11 +124,23 @@ class DesignerWindow(QWidget):
         self._row(l, "Texto", self.footer_text); l.addWidget(self.show_footer); l.addWidget(self.show_tagline); l.addStretch()
 
     def _size(self, p):
-        l = self._title(p, "TAMAÑO Y PROPORCIONES"); self.width = QSpinBox(); self.width.setRange(100, 120); self.width.setValue(120); self.width.setSuffix(" mm"); self.height = QSpinBox(); self.height.setRange(70, 85); self.height.setValue(77); self.height.setSuffix(" mm"); self.font_size = QSpinBox(); self.font_size.setRange(8, 48); self.font_size.setValue(18); self.font_size.setSuffix(" pt"); self.font = QComboBox(); self.font.addItems(["Arial", "Segoe UI", "Calibri", "Tahoma", "Verdana"])
+        l = self._title(p, "TAMAÑO Y PROPORCIONES")
+        self.width = QSpinBox(); self.width.setRange(80, 100); self.width.setValue(95); self.width.setSuffix(" mm")
+        self.height = QSpinBox(); self.height.setRange(35, 50); self.height.setValue(44); self.height.setSuffix(" mm")
+        self.font_size = QSpinBox(); self.font_size.setRange(8, 48); self.font_size.setValue(18); self.font_size.setSuffix(" pt")
+        self.font = QComboBox(); self.font.addItems(["Arial", "Segoe UI", "Calibri", "Tahoma", "Verdana"])
+        self.size_preset = QComboBox(); self.size_preset.addItems(["FB-BINGO recomendado · 95 × 44 mm", "Compacto · 90 × 39 mm", "Personalizado"]); self.size_preset.currentIndexChanged.connect(self._apply_size_preset)
         for w in (self.width, self.height, self.font_size): w.valueChanged.connect(self._preview)
         self.font.currentTextChanged.connect(self._preview)
-        for a, b in (("Ancho cartón", self.width), ("Alto cartón", self.height), ("Fuente", self.font), ("Tamaño números", self.font_size)): self._row(l, a, b)
+        for a, b in (("Medida rápida", self.size_preset), ("Ancho cartón", self.width), ("Alto cartón", self.height), ("Fuente", self.font), ("Tamaño números", self.font_size)): self._row(l, a, b)
         l.addStretch()
+
+    def _apply_size_preset(self, index):
+        if index == 0:
+            self.width.setValue(95); self.height.setValue(44)
+        elif index == 1:
+            self.width.setValue(90); self.height.setValue(39)
+        self._preview()
 
     def _preview_page(self, p):
         l = self._title(p, "VISTA PREVIA"); x = QLabel("La vista de la derecha es la referencia final para imprimir."); x.setObjectName("Muted"); x.setWordWrap(True); l.addWidget(x); b = QPushButton("ACTUALIZAR VISTA"); b.setObjectName("Primary"); b.clicked.connect(self._preview); l.addWidget(b); l.addStretch()
@@ -144,6 +156,9 @@ class DesignerWindow(QWidget):
     def _style(self):
         return PrintStyle(background_color=self.bg.text() or "#FFFFFF", empty_cell_color=self.empty.text() or "#F7DDE7", number_color=self.number.text() or "#171B2B", border_color=self.border.text() or "#8FD9FF", accent_color=self.accent.text() or "#FF4FA3", secondary_accent_color=self.secondary.text() or "#8FD9FF", logo_path=self.logo_path.text() or None, show_model=False, show_serial=self.show_serial.isChecked(), show_qr_zone=self.show_qr.isChecked(), brand_title=self.title_text.text() or "FB-BINGO", brand_tagline=self.tagline_text.text() or "¡LA DIVERSIÓN QUE NOS UNE!", footer_text=self.footer_text.text() or "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA", show_footer=self.show_footer.isChecked(), show_tagline=self.show_tagline.isChecked(), font_family=self.font.currentText() or "Arial", number_font_size=float(self.font_size.value() or 18))
 
+    def _layout(self):
+        return A4PrintLayout(card_width_mm=self.width.value(), card_height_mm=self.height.value())
+
     def _selected_card_model(self) -> CardModel:
         model = self.internal_model.currentData()
         return model if isinstance(model, CardModel) else CardModel.A
@@ -156,8 +171,9 @@ class DesignerWindow(QWidget):
             preview_number = int(self._preview_card_number or 11534)
             series = SeriesGenerator(seed=preview_number).generate("0001", model=model, serial_start=max(1, preview_number))
             cards = series.cards
-            svg = A4SvgRenderer(style=self._style()).render_columns(cards, cards)
+            svg = A4SvgRenderer(layout=self._layout(), style=self._style()).render_columns(cards, cards)
             self._preview_svg_text = svg
+            self.preview_info.setText(f"A4 · 2 columnas · 6 filas · {self.width.value()} × {self.height.value()} mm")
             self.preview_widget.load(svg.encode("utf-8"))
         except (ValueError, TypeError, RuntimeError):
             self._preview_svg_text = ""
@@ -183,7 +199,7 @@ class DesignerWindow(QWidget):
     def _load_design(self, name):
         if name not in self.designs or not hasattr(self, "font"):
             return
-        d = self.designs[name]; self.font.setCurrentText(d.get("font", "Arial")); self.font_size.setValue(int(d.get("font_size", 18))); self.width.setValue(int(d.get("width_mm", 120))); self.height.setValue(int(d.get("height_mm", 77))); self.title_text.setText(d.get("title", "FB-BINGO")); self.tagline_text.setText(d.get("tagline", "¡LA DIVERSIÓN QUE NOS UNE!")); self.footer_text.setText(d.get("footer", "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA")); self.logo_path.setText(d.get("logo", "")); self.bg.setText(d.get("bg", "#FFFFFF")); self.empty.setText(d.get("empty", "#F7DDE7")); self.accent.setText(d.get("accent", "#FF4FA3")); self.secondary.setText(d.get("secondary_accent", "#8FD9FF")); self.border.setText(d.get("border", "#8FD9FF")); self.number.setText(d.get("number", "#171B2B")); self.show_serial.setChecked(bool(d.get("show_serial", True))); self.show_qr.setChecked(bool(d.get("show_qr", True))); self.show_footer.setChecked(bool(d.get("show_footer", True))); self.show_tagline.setChecked(bool(d.get("show_tagline", True)))
+        d = self.designs[name]; self.font.setCurrentText(d.get("font", "Arial")); self.font_size.setValue(int(d.get("font_size", 18))); self.width.setValue(int(d.get("width_mm", 95))); self.height.setValue(int(d.get("height_mm", 44))); self.title_text.setText(d.get("title", "FB-BINGO")); self.tagline_text.setText(d.get("tagline", "¡LA DIVERSIÓN QUE NOS UNE!")); self.footer_text.setText(d.get("footer", "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA")); self.logo_path.setText(d.get("logo", "")); self.bg.setText(d.get("bg", "#FFFFFF")); self.empty.setText(d.get("empty", "#F7DDE7")); self.accent.setText(d.get("accent", "#FF4FA3")); self.secondary.setText(d.get("secondary_accent", "#8FD9FF")); self.border.setText(d.get("border", "#8FD9FF")); self.number.setText(d.get("number", "#171B2B")); self.show_serial.setChecked(bool(d.get("show_serial", True))); self.show_qr.setChecked(bool(d.get("show_qr", True))); self.show_footer.setChecked(bool(d.get("show_footer", True))); self.show_tagline.setChecked(bool(d.get("show_tagline", True)))
         model_name = str(d.get("model", "A")); self.internal_model.setCurrentIndex(1 if model_name == "B" else 0); self._preview()
 
     def _save(self):
