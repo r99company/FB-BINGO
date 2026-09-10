@@ -8,9 +8,9 @@ def _card() -> BingoCard:
         serial="0001-11534",
         model=CardModel.A,
         grid=(
-            (9, None, 15, None, 33, 45, 55, None, None),
-            (6, None, 20, 31, 49, 60, None, None, None),
-            (1, 10, 22, 32, None, None, None, None, None),
+            (1, 13, 22, None, 45, None, 67, None, None),
+            (5, None, 28, 34, None, 56, None, 78, None),
+            (None, 19, None, 39, 48, 59, None, 80, 90),
         ),
     )
 
