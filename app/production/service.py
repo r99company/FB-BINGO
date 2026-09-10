@@ -9,7 +9,7 @@ from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
-    """Raised when a production range conflicts with existing card data."""
+    """Raised when persisted card data is incomplete or internally inconsistent."""
 
 
 class ProductionService:
@@ -72,19 +72,27 @@ class ProductionService:
             ).fetchall()
         return [str(row["serial"]) for row in rows]
 
-    def _expected_serials(self, start_card: int, end_card: int) -> list[str]:
-        return [
-            f"{((number - 1) // 6 + 1):04d}-{number:06d}"
-            for number in range(start_card, end_card + 1)
-        ]
+    @staticmethod
+    def _expected_serials(start_card: int, end_card: int, series_id: str | None = None) -> list[str]:
+        if series_id is None:
+            return [
+                f"{((number - 1) // 6 + 1):04d}-{number:06d}"
+                for number in range(start_card, end_card + 1)
+            ]
+        return [f"{series_id}-{number:06d}" for number in range(start_card, end_card + 1)]
 
     def _range_is_fully_persisted(self, start_card: int, end_card: int) -> bool:
-        """A fully existing range is always a valid reprint source."""
         persisted = self._existing_serials_for_range(start_card, end_card)
-        if not persisted:
-            return False
-        expected = self._expected_serials(start_card, end_card)
-        return persisted == expected
+        return bool(persisted) and persisted == self._expected_serials(start_card, end_card)
+
+    @staticmethod
+    def _canonical_series_ranges(start_card: int, end_card: int):
+        first_series = (start_card - 1) // 6 + 1
+        last_series = (end_card - 1) // 6 + 1
+        for series_number in range(first_series, last_series + 1):
+            canonical_start = (series_number - 1) * 6 + 1
+            canonical_end = canonical_start + 5
+            yield f"{series_number:04d}", canonical_start, canonical_end
 
     def create_lot(
         self,
@@ -100,38 +108,11 @@ class ProductionService:
             operator=operator,
             max_cards=self.max_cards,
         )
-        # Existing ranges are deliberately reusable: a print operation must
-        # never be blocked merely because those cards were printed previously.
-        range_is_reprint = self._range_is_fully_persisted(planned.start_card, planned.end_card)
 
+        # A production lot represents a print request, not ownership of a
+        # range. Overlapping and repeated print requests are intentionally
+        # allowed. Existing card data is the immutable source for reprints.
         with self.repository._connect() as db:
-            overlap = db.execute(
-                """
-                SELECT lot_id FROM production_lots
-                WHERE start_card <= ? AND end_card >= ?
-                LIMIT 1
-                """,
-                (planned.end_card, planned.start_card),
-            ).fetchone()
-            if overlap is not None and not range_is_reprint:
-                raise DuplicateProductionError(
-                    f"El rango {planned.start_card}-{planned.end_card} se superpone al lote {overlap['lot_id']}"
-                )
-
-            if not range_is_reprint:
-                existing = db.execute(
-                    """
-                    SELECT serial FROM cards
-                    WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
-                    LIMIT 1
-                    """,
-                    (planned.start_card, planned.end_card),
-                ).fetchone()
-                if existing is not None:
-                    raise DuplicateProductionError(
-                        f"El rango {planned.start_card}-{planned.end_card} contiene el cartón existente {existing['serial']}"
-                    )
-
             row = db.execute("SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots").fetchone()
             lot = ProductionLot(
                 lot_id=int(row["next_id"]),
@@ -164,16 +145,18 @@ class ProductionService:
             db.execute("UPDATE production_lots SET status = ? WHERE lot_id = ?", (status, lot_id))
 
     def _series_is_persisted(self, series_id: str, expected_start: int) -> bool:
-        expected = [f"{series_id}-{expected_start + index:06d}" for index in range(6)]
+        expected = self._expected_serials(expected_start, expected_start + 5, series_id)
         with self.repository._connect() as db:
-            rows = db.execute("SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index", (series_id,)).fetchall()
+            rows = db.execute(
+                "SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index", (series_id,)
+            ).fetchall()
         persisted = [str(row["serial"]) for row in rows]
         if not persisted:
             return False
         if persisted != expected:
             raise DuplicateProductionError(
-                f"La serie {series_id} ya existe pero no corresponde al rango de cartones esperado "
-                f"({expected_start}-{expected_start + 5})"
+                f"La serie {series_id} ya existe pero sus cartones no corresponden al rango "
+                f"{expected_start}-{expected_start + 5}"
             )
         return True
 
@@ -182,9 +165,8 @@ class ProductionService:
         if lot.status in {"generated", "printed"}:
             return lot
 
-        # Exact existing ranges are loaded as reprints. No generation and no
-        # duplicate warning is necessary, regardless of how many times they
-        # were printed before.
+        # Exact requested ranges are pure reprints: no regeneration and no
+        # duplicate warning, regardless of previous print operations.
         if self._range_is_fully_persisted(lot.start_card, lot.end_card):
             self._set_status(lot_id, "generated")
             result = ProductionLot(
@@ -202,23 +184,22 @@ class ProductionService:
             return result
 
         self._set_status(lot_id, "generating")
-        total = lot.card_count
         completed = 0
-        for offset in range(0, total, 6):
-            first_card = lot.start_card + offset
-            series_number = (first_card - 1) // 6 + 1
-            series_id = f"{series_number:04d}"
-            if self._series_is_persisted(series_id, first_card):
-                completed += 6
-                if progress_callback:
-                    progress_callback(completed)
-                continue
-            try:
-                series = self.generator.generate(series_id, lot.model, serial_start=first_card)
-                self.repository.save(series)
-            except ValueError as exc:
-                raise DuplicateProductionError(str(exc)) from exc
-            completed += 6
+        for series_id, canonical_start, canonical_end in self._canonical_series_ranges(lot.start_card, lot.end_card):
+            if canonical_end > self.max_cards:
+                raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
+
+            persisted = self._series_is_persisted(series_id, canonical_start)
+            if not persisted:
+                try:
+                    series = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
+                    self.repository.save(series)
+                except ValueError as exc:
+                    raise DuplicateProductionError(str(exc)) from exc
+
+            overlap_start = max(lot.start_card, canonical_start)
+            overlap_end = min(lot.end_card, canonical_end)
+            completed += max(0, overlap_end - overlap_start + 1)
             if progress_callback:
                 progress_callback(completed)
 
