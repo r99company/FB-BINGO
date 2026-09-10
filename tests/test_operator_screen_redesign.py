@@ -8,7 +8,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QLineEdit
 
 from app.cards import CardModel, SeriesGenerator
-from app.ui.main_window import BingoMainWindow
+from app.ui.main import BingoMainWindow
 from app.ui.verification_window import VerificationWindow
 
 
