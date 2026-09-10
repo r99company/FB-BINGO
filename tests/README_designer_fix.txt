@@ -1,0 +1,1 @@
+Temporary verification marker: designer preview sample is validated as 15 numbers across all 9 columns.
