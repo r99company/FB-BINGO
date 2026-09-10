@@ -272,13 +272,21 @@ def _replace_signal_connection(signal, slot) -> None:
     signal.connect(slot)
 
 
+def _f4_action(self: BingoMainWindow) -> None:
+    """F4 alternates between finalizing the current game and starting a new one."""
+    if getattr(self, "_finalized", False):
+        self.new_game()
+    else:
+        self.finalize_game()
+
+
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
     self._operator_shortcuts = []
     for sequence, callback in (
         ("F1", self.draw_number),
         ("F2", self.toggle_pause),
         ("F3", self.undo_number),
-        ("F4", lambda: self.new_game() if getattr(self, "_finalized", False) else self.finalize_game),
+        ("F4", lambda: _f4_action(self)),
     ):
         shortcut = QShortcut(QKeySequence(sequence), self)
         shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
