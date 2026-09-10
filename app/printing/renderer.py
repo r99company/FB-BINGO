@@ -29,6 +29,7 @@ def render_series_svg(
         '<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{layout.page_width:.4f}pt" height="{layout.page_height:.4f}pt" '
         f'viewBox="0 0 {layout.page_width:.4f} {layout.page_height:.4f}">',
+        f'<!-- MODELO {_text(cards[0].model.value)} · metadato interno -->',
         f'<rect width="100%" height="100%" fill="{escape(style.background_color)}"/>',
     ]
 
