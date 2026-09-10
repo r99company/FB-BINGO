@@ -55,16 +55,15 @@ class SeriesGenerator:
         best_grids = None
         best_score = -10**9
 
-        # Un puñado de candidatos basta para obtener variedad visual. Antes se
-        # intentaban 64 construcciones y cada una podía disparar una búsqueda
-        # exhaustiva de máscaras, lo que hacía que la suite de pruebas se
-        # prolongara durante decenas de minutos.
+        # Se prueban pocos candidatos; la validez matemática no depende de la
+        # puntuación estética. El objetivo es escoger una distribución variada,
+        # no imponer una plantilla fija.
         for _ in range(12):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
                 continue
-            score = self._dynamic_layout_score(grids)
+            score = self._dynamic_layout_score(grids, column_counts)
             if score > best_score:
                 best_score, best_grids = score, grids
 
@@ -81,16 +80,49 @@ class SeriesGenerator:
     def _row_signature(grid: Sequence[Sequence[int | None]], row: int) -> tuple[bool, ...]:
         return tuple(grid[row][column] is not None for column in range(COLUMNS))
 
+    @staticmethod
+    def _column_signature(counts: Sequence[int]) -> tuple[int, ...]:
+        return tuple(counts)
+
     @classmethod
-    def _dynamic_layout_score(cls, grids: Sequence[Sequence[Sequence[int | None]]]) -> int:
+    def _dynamic_layout_score(
+        cls,
+        grids: Sequence[Sequence[Sequence[int | None]]],
+        column_counts: Sequence[Sequence[int]] | None = None,
+    ) -> int:
         score = 0
         signatures = [[cls._row_signature(grid, row) for row in range(ROWS)] for grid in grids]
+
+        # Variedad de posición vertical entre los seis cartones.
         for row in range(ROWS):
             weight = 2 if row == 0 else 1
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
+
         score += len({tuple(group) for group in signatures}) * 8
+
+        # Penaliza sólo patrones visuales muy repetidos; no exige que todos sean
+        # diferentes. En particular, tres cartones consecutivos con exactamente
+        # la misma cantidad de números por columna reciben una fuerte penalización.
+        if column_counts is not None:
+            column_signatures = [cls._column_signature(counts) for counts in column_counts]
+            score += len(set(column_signatures)) * 12
+            for index in range(1, len(column_signatures)):
+                if column_signatures[index] == column_signatures[index - 1]:
+                    score -= 18
+                if index >= 2 and (
+                    column_signatures[index]
+                    == column_signatures[index - 1]
+                    == column_signatures[index - 2]
+                ):
+                    score -= 120
+            for left in range(len(column_signatures)):
+                for right in range(left + 1, len(column_signatures)):
+                    if column_signatures[left] == column_signatures[right]:
+                        score -= 3
+
+        # Evita visuales excesivamente compactos, pero sólo como preferencia.
         for group in signatures:
             for signature in group:
                 run = longest = 0
@@ -104,14 +136,19 @@ class SeriesGenerator:
     def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
         return sum(x != y for x, y in zip(a, b))
 
-    def _column_counts(self, model: CardModel, distribution: DistributionModel | None = None, rng: random.Random | None = None) -> list[list[int]]:
+    def _column_counts(
+        self,
+        model: CardModel,
+        distribution: DistributionModel | None = None,
+        rng: random.Random | None = None,
+    ) -> list[list[int]]:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         if model is CardModel.A:
-            # Modelo A: cada columna contiene entre 1 y 2 números por cartón.
-            # Los totales de las nueve columnas son 9,10,...,10,11; después de
-            # la ocupación base queda un problema pequeño de reparto de 36
-            # extras, exactamente 6 para cada cartón.
+            # Modelo A: cada columna contiene 1 o 2 números por cartón.
+            # Los totales de columna de una serie son 9,10,...,10,11. Después
+            # de colocar una casilla base en cada columna, cada cartón recibe
+            # exactamente seis columnas adicionales con un segundo número.
             targets = [9] + [10] * 7 + [11]
             extras = [target - CARDS_PER_SERIES for target in targets]
             remaining = [6] * CARDS_PER_SERIES
@@ -201,7 +238,10 @@ class SeriesGenerator:
             masks = distribution.row_masks_for_counts(counts, rng)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
-            if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
+            if any(
+                sum(bool(mask & (1 << column)) for mask in masks) != counts[column]
+                for column in range(COLUMNS)
+            ):
                 return None
             row_masks.append(masks)
 
@@ -214,10 +254,16 @@ class SeriesGenerator:
                 count = column_counts[card_index][column]
                 card_values = sorted(values[cursor:cursor + count])
                 cursor += count
-                mask = row_masks[card_index][column]
-                if len(card_values) != count or mask.bit_count() != count:
+
+                # row_masks[card_index] contiene tres máscaras de fila. Cada
+                # bit de una máscara indica si esa fila ocupa esta columna.
+                rows = [
+                    row
+                    for row in range(ROWS)
+                    if row_masks[card_index][row] & (1 << column)
+                ]
+                if len(card_values) != count or len(rows) != count:
                     return None
-                rows = [row for row in range(ROWS) if mask & (1 << row)]
                 for value_index, row in enumerate(rows):
                     grids[card_index][row][column] = card_values[value_index]
             if cursor != len(values):
@@ -225,7 +271,10 @@ class SeriesGenerator:
 
         result = [tuple(tuple(row) for row in grid) for grid in grids]
         if aesthetic:
-            signatures = {tuple(self._row_signature(grid, row) for row in range(ROWS)) for grid in result}
+            signatures = {
+                tuple(self._row_signature(grid, row) for row in range(ROWS))
+                for grid in result
+            }
             if len(signatures) < 2:
                 return None
         return result
