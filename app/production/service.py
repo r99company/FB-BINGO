@@ -13,7 +13,7 @@ class DuplicateProductionError(RuntimeError):
 
 
 class ProductionService:
-    """Coordinates validated six-card series generation and SQLite persistence."""
+    """Coordinates six-card generation and repeatable printing/reprinting."""
 
     def __init__(
         self,
@@ -72,24 +72,19 @@ class ProductionService:
             ).fetchall()
         return [str(row["serial"]) for row in rows]
 
-    @staticmethod
-    def _expected_serials(start_card: int, end_card: int) -> list[str]:
+    def _expected_serials(self, start_card: int, end_card: int) -> list[str]:
         return [
             f"{((number - 1) // 6 + 1):04d}-{number:06d}"
             for number in range(start_card, end_card + 1)
         ]
 
     def _range_is_fully_persisted(self, start_card: int, end_card: int) -> bool:
-        """True when the requested range already exists exactly and is safe to reprint."""
+        """A fully existing range is always a valid reprint source."""
         persisted = self._existing_serials_for_range(start_card, end_card)
         if not persisted:
             return False
         expected = self._expected_serials(start_card, end_card)
-        if persisted != expected:
-            raise DuplicateProductionError(
-                f"El rango {start_card}-{end_card} contiene datos existentes que no corresponden exactamente al rango solicitado"
-            )
-        return True
+        return persisted == expected
 
     def create_lot(
         self,
@@ -105,6 +100,8 @@ class ProductionService:
             operator=operator,
             max_cards=self.max_cards,
         )
+        # Existing ranges are deliberately reusable: a print operation must
+        # never be blocked merely because those cards were printed previously.
         range_is_reprint = self._range_is_fully_persisted(planned.start_card, planned.end_card)
 
         with self.repository._connect() as db:
@@ -135,9 +132,7 @@ class ProductionService:
                         f"El rango {planned.start_card}-{planned.end_card} contiene el cartón existente {existing['serial']}"
                     )
 
-            row = db.execute(
-                "SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots"
-            ).fetchone()
+            row = db.execute("SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots").fetchone()
             lot = ProductionLot(
                 lot_id=int(row["next_id"]),
                 start_card=planned.start_card,
@@ -150,20 +145,10 @@ class ProductionService:
             )
             db.execute(
                 """
-                INSERT INTO production_lots(
-                    lot_id,start_card,end_card,series_count,model,operator,status,created_at
-                ) VALUES (?,?,?,?,?,?,?,?)
+                INSERT INTO production_lots(lot_id,start_card,end_card,series_count,model,operator,status,created_at)
+                VALUES (?,?,?,?,?,?,?,?)
                 """,
-                (
-                    lot.lot_id,
-                    lot.start_card,
-                    lot.end_card,
-                    lot.series_count,
-                    lot.model.value,
-                    lot.operator,
-                    lot.status,
-                    lot.created_at,
-                ),
+                (lot.lot_id, lot.start_card, lot.end_card, lot.series_count, lot.model.value, lot.operator, lot.status, lot.created_at),
             )
         return lot
 
@@ -176,22 +161,12 @@ class ProductionService:
 
     def _set_status(self, lot_id: int, status: str) -> None:
         with self.repository._connect() as db:
-            db.execute(
-                "UPDATE production_lots SET status = ? WHERE lot_id = ?",
-                (status, lot_id),
-            )
+            db.execute("UPDATE production_lots SET status = ? WHERE lot_id = ?", (status, lot_id))
 
     def _series_is_persisted(self, series_id: str, expected_start: int) -> bool:
-        """Return true only when the exact six expected serials are persisted."""
-        expected = [
-            f"{series_id}-{expected_start + index:06d}"
-            for index in range(6)
-        ]
+        expected = [f"{series_id}-{expected_start + index:06d}" for index in range(6)]
         with self.repository._connect() as db:
-            rows = db.execute(
-                "SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index",
-                (series_id,),
-            ).fetchall()
+            rows = db.execute("SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index", (series_id,)).fetchall()
         persisted = [str(row["serial"]) for row in rows]
         if not persisted:
             return False
@@ -202,16 +177,29 @@ class ProductionService:
             )
         return True
 
-    def generate_lot(
-        self,
-        lot_id: int,
-        progress_callback: Callable[[int], None] | None = None,
-    ) -> ProductionLot:
+    def generate_lot(self, lot_id: int, progress_callback: Callable[[int], None] | None = None) -> ProductionLot:
         lot = self.get_lot(lot_id)
         if lot.status in {"generated", "printed"}:
-            # Generation is deliberately idempotent: an already generated or
-            # printed lot is a valid source for unlimited reprints.
             return lot
+
+        # Exact existing ranges are loaded as reprints. No generation and no
+        # duplicate warning is necessary, regardless of how many times they
+        # were printed before.
+        if self._range_is_fully_persisted(lot.start_card, lot.end_card):
+            self._set_status(lot_id, "generated")
+            result = ProductionLot(
+                lot_id=lot.lot_id,
+                start_card=lot.start_card,
+                end_card=lot.end_card,
+                series_count=lot.series_count,
+                model=lot.model,
+                operator=lot.operator,
+                status="generated",
+                created_at=lot.created_at,
+            )
+            if progress_callback:
+                progress_callback(lot.card_count)
+            return result
 
         self._set_status(lot_id, "generating")
         total = lot.card_count
@@ -220,13 +208,11 @@ class ProductionService:
             first_card = lot.start_card + offset
             series_number = (first_card - 1) // 6 + 1
             series_id = f"{series_number:04d}"
-
             if self._series_is_persisted(series_id, first_card):
                 completed += 6
                 if progress_callback:
                     progress_callback(completed)
                 continue
-
             try:
                 series = self.generator.generate(series_id, lot.model, serial_start=first_card)
                 self.repository.save(series)
@@ -249,7 +235,6 @@ class ProductionService:
         )
 
     def mark_printed(self, lot_id: int) -> ProductionLot:
-        """Mark a generated lot as printed; repeating this is intentionally idempotent."""
         lot = self.get_lot(lot_id)
         if lot.status == "printed":
             return lot
