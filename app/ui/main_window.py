@@ -5,7 +5,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget, QMenu,
 )
 from app.bingo import BingoGame
 from app.bingo.models import GameState
@@ -47,10 +47,14 @@ QPushButton#Ball { min-width:48px; min-height:40px; color:#F6FAFF; background:#0
 QPushButton#Ball:hover { background:#0D315D; border-color:#22DFFF; }
 QPushButton#Ball[called="true"] { background:#D91B83; border:2px solid #FF58B5; color:#FFFFFF; }
 QPushButton#Ball[current="true"] { background:#FF2D99; border:3px solid #FFFFFF; }
+QMenu { background:#07132D; color:#F7F9FF; border:1px solid #2C78B8; padding:5px; }
+QMenu::item { padding:9px 18px; border-radius:5px; }
+QMenu::item:selected { background:#D61A84; }
 QLineEdit { background:#06142E; border:1px solid #216CA9; border-radius:7px; color:#FFFFFF; padding:9px; font-size:13px; }
 QLineEdit:focus { border:2px solid #FF3FA4; }
 QLineEdit#BallInput { font-size:28px; font-weight:900; min-height:50px; text-align:center; border:2px solid #18D9FF; }
 """
+
 
 class TVWindow(QMainWindow):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -87,6 +91,7 @@ class TVWindow(QMainWindow):
     def show_card_verification(self, card, called_numbers) -> None:
         verifier = CardVerifier(card); called = frozenset(called_numbers); lines = verifier.line_winners(called); bingo = verifier.is_bingo(called); self.game_title.setText(f"VERIFICACIÓN · CARTÓN {card.serial}"); self.number.setText("BINGO" if bingo else ("LÍNEA" if lines else "—")); self.status.setText("★ BINGO ★" if bingo else ("✓ LÍNEA" if lines else "✕ SIN PREMIO"))
 
+
 class BingoMainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__(); self.setWindowTitle("FB-BINGO — Sala de Juego"); self.resize(1540, 930); self.setMinimumSize(1200, 760); self.game = BingoGame(); self.repository = SQLiteSeriesRepository(database_path()); self._buttons = {}; self.tv_window = None; self.generator_window = None; self._build_ui(); self._sync_ui()
@@ -96,13 +101,47 @@ class BingoMainWindow(QMainWindow):
         header = QFrame(objectName="TopBar"); hr = QHBoxLayout(header); hr.setContentsMargins(12, 7, 12, 7); brand_box = QVBoxLayout(); brand_line = QHBoxLayout(); b1 = QLabel("FB-"); b1.setObjectName("Brand"); b2 = QLabel("BINGO"); b2.setObjectName("BrandAccent"); brand_line.addWidget(b1); brand_line.addWidget(b2); brand_line.addStretch(); brand_box.addLayout(brand_line); tagline = QLabel("SISTEMA PROFESIONAL DE BINGO 90 BOLAS"); tagline.setObjectName("Tagline"); brand_box.addWidget(tagline); hr.addLayout(brand_box, 1); self.header_values = []
         for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True), ("FECHA Y HORA", "—", True)):
             card = QFrame(objectName="HeaderCard"); lay = QVBoxLayout(card); small = QLabel(title); small.setObjectName("HeaderSmall"); val = QLabel(value); val.setObjectName("HeaderValuePink" if pink else "HeaderValue"); val.setAlignment(Qt.AlignmentFlag.AlignCenter); lay.addWidget(small); lay.addWidget(val); hr.addWidget(card, 1); self.header_values.append(val)
-        outer.addWidget(header); body = QHBoxLayout(); body.setSpacing(8); body.addWidget(self._build_sidebar()); body.addLayout(self._build_center(), 1); outer.addLayout(body, 1); outer.addWidget(self._build_footer())
+        outer.addWidget(header); outer.addWidget(self._build_control_bar()); outer.addLayout(self._build_center(), 1); outer.addWidget(self._build_footer())
+
+    def _build_control_bar(self) -> QFrame:
+        bar = QFrame(objectName="TopBar")
+        layout = QHBoxLayout(bar); layout.setContentsMargins(8, 5, 8, 5); layout.setSpacing(6)
+
+        def add_menu(title: str, entries: list[tuple[str, object]]) -> QPushButton:
+            button = QPushButton(title + " ▾"); button.setObjectName("Secondary")
+            menu = QMenu(button)
+            for label, callback in entries:
+                action = menu.addAction(label); action.triggered.connect(callback)
+            button.setMenu(menu); return button
+
+        controls = add_menu("CONTROLES DE SALA", [
+            ("🎙 Partida", lambda: self.ball_input.setFocus()),
+            ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()),
+            ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()),
+            ("📺 Pantalla TV", self.open_tv),
+            ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)()),
+        ])
+        cards = add_menu("CARTONES", [
+            ("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()),
+            ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)()),
+        ])
+        verify = QPushButton("✓ VERIFICAR CARTÓN"); verify.setObjectName("Primary"); verify.setToolTip("Abrir el verificador rápidamente")
+        verify.clicked.connect(lambda: getattr(self, "open_verification", lambda: None)())
+        help_menu = add_menu("AYUDA", [
+            ("F1 / Ctrl+1 · Sorteo automático", self.draw_number),
+            ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause),
+            ("F3 / Ctrl+3 · Deshacer bola", self.undo_number),
+            ("F4 / Ctrl+4 · Finalizar / nueva partida", self.new_game),
+        ])
+        layout.addWidget(controls); layout.addWidget(cards); layout.addWidget(verify); layout.addStretch(1); layout.addWidget(help_menu)
+        return bar
 
     def _build_sidebar(self) -> QFrame:
+        # Conservado para compatibilidad con instalaciones anteriores; ya no se muestra.
         sidebar = QFrame(objectName="Sidebar"); sidebar.setFixedWidth(190); lay = QVBoxLayout(sidebar); lay.setContentsMargins(8, 10, 8, 8); title = QLabel("✦ FB-BINGO"); title.setObjectName("HeaderTitle"); lay.addWidget(title); lay.addSpacing(4)
         items = (("🎙  PARTIDA", "Operación del juego", None), ("🛒  VENTAS", "Series y cartones", None), ("✓  VERIFICACIÓN", "Verificar cartones", None), ("▣  GENERADOR", "Generar e imprimir", "generator"), ("▥  REPORTES", "Estadísticas y ventas", None), ("▣  PANTALLA TV", "Pantalla para el público", "tv"), ("⚙  CONFIGURACIÓN", "Ajustes del sistema", None))
         for text, sub, action in items:
-            btn = QPushButton(f"{text}\n{sub}"); btn.setObjectName("Nav"); btn.setProperty("active", text.startswith("🎙"));
+            btn = QPushButton(f"{text}\n{sub}"); btn.setObjectName("Nav"); btn.setProperty("active", text.startswith("🎙"))
             if action == "tv": btn.clicked.connect(self.open_tv)
             elif action == "generator": btn.clicked.connect(self.open_generator)
             lay.addWidget(btn)
@@ -117,7 +156,7 @@ class BingoMainWindow(QMainWindow):
         for number in range(1, 91):
             btn = QPushButton(str(number)); btn.setObjectName("Ball"); btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); btn.clicked.connect(lambda checked=False, n=number: self.call_number(n)); self._buttons[number] = btn; grid.addWidget(btn, (number - 1) // 10, (number - 1) % 10)
         bl.addLayout(grid, 1); center.addWidget(board_panel, 1); content.addLayout(center, 1)
-        actions = QHBoxLayout(); draw = QPushButton("▶ SORTEO AUTOMÁTICO\nF1"); draw.setObjectName("Secondary"); draw.setToolTip("Modo automático. En operación normal use DIGITAR BOLA."); draw.clicked.connect(self.draw_number); self.pause_button = QPushButton("Ⅱ PAUSAR\nF2"); self.pause_button.setObjectName("Secondary"); self.pause_button.clicked.connect(self.toggle_pause); undo = QPushButton("◀ DESHACER\nF3"); undo.setObjectName("Secondary"); undo.clicked.connect(self.undo_number); finish = QPushButton("■ FINALIZAR\nF4"); finish.setObjectName("Danger"); finish.setProperty("fb_bingo_finish_button", True); self.finish_button = finish; finish.clicked.connect(self.new_game)
+        actions = QHBoxLayout(); draw = QPushButton("▶ SORTEO AUTOMÁTICO\nF1 · Ctrl+1"); draw.setObjectName("Secondary"); draw.setToolTip("Modo automático. En operación normal use DIGITAR BOLA."); draw.clicked.connect(self.draw_number); self.pause_button = QPushButton("Ⅱ PAUSAR\nF2 · Ctrl+2"); self.pause_button.setObjectName("Secondary"); self.pause_button.clicked.connect(self.toggle_pause); undo = QPushButton("◀ DESHACER\nF3 · Ctrl+3"); undo.setObjectName("Secondary"); undo.clicked.connect(self.undo_number); finish = QPushButton("■ FINALIZAR\nF4 · Ctrl+4"); finish.setObjectName("Danger"); finish.setProperty("fb_bingo_finish_button", True); self.finish_button = finish; finish.clicked.connect(self.new_game)
         for btn in (draw, self.pause_button, undo, finish): actions.addWidget(btn, 1)
         content.addLayout(actions); return content
 
@@ -177,7 +216,7 @@ class BingoMainWindow(QMainWindow):
         self.generator_window.show(); self.generator_window.raise_(); self.generator_window.activateWindow()
 
     def _sync_ui(self) -> None:
-        state = self.game.state; current = state.current_number; count = len(state.drawn_numbers); self.current_label.setText("—" if current is None else str(current)); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.count_label.setText(format_ball_count(count)); self.history_label.setText("  ".join(map(str, state.last_five[::-1])) if state.last_five else "—"); self.pause_button.setText("▶ REANUDAR\nF2" if state.paused else "Ⅱ PAUSAR\nF2"); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M")); self.header_values[2].setText("—")
+        state = self.game.state; current = state.current_number; count = len(state.drawn_numbers); self.current_label.setText("—" if current is None else str(current)); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.count_label.setText(format_ball_count(count)); self.history_label.setText("  ".join(map(str, state.last_five[::-1])) if state.last_five else "—"); self.pause_button.setText("▶ REANUDAR\nF2 · Ctrl+2" if state.paused else "Ⅱ PAUSAR\nF2 · Ctrl+2"); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M")); self.header_values[2].setText("—")
         for number, button in self._buttons.items(): button.setProperty("called", number in state.drawn_numbers); button.setProperty("current", number == current); button.style().unpolish(button); button.style().polish(button); button.update()
         if self.tv_window is not None: self.tv_window.update_game(current, self.game.last_five)
         self.ball_input.setFocus()
