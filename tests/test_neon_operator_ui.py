@@ -32,7 +32,8 @@ def test_operator_window_has_approved_layout_and_90_ball_board():
     assert "PREMIOS" not in labels
     assert any(text.startswith("CONTROLES DE SALA") for text in labels)
     assert any(text.startswith("CARTONES") for text in labels)
-    assert "✓ VERIFICAR CARTÓN" in labels
+    assert "✓ VERIFICAR CARTÓN" not in labels
+    assert any("Ctrl+5" in action.text() for button in window.findChildren(type(window.pause_button)) if button.text().startswith("AYUDA") for action in button.menu().actions())
 
     window.close()
     app.processEvents()
@@ -92,8 +93,9 @@ def test_operator_controls_use_history_wrappers_when_clicked():
     window = BingoMainWindow()
     window.ball_input.setText("47")
     enter_buttons = [button for button in window.findChildren(type(window.pause_button)) if button.text() == "ENTER"]
-    assert len(enter_buttons) == 1
-    enter_buttons[0].click()
+    assert len(enter_buttons) == 0
+    assert window.ball_input.returnPressed is not None
+    window.enter_ball()
     app.processEvents()
     assert window.game.history == (47,)
     assert window.history_repository.get_game(window.history_game_id)["called_numbers"] == (47,)
