@@ -27,6 +27,7 @@ class DesignerWindow(QWidget):
         self.path = application_data_dir() / "card_designs.json"
         self.designs = self._load()
         self._preview_card_number = "11534"
+        self._preview_svg_text = ""
         self._build()
         self._load_design(self.model.currentText())
         self.section_list.setCurrentRow(0)
@@ -80,7 +81,7 @@ class DesignerWindow(QWidget):
         prev = QFrame(); prev.setObjectName("Panel"); pl = QVBoxLayout(prev); ph = QHBoxLayout(); pt = QLabel("VISTA PREVIA DE IMPRESIÓN"); pt.setObjectName("PageTitle"); ph.addWidget(pt, 1)
         self.preview_info = QLabel("A4 · 2 columnas · 6 filas"); self.preview_info.setObjectName("Muted"); ph.addWidget(self.preview_info); pl.addLayout(ph)
         from PySide6.QtSvgWidgets import QSvgWidget
-        self.preview_svg = QSvgWidget(); self.preview_svg.setMinimumSize(650, 720); pl.addWidget(self.preview_svg, 1)
+        self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(650, 720); pl.addWidget(self.preview_widget, 1)
         note = QLabel("Vista real con el mismo renderer de impresión. Los 6 cartones forman una serie y DUPLICAR repite exactamente la misma serie."); note.setObjectName("Muted"); note.setWordWrap(True); pl.addWidget(note); root.addWidget(prev, 2)
 
     def _title(self, p, text):
@@ -134,7 +135,6 @@ class DesignerWindow(QWidget):
 
     @staticmethod
     def _grid():
-        # Muestra fija válida para pruebas de compatibilidad del diseñador.
         return (
             (1, 13, 22, 34, 45, None, None, None, None),
             (5, 19, None, None, None, 56, 67, 78, None),
@@ -149,22 +149,16 @@ class DesignerWindow(QWidget):
         return model if isinstance(model, CardModel) else CardModel.A
 
     def _preview(self, *_):
-        if not hasattr(self, "preview_svg"):
+        if not hasattr(self, "preview_widget"):
             return
         try:
             model = self._selected_card_model()
             preview_number = int(self._preview_card_number or 11534)
-            # La vista previa usa el mismo generador real: seis cartones
-            # distintos, con la distribución actual, en vez de seis copias.
-            series = SeriesGenerator(seed=preview_number).generate(
-                series_id="0001",
-                model=model,
-                serial_start=max(1, preview_number),
-            )
+            series = SeriesGenerator(seed=preview_number).generate("0001", model=model, serial_start=max(1, preview_number))
             cards = series.cards
             svg = A4SvgRenderer(style=self._style()).render_columns(cards, cards)
             self._preview_svg_text = svg
-            self.preview_svg.load(svg.encode("utf-8"))
+            self.preview_widget.load(svg.encode("utf-8"))
         except (ValueError, TypeError, RuntimeError):
             self._preview_svg_text = ""
 
@@ -172,13 +166,13 @@ class DesignerWindow(QWidget):
         return [self.section_list.item(i).text() for i in range(self.section_list.count())]
 
     def preview_is_real_card(self):
-        return hasattr(self, "_preview_svg_text") and 'class="bingo-card"' in self._preview_svg_text
+        return 'class="bingo-card"' in self._preview_svg_text
 
     def preview_has_grid(self, rows, columns):
-        return hasattr(self, "_preview_svg_text") and self._preview_svg_text.count("<rect x=") >= rows * columns
+        return self._preview_svg_text.count("<rect x=") >= rows * columns
 
     def preview_svg(self):
-        return getattr(self, "_preview_svg_text", "")
+        return self._preview_svg_text
 
     def set_preview_card_number(self, number):
         self._preview_card_number = "".join(ch for ch in str(number) if ch.isdigit()) or "11534"; self._preview()
