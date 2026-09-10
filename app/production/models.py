@@ -40,13 +40,16 @@ def plan_lot(
         raise ValueError("El rango de cartones no es válido")
     if end_card > max_cards:
         raise ValueError(f"El rango supera la capacidad configurada de {max_cards:,} cartones")
-    if (start_card - 1) % 6 != 0 or end_card % 6 != 0:
-        raise ValueError("El lote debe comenzar y terminar en límites completos de serie de 6 cartones")
+    # The operator can start anywhere: 1, 2, 3, 1501, etc. A print batch
+    # remains six cards per logical series/page.
+    card_count = end_card - start_card + 1
+    if card_count % 6 != 0:
+        raise ValueError("La cantidad solicitada debe ser múltiplo de 6 cartones")
     return ProductionLot(
         lot_id=lot_id,
         start_card=start_card,
         end_card=end_card,
-        series_count=(end_card - start_card + 1) // 6,
+        series_count=card_count // 6,
         model=model,
         operator=operator,
         created_at=datetime.now(timezone.utc).isoformat(),
