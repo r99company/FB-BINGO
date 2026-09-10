@@ -43,98 +43,68 @@ class DistributionModel:
             raise RuntimeError("No se pudo equilibrar la distribución de la serie")
         return result
 
+    @staticmethod
+    def _row_patterns(max_run: int) -> list[int]:
+        patterns: list[int] = []
+        for mask in range(1, 1 << COLUMNS):
+            if mask.bit_count() != 5:
+                continue
+            longest = current = 0
+            for column in range(COLUMNS):
+                if mask & (1 << column):
+                    current += 1
+                    longest = max(longest, current)
+                else:
+                    current = 0
+            if longest <= max_run:
+                prefix = sum(bool(mask & (1 << column)) for column in range(4))
+                if 1 <= prefix <= 3:
+                    patterns.append(mask)
+        return patterns
+
     def row_masks_for_counts(
         self, counts: Sequence[int], rng: random.Random
     ) -> list[int] | None:
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
+        if any(count < 1 or count > (2 if self.model is CardModel.A else 3) for count in counts):
+            return None
 
-        choices = [
-            [mask for mask in range(1, 1 << ROWS) if mask.bit_count() == count]
-            for count in counts
-        ]
-        for masks in choices:
-            rng.shuffle(masks)
+        max_run = 2 if self.model is CardModel.A else 4
+        patterns = self._row_patterns(max_run)
+        rng.shuffle(patterns)
+        pattern_set = set(patterns)
 
-        # Solve from left to right so spacing follows the printed card.
-        # Model A deliberately avoids runs of three occupied cells; this gives
-        # the alternating visual rhythm expected from a professional ticket.
-        max_consecutive = 2 if self.model is CardModel.A else 4
-        chosen = [0] * COLUMNS
-        remaining = [5, 5, 5]
-
-        def prefix_counts() -> list[int]:
-            return [
-                sum(bool(chosen[column] & (1 << row)) for column in range(4))
-                for row in range(ROWS)
-            ]
-
-        def respects_spacing(column: int, mask: int) -> bool:
-            chosen[column] = mask
-            for row in range(ROWS):
-                run = 0
-                for current_column in range(COLUMNS):
-                    if chosen[current_column] & (1 << row):
-                        run += 1
-                        if run > max_consecutive:
-                            chosen[column] = 0
-                            return False
-                    else:
-                        run = 0
-            chosen[column] = 0
-            return True
-
-        def visual_score(column: int, mask: int) -> tuple[int, float]:
-            score = 0
-            if column > 0:
-                score += 5 * sum(
-                    bool(mask & (1 << row)) and bool(chosen[column - 1] & (1 << row))
-                    for row in range(ROWS)
-                )
-            if column < 4:
-                counts_now = prefix_counts()
-                score += 8 * (max(counts_now) - min(counts_now))
-            return score, rng.random()
-
-        def backtrack(column: int) -> bool:
-            if column == COLUMNS:
-                return remaining == [0, 0, 0]
-
-            slots_left = COLUMNS - column - 1
-            candidates: list[tuple[tuple[int, float], int, list[int]]] = []
-            for mask in choices[column]:
-                next_remaining = remaining[:]
-                for row in range(ROWS):
-                    if mask & (1 << row):
-                        next_remaining[row] -= 1
-                if min(next_remaining) < 0:
-                    continue
-                if any(value > slots_left * 3 for value in next_remaining):
-                    continue
-                if not respects_spacing(column, mask):
+        # Pick the first two rows randomly, then derive the third row directly
+        # from the required column loads. This is much faster and more reliable
+        # than blind backtracking while preserving visual variety.
+        for first in patterns:
+            for second in patterns:
+                third = 0
+                valid = True
+                for column, target in enumerate(counts):
+                    used = ((first >> column) & 1) + ((second >> column) & 1)
+                    remaining = target - used
+                    if remaining not in (0, 1):
+                        valid = False
+                        break
+                    if remaining:
+                        third |= 1 << column
+                if not valid or third not in pattern_set:
                     continue
 
-                chosen[column] = mask
-                if column == 3:
-                    first_four = prefix_counts()
-                    # All three rows participate in the first four columns and
-                    # their occupation is balanced by at most one cell.
-                    if min(first_four) == 0 or max(first_four) - min(first_four) > 1:
-                        chosen[column] = 0
-                        continue
-                score = visual_score(column, mask)
-                chosen[column] = 0
-                candidates.append((score, mask, next_remaining))
+                prefixes = [
+                    sum(bool(mask & (1 << column)) for column in range(4))
+                    for mask in (first, second, third)
+                ]
+                if min(prefixes) < 1 or max(prefixes) - min(prefixes) > 1:
+                    continue
 
-            candidates.sort(key=lambda item: item[0])
-            for _, mask, next_remaining in candidates:
-                chosen[column] = mask
-                old_remaining = remaining[:]
-                remaining[:] = next_remaining
-                if backtrack(column + 1):
-                    return True
-                remaining[:] = old_remaining
-                chosen[column] = 0
-            return False
+                # Reject an identical row mask inside one card when alternatives
+                # exist; this improves the visual rhythm without changing Bingo
+                # validity.
+                if len({first, second, third}) < 3:
+                    continue
+                return [first, second, third]
 
-        return chosen if backtrack(0) else None
+        return None
