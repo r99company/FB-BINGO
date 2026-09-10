@@ -9,8 +9,8 @@ def _card() -> BingoCard:
         model=CardModel.A,
         grid=(
             (9, None, 15, None, 33, 45, 55, None, None),
-            (6, None, 20, 31, None, 60, None, None, None),
-            (1, 10, 22, 32, 49, None, None, None, None),
+            (6, None, 20, 31, 49, 60, None, None, None),
+            (1, 10, 22, 32, None, None, None, None, None),
         ),
     )
 
