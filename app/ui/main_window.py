@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
     QPushButton, QSizePolicy, QVBoxLayout, QWidget, QMenu,
 )
+
 from app.bingo import BingoGame
 from app.bingo.models import GameState
 from app.database import SQLiteSeriesRepository
@@ -15,9 +16,10 @@ from app.ui.generator_window import GeneratorWidget
 from app.ui.public_display import format_ball_count
 from app.verification import CardVerifier
 
+
 NEON_QSS = """
 QWidget#Root { background:#030719; color:#F7F9FF; font-family:'Segoe UI'; }
-QFrame#Sidebar,QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar,QFrame#BottomBar { background:#07132D; border:1px solid #174A86; border-radius:12px; }
+QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar,QFrame#BottomBar { background:#07132D; border:1px solid #174A86; border-radius:12px; }
 QFrame#TopBar { background:#050C22; border-color:#8A176A; }
 QFrame#BottomBar { background:#040B20; }
 QLabel#Brand { font-size:34px; font-weight:900; color:#18D9FF; }
@@ -28,31 +30,28 @@ QLabel#HeaderValue { font-size:22px; font-weight:900; color:#18D9FF; }
 QLabel#HeaderValuePink { font-size:22px; font-weight:900; color:#FF4FA3; }
 QLabel#HeaderSmall { font-size:11px; color:#AFC7E8; }
 QLabel#SectionTitle { font-size:15px; font-weight:900; color:#FFFFFF; }
-QLabel#CurrentCaption { background:#D51A83; color:#FFFFFF; font-size:15px; font-weight:900; padding:7px; border-radius:8px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:100px; font-weight:900; background:#081C42; border:3px solid #FF2E98; border-radius:70px; padding:8px; }
+QLabel#CurrentCaption { background:#D51A83; color:#FFFFFF; font-size:14px; font-weight:900; padding:7px; border-radius:8px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:100px; font-weight:900; background:#081C42; border:3px solid #FF2E98; border-radius:86px; padding:8px; }
 QLabel#Called { color:#18D9FF; font-size:34px; font-weight:900; }
 QLabel#Muted { color:#9FB4D1; font-size:12px; }
-QLabel#StatusGood { color:#72FF2F; font-size:14px; font-weight:900; }
-QLabel#FooterText { color:#DDE8FF; font-size:12px; }
+QLabel#StatusGood { color:#72FF2F; font-size:13px; font-weight:900; }
+QLabel#FooterText { color:#BBD3F3; font-size:11px; }
 QLabel#PublicHint { color:#AFC7E8; font-size:11px; }
-QPushButton#Nav { text-align:left; padding:11px 10px; min-height:42px; color:#EAF4FF; background:#071A38; border:1px solid #145A9E; border-radius:8px; font-size:12px; font-weight:800; }
-QPushButton#Nav:hover { background:#0B2E5D; border-color:#18D9FF; }
-QPushButton#Nav[active="true"] { background:#D61A84; border-color:#FF62B5; }
-QPushButton#Primary,QPushButton#Secondary,QPushButton#Danger,QPushButton#Orange { min-height:48px; border-radius:8px; color:#FFFFFF; font-size:12px; font-weight:900; }
-QPushButton#Primary { background:#08A7D7; border:1px solid #52E6FF; }
-QPushButton#Secondary { background:#1453B8; border:1px solid #38A9FF; }
-QPushButton#Danger { background:#D91D35; border:1px solid #FF6475; }
-QPushButton#Orange { background:#D7770A; border:1px solid #FFB02E; }
-QPushButton#Ball { min-width:48px; min-height:40px; color:#F6FAFF; background:#071A36; border:1px solid #0D80CA; border-radius:5px; font-size:16px; font-weight:900; }
+QLabel#ExtractedValue { color:#18D9FF; font-size:30px; font-weight:900; background:#06142E; border:1px solid #216CA9; border-radius:9px; padding:6px; }
+QLabel#HistoryBall { min-width:44px; max-width:44px; min-height:44px; max-height:44px; border-radius:22px; color:#FFFFFF; font-size:17px; font-weight:900; background:#08214A; border:2px solid #18D9FF; }
+QLabel#HistoryBall[tone="pink"] { background:#7C145B; border-color:#FF3FA4; }
+QLabel#HistoryBall[tone="blue"] { background:#08366B; border-color:#18D9FF; }
+QPushButton#Secondary { min-height:46px; border-radius:8px; color:#FFFFFF; background:#1453B8; border:1px solid #38A9FF; font-size:12px; font-weight:900; }
+QPushButton#Ball { min-width:48px; min-height:40px; color:#F6FAFF; background:#071A36; border:1px solid #0D80CA; border-radius:18px; font-size:16px; font-weight:900; }
 QPushButton#Ball:hover { background:#0D315D; border-color:#22DFFF; }
-QPushButton#Ball[called="true"] { background:#D91B83; border:2px solid #FF58B5; color:#FFFFFF; }
-QPushButton#Ball[current="true"] { background:#FF2D99; border:3px solid #FFFFFF; }
+QPushButton#Ball[called="true"] { background:#D91B83; border:2px solid #FF58B5; color:#FFFFFF; border-radius:22px; }
+QPushButton#Ball[current="true"] { background:#FF2D99; border:3px solid #FFFFFF; border-radius:24px; }
 QMenu { background:#07132D; color:#F7F9FF; border:1px solid #2C78B8; padding:5px; }
 QMenu::item { padding:9px 18px; border-radius:5px; }
 QMenu::item:selected { background:#D61A84; }
 QLineEdit { background:#06142E; border:1px solid #216CA9; border-radius:7px; color:#FFFFFF; padding:9px; font-size:13px; }
 QLineEdit:focus { border:2px solid #FF3FA4; }
-QLineEdit#BallInput { font-size:28px; font-weight:900; min-height:50px; text-align:center; border:2px solid #18D9FF; }
+QLineEdit#BallInput { font-size:30px; font-weight:900; min-height:56px; text-align:center; border:2px solid #18D9FF; }
 """
 
 
@@ -125,43 +124,58 @@ class BingoMainWindow(QMainWindow):
             ("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()),
             ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)()),
         ])
-        verify = QPushButton("✓ VERIFICAR CARTÓN"); verify.setObjectName("Primary"); verify.setToolTip("Abrir el verificador rápidamente")
-        verify.clicked.connect(lambda: getattr(self, "open_verification", lambda: None)())
         help_menu = add_menu("AYUDA", [
             ("F1 / Ctrl+1 · Sorteo automático", self.draw_number),
             ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause),
             ("F3 / Ctrl+3 · Deshacer bola", self.undo_number),
             ("F4 / Ctrl+4 · Finalizar / nueva partida", self.new_game),
+            ("Ctrl+5 · Verificador de cartón", lambda: getattr(self, "open_verification", lambda: None)()),
         ])
-        layout.addWidget(controls); layout.addWidget(cards); layout.addWidget(verify); layout.addStretch(1); layout.addWidget(help_menu)
+        layout.addWidget(controls); layout.addWidget(cards); layout.addStretch(1); layout.addWidget(help_menu)
         return bar
 
-    def _build_sidebar(self) -> QFrame:
-        # Conservado para compatibilidad con instalaciones anteriores; ya no se muestra.
-        sidebar = QFrame(objectName="Sidebar"); sidebar.setFixedWidth(190); lay = QVBoxLayout(sidebar); lay.setContentsMargins(8, 10, 8, 8); title = QLabel("✦ FB-BINGO"); title.setObjectName("HeaderTitle"); lay.addWidget(title); lay.addSpacing(4)
-        items = (("🎙  PARTIDA", "Operación del juego", None), ("🛒  VENTAS", "Series y cartones", None), ("✓  VERIFICACIÓN", "Verificar cartones", None), ("▣  GENERADOR", "Generar e imprimir", "generator"), ("▥  REPORTES", "Estadísticas y ventas", None), ("▣  PANTALLA TV", "Pantalla para el público", "tv"), ("⚙  CONFIGURACIÓN", "Ajustes del sistema", None))
-        for text, sub, action in items:
-            btn = QPushButton(f"{text}\n{sub}"); btn.setObjectName("Nav"); btn.setProperty("active", text.startswith("🎙"))
-            if action == "tv": btn.clicked.connect(self.open_tv)
-            elif action == "generator": btn.clicked.connect(self.open_generator)
-            lay.addWidget(btn)
-        lay.addStretch(); ok = QLabel("● SISTEMA CONECTADO\n   Listo para jugar"); ok.setObjectName("StatusGood"); lay.addWidget(ok); return sidebar
-
     def _build_center(self) -> QVBoxLayout:
-        content = QVBoxLayout(); content.setSpacing(8); top = QFrame(objectName="TopBar"); row = QHBoxLayout(top); t = QLabel("NÚMERO ACTUAL"); t.setObjectName("HeaderTitle"); row.addWidget(t); row.addStretch(); self.series_label = QLabel("SERIE — | CARTÓN — / 6"); self.series_label.setObjectName("HeaderTitle"); row.addWidget(self.series_label); content.addWidget(top)
-        center = QHBoxLayout(); center.setSpacing(8); current = QFrame(objectName="Panel"); current.setFixedWidth(275); cl = QVBoxLayout(current); cap = QLabel("NÚMERO ACTUAL"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap); self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setMinimumHeight(175); cl.addWidget(self.current_label); cl.addSpacing(12); self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("HeaderValuePink"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.call_state)
-        cap = QLabel("ÚLTIMAS 5 BOLAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap); self.history_label = QLabel("—"); self.history_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.history_label.setObjectName("HeaderValue"); self.history_label.setWordWrap(True); cl.addWidget(self.history_label); cap = QLabel("BOLAS JUGADAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap); self.count_label = QLabel("0 / 90"); self.count_label.setObjectName("Called"); self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.count_label)
-        digit_title = QLabel("DIGITAR BOLA EXTRAÍDA"); digit_title.setObjectName("CurrentCaption"); digit_title.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(digit_title); digit_hint = QLabel("Digite la bola física y presione ENTER"); digit_hint.setObjectName("PublicHint"); digit_hint.setAlignment(Qt.AlignmentFlag.AlignCenter); digit_hint.setWordWrap(True); cl.addWidget(digit_hint); entry = QHBoxLayout(); self.ball_input = QLineEdit(); self.ball_input.setObjectName("BallInput"); self.ball_input.setPlaceholderText("1–90"); self.ball_input.setMaxLength(2); self.ball_input.setAlignment(Qt.AlignmentFlag.AlignCenter); self.ball_input.setInputMethodHints(Qt.InputMethodHint.ImhDigitsOnly); self.ball_input.returnPressed.connect(self.enter_ball); entry.addWidget(self.ball_input, 2); enter = QPushButton("ENTER"); enter.setObjectName("Primary"); enter.clicked.connect(self.enter_ball); entry.addWidget(enter, 1); cl.addLayout(entry); self.ball_message = QLabel("LISTO · ESPERANDO BOLA FÍSICA"); self.ball_message.setObjectName("Muted"); self.ball_message.setWordWrap(True); self.ball_message.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.ball_message); center.addWidget(current)
-        board_panel = QFrame(objectName="Panel"); bl = QVBoxLayout(board_panel); bt = QLabel("TABLERO DE BINGO · 90 BOLAS"); bt.setObjectName("SectionTitle"); bl.addWidget(bt); grid = QGridLayout(); grid.setSpacing(3)
+        content = QVBoxLayout(); content.setSpacing(8)
+        top = QFrame(objectName="TopBar"); row = QHBoxLayout(top); t = QLabel("TABLERO DE BINGO · 90 BOLAS"); t.setObjectName("HeaderTitle"); row.addWidget(t); row.addStretch(); self.series_label = QLabel("SERIE — | CARTÓN — / 6"); self.series_label.setObjectName("HeaderTitle"); row.addWidget(self.series_label); content.addWidget(top)
+        center = QHBoxLayout(); center.setSpacing(8)
+
+        board_panel = QFrame(objectName="Panel"); bl = QVBoxLayout(board_panel); bt = QLabel("TABLERO"); bt.setObjectName("SectionTitle"); bl.addWidget(bt); grid = QGridLayout(); grid.setSpacing(3)
         for number in range(1, 91):
             btn = QPushButton(str(number)); btn.setObjectName("Ball"); btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); btn.clicked.connect(lambda checked=False, n=number: self.call_number(n)); self._buttons[number] = btn; grid.addWidget(btn, (number - 1) // 10, (number - 1) % 10)
-        bl.addLayout(grid, 1); center.addWidget(board_panel, 1); content.addLayout(center, 1)
-        actions = QHBoxLayout(); draw = QPushButton("▶ SORTEO AUTOMÁTICO\nF1 · Ctrl+1"); draw.setObjectName("Secondary"); draw.setToolTip("Modo automático. En operación normal use DIGITAR BOLA."); draw.clicked.connect(self.draw_number); self.pause_button = QPushButton("Ⅱ PAUSAR\nF2 · Ctrl+2"); self.pause_button.setObjectName("Secondary"); self.pause_button.clicked.connect(self.toggle_pause); undo = QPushButton("◀ DESHACER\nF3 · Ctrl+3"); undo.setObjectName("Secondary"); undo.clicked.connect(self.undo_number); finish = QPushButton("■ FINALIZAR\nF4 · Ctrl+4"); finish.setObjectName("Danger"); finish.setProperty("fb_bingo_finish_button", True); self.finish_button = finish; finish.clicked.connect(self.new_game)
-        for btn in (draw, self.pause_button, undo, finish): actions.addWidget(btn, 1)
-        content.addLayout(actions); return content
+        bl.addLayout(grid, 1); center.addWidget(board_panel, 1)
+
+        current = QFrame(objectName="Panel"); current.setFixedWidth(360); cl = QVBoxLayout(current); cl.setContentsMargins(12, 12, 12, 12); cl.setSpacing(8)
+        cap = QLabel("NÚMERO ACTUAL"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
+        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setMinimumHeight(175); cl.addWidget(self.current_label)
+        self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("HeaderValuePink"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.call_state)
+
+        cap = QLabel("ÚLTIMAS 5 BOLAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
+        history_row = QHBoxLayout(); history_row.setSpacing(7); self.history_balls = []
+        for index in range(5):
+            ball = QLabel("—"); ball.setObjectName("HistoryBall"); ball.setProperty("history_index", index); ball.setProperty("tone", "pink" if index % 2 == 0 else "blue"); ball.setAlignment(Qt.AlignmentFlag.AlignCenter); history_row.addWidget(ball, 1); self.history_balls.append(ball)
+        cl.addLayout(history_row)
+
+        cap = QLabel("DIGITA EL NÚMERO"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
+        hint = QLabel("La locutora escribe la bola física y presiona ENTER"); hint.setObjectName("PublicHint"); hint.setAlignment(Qt.AlignmentFlag.AlignCenter); hint.setWordWrap(True); cl.addWidget(hint)
+        self.ball_input = QLineEdit(); self.ball_input.setObjectName("BallInput"); self.ball_input.setPlaceholderText("1–90"); self.ball_input.setMaxLength(2); self.ball_input.setAlignment(Qt.AlignmentFlag.AlignCenter); self.ball_input.setInputMethodHints(Qt.InputMethodHint.ImhDigitsOnly); self.ball_input.returnPressed.connect(self.enter_ball); cl.addWidget(self.ball_input)
+        self.ball_message = QLabel("LISTO · ESPERANDO BOLA FÍSICA"); self.ball_message.setObjectName("Muted"); self.ball_message.setWordWrap(True); self.ball_message.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.ball_message)
+
+        cap = QLabel("BOLA EXTRAÍDA"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
+        self.extracted_label = QLabel("—"); self.extracted_label.setObjectName("ExtractedValue"); self.extracted_label.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.extracted_label)
+        cap = QLabel("BOLAS JUGADAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
+        self.count_label = QLabel("0 / 90"); self.count_label.setObjectName("Called"); self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.count_label)
+        center.addWidget(current)
+        content.addLayout(center, 1)
+
+        self.pause_button = QPushButton(); self.pause_button.setVisible(False)
+        self.pause_button.clicked.connect(self.toggle_pause)
+        return content
 
     def _build_footer(self) -> QFrame:
-        footer = QFrame(objectName="BottomBar"); row = QHBoxLayout(footer); u = QLabel("◉ USUARIO\n   LOCUTORA"); u.setObjectName("FooterText"); e = QLabel("▣ EQUIPO\n   PC-LOCUTORA-01"); e.setObjectName("FooterText"); v = QLabel("★ VERSIÓN\n   1.0.0"); v.setObjectName("FooterText"); s = QLabel("● SISTEMA CONECTADO"); s.setObjectName("StatusGood"); row.addWidget(u); row.addSpacing(30); row.addWidget(e); row.addStretch(); row.addWidget(v); row.addSpacing(30); row.addWidget(s); return footer
+        footer = QFrame(objectName="BottomBar"); row = QHBoxLayout(footer); row.setContentsMargins(12, 6, 12, 6)
+        text = QLabel("FB-BINGO · OPERACIÓN POR TECLADO · F1 / F2 / F3 / F4 · Ctrl+1 / 2 / 3 / 4 · Ctrl+5 VERIFICADOR")
+        text.setObjectName("FooterText"); row.addWidget(text); row.addStretch(); status = QLabel("● SISTEMA CONECTADO"); status.setObjectName("StatusGood"); row.addWidget(status)
+        return footer
 
     def enter_ball(self) -> bool:
         raw = self.ball_input.text().strip()
@@ -200,12 +214,7 @@ class BingoMainWindow(QMainWindow):
         self.game.reset(); self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA"); self._sync_ui(); self.ball_input.clear(); self.ball_input.setFocus()
 
     def verify_card(self) -> None:
-        serial = self.card_serial_input.text().strip()
-        if not serial: self.verify_result.setText("Ingrese el número del cartón."); return
-        try: card = self.repository.get_card(serial)
-        except KeyError: self.verify_result.setText("✕ CARTÓN NO ENCONTRADO"); return
-        except ValueError as exc: self.verify_result.setText(f"✕ {exc}"); return
-        called = self.game.history; verifier = CardVerifier(card); lines = verifier.line_winners(called); bingo = verifier.is_bingo(called); result = "★ BINGO ★" if bingo else ("✓ LÍNEA " + ", ".join(str(r + 1) for r in lines) if lines else "✕ NO HAY LÍNEA NI BINGO"); self.verify_result.setText(f"CARTÓN {card.serial}\n{result}"); self.open_tv(); self.tv_window.show_card_verification(card, called)
+        self.open_verification()
 
     def open_tv(self) -> None:
         if self.tv_window is None: self.tv_window = TVWindow(self)
@@ -216,7 +225,13 @@ class BingoMainWindow(QMainWindow):
         self.generator_window.show(); self.generator_window.raise_(); self.generator_window.activateWindow()
 
     def _sync_ui(self) -> None:
-        state = self.game.state; current = state.current_number; count = len(state.drawn_numbers); self.current_label.setText("—" if current is None else str(current)); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.count_label.setText(format_ball_count(count)); self.history_label.setText("  ".join(map(str, state.last_five[::-1])) if state.last_five else "—"); self.pause_button.setText("▶ REANUDAR\nF2 · Ctrl+2" if state.paused else "Ⅱ PAUSAR\nF2 · Ctrl+2"); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M")); self.header_values[2].setText("—")
+        state = self.game.state; current = state.current_number; count = len(state.drawn_numbers)
+        self.current_label.setText("—" if current is None else str(current)); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.extracted_label.setText("—" if current is None else str(current)); self.count_label.setText(format_ball_count(count)); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M")); self.header_values[2].setText("—")
+        recent = list(state.last_five[::-1])
+        for index, ball in enumerate(self.history_balls):
+            ball.setText(str(recent[index]) if index < len(recent) else "—")
+            ball.setProperty("tone", "pink" if index % 2 == 0 else "blue")
+            ball.style().unpolish(ball); ball.style().polish(ball); ball.update()
         for number, button in self._buttons.items(): button.setProperty("called", number in state.drawn_numbers); button.setProperty("current", number == current); button.style().unpolish(button); button.style().polish(button); button.update()
         if self.tv_window is not None: self.tv_window.update_game(current, self.game.last_five)
         self.ball_input.setFocus()
