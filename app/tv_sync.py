@@ -7,12 +7,19 @@ from typing import Any
 
 
 class GameSyncServer:
-    """Servidor ligero para compartir el estado de la partida con la PC de TV."""
+    """Servidor ligero para compartir el estado de la partida con otras PCs."""
 
     def __init__(self, host: str = "0.0.0.0", port: int = 8765) -> None:
         self.host = host
         self._requested_port = int(port)
-        self._state: dict[str, Any] = {"current": None, "history": [], "game": "PARTIDA RÁPIDA"}
+        self._state: dict[str, Any] = {
+            "current": None,
+            "history": [],
+            "game": "PARTIDA RÁPIDA",
+            "series": "—",
+            "model": "A",
+            "status": "EN ESPERA",
+        }
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._socket: socket.socket | None = None
@@ -77,8 +84,6 @@ class GameSyncServer:
                 data = conn.recv(65536).decode("utf-8").strip()
                 request = json.loads(data) if data else {}
                 action = request.get("action")
-                # Compatibilidad con el protocolo simple anterior: un objeto que
-                # contiene directamente el estado se interpreta como publicación.
                 if action is None and any(key in request for key in ("current", "history", "game")):
                     action = "publish"
                     state = request
@@ -120,7 +125,7 @@ class GameSyncServer:
 
 
 class GameSyncClient:
-    """Cliente usado por la PC de TV para leer/publicar estado de la partida."""
+    """Cliente usado por las PCs secundarias para leer/publicar estado."""
 
     def __init__(self, host: str, port: int = 8765, timeout: float = 2.0) -> None:
         self.host, self.port, self.timeout = host, int(port), timeout
@@ -143,8 +148,96 @@ class GameSyncClient:
         return self._request({"action": "get"})["state"]
 
 
+def _install_admin_station_sync(window: Any) -> None:
+    """Convierte esta instancia en cliente: la PC locutora manda la partida."""
+    from PySide6.QtCore import QTimer
+    from app.bingo.models import GameState
+    from app.settings.paths import application_data_dir
+    from app.settings.service import SettingsService
+
+    settings = SettingsService(application_data_dir() / "settings.json")
+    role = str(settings.get("station_role", "locutora")).lower().strip()
+    if role != "administrador":
+        window.station_sync_role = "locutora"
+        return
+
+    # Esta PC no debe aceptar entradas locales de bolas. La locutora es la única
+    # autoridad de la partida; aquí solo se replica el estado para administración.
+    local_server = getattr(window, "tv_sync_server", None)
+    if local_server is not None:
+        local_server.shutdown()
+
+    client = GameSyncClient(
+        str(settings.get("tv_server_host", "127.0.0.1")),
+        int(settings.get("tv_server_port", 8765)),
+        timeout=0.75,
+    )
+    window.station_sync_role = "administrador"
+    window.station_sync_client = client
+
+    def blocked(*_args: Any, **_kwargs: Any) -> Any:
+        window.ball_message.setText("CONTROL REMOTO · LA BOLA SE DIGITA EN LA PC LOCUTORA")
+        return False
+
+    window.enter_ball = blocked
+    window.draw_number = blocked
+    window.call_number = blocked
+    window.undo_number = blocked
+    window.toggle_pause = blocked
+    window.finalize_game = blocked
+    window.new_game = blocked
+    window.ball_input.setEnabled(False)
+    window.ball_input.setPlaceholderText("CONTROLADO POR LOCUTORA")
+    window.ball_message.setText("● CONECTANDO CON PC LOCUTORA…")
+    for button in getattr(window, "_buttons", {}).values():
+        button.setEnabled(False)
+
+    timer = QTimer(window)
+
+    def poll() -> None:
+        try:
+            state = client.get_state()
+            history = tuple(int(n) for n in state.get("history", []))
+            current = state.get("current")
+            if current is not None:
+                current = int(current)
+            if not 0 <= len(history) <= 90:
+                raise ValueError("Estado remoto inválido")
+            if current is not None and (not 1 <= current <= 90 or not history or history[-1] != current):
+                raise ValueError("Bola remota inválida")
+            if any(not 1 <= n <= 90 for n in history) or len(history) != len(set(history)):
+                raise ValueError("Historial remoto inválido")
+            if history != window.game.history or bool(state.get("status") == "PAUSADA") != bool(window.game.state.paused):
+                remaining = tuple(n for n in range(1, 91) if n not in history)
+                window.game.restore(
+                    GameState(
+                        drawn_numbers=history,
+                        remaining_numbers=remaining,
+                        paused=state.get("status") == "PAUSADA",
+                    )
+                )
+                window._sync_ui()
+            if history:
+                window.ball_message.setText(
+                    f"✓ SINCRONIZADO · ÚLTIMA BOLA {history[-1]} · {len(history)} BOLAS"
+                )
+            else:
+                window.ball_message.setText("✓ SINCRONIZADO · ESPERANDO PRIMERA BOLA")
+            if state.get("game"):
+                window.header_values[0].setText(str(state["game"]))
+            if state.get("series") is not None:
+                window.header_values[2].setText(str(state.get("series") or "—"))
+        except (OSError, ValueError, TimeoutError, TypeError):
+            window.ball_message.setText("● SIN CONEXIÓN · ESPERANDO PC LOCUTORA…")
+
+    window.station_sync_timer = timer
+    timer.timeout.connect(poll)
+    timer.start(200)
+    poll()
+
+
 def wire_operational_controls(window: Any) -> None:
-    """Conecta los controles operativos de la ventana principal."""
+    """Conecta controles y, cuando corresponde, activa el modo administrador en red."""
     from PySide6.QtWidgets import QPushButton
 
     def replace(signal: Any, slot: Any) -> None:
@@ -169,3 +262,4 @@ def wire_operational_controls(window: Any) -> None:
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
     replace(window.ball_input.returnPressed, window.enter_ball)
+    _install_admin_station_sync(window)
