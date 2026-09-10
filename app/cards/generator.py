@@ -14,7 +14,6 @@ MAX_SERIAL = 30_000
 @dataclass(frozen=True, slots=True)
 class BingoSeries:
     """Serie física de seis cartones que cubre una vez los números 1-90."""
-
     series_id: str
     cards: tuple[BingoCard, ...]
 
@@ -31,8 +30,7 @@ class BingoSeries:
 
 
 class SeriesGenerator:
-    """Genera series de Bingo 90 con variedad matemática y visual."""
-
+    """Genera series de Bingo 90 válidas y visualmente variadas."""
     def __init__(self, seed: int | None = None, max_serial: int = MAX_SERIAL) -> None:
         if max_serial < CARDS_PER_SERIES:
             raise ValueError("max_serial no permite completar una serie")
@@ -40,15 +38,9 @@ class SeriesGenerator:
         self._max_serial = max_serial
 
     def _series_rng(self, series_id: str) -> random.Random:
-        entropy = self._rng.getrandbits(128)
-        return random.Random(f"FB-BINGO:{series_id}:{entropy}")
+        return random.Random(f"FB-BINGO:{series_id}:{self._rng.getrandbits(128)}")
 
-    def generate(
-        self,
-        series_id: str,
-        model: CardModel = CardModel.A,
-        serial_start: int = 1,
-    ) -> BingoSeries:
+    def generate(self, series_id: str, model: CardModel = CardModel.A, serial_start: int = 1) -> BingoSeries:
         series_id = str(series_id).strip()
         if not series_id:
             raise ValueError("El identificador de serie es obligatorio")
@@ -60,80 +52,45 @@ class SeriesGenerator:
         rng = self._series_rng(series_id)
         distribution = DistributionModel.for_model(model)
         best_grids = None
-        best_score = -1
-
-        # La estética es una preferencia, nunca una condición que pueda
-        # impedir generar una serie matemáticamente válida.
-        for _ in range(80):
+        best_score = -10**9
+        for _ in range(120):
             column_counts = self._column_counts(model, distribution, rng)
-            grids = self._build_grids(column_counts, distribution, rng)
+            grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
                 continue
-
-            mask_signatures = {
-                tuple(tuple(cell is not None for cell in row) for row in grid)
-                for grid in grids
-            }
-            if len(mask_signatures) != CARDS_PER_SERIES:
-                continue
-
             score = self._dynamic_layout_score(grids)
             if score > best_score:
-                best_score = score
-                best_grids = grids
+                best_score, best_grids = score, grids
 
-        if best_grids is not None:
-            cards = tuple(
-                BingoCard(
-                    serial=f"{series_id}-{serial_start + index:06d}",
-                    model=model,
-                    grid=grid,
-                )
-                for index, grid in enumerate(best_grids)
-            )
-            return BingoSeries(series_id=series_id, cards=cards)
+        if best_grids is None:
+            raise RuntimeError("No se pudo generar una serie válida")
 
-        raise RuntimeError("No se pudo generar una serie válida")
+        cards = tuple(
+            BingoCard(serial=f"{series_id}-{serial_start + index:06d}", model=model, grid=grid)
+            for index, grid in enumerate(best_grids)
+        )
+        return BingoSeries(series_id=series_id, cards=cards)
 
     @staticmethod
-    def _row_signature(
-        grid: Sequence[Sequence[int | None]], row: int,
-    ) -> tuple[bool, ...]:
+    def _row_signature(grid: Sequence[Sequence[int | None]], row: int) -> tuple[bool, ...]:
         return tuple(grid[row][column] is not None for column in range(COLUMNS))
 
     @classmethod
-    def _dynamic_layout_score(
-        cls,
-        grids: Sequence[Sequence[Sequence[int | None]]],
-    ) -> int:
+    def _dynamic_layout_score(cls, grids: Sequence[Sequence[Sequence[int | None]]]) -> int:
         score = 0
-        signatures = [
-            [cls._row_signature(grid, row) for row in range(ROWS)]
-            for grid in grids
-        ]
-
+        signatures = [[cls._row_signature(grid, row) for row in range(ROWS)] for grid in grids]
         for row in range(ROWS):
             weight = 2 if row == 0 else 1
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
-
-        prefix_values = {
-            sum(signature for signature in signatures[index][0][:4])
-            for index in range(len(signatures))
-        }
-        score += len(prefix_values) * 12
-        score += len({signatures[index][0] for index in range(len(signatures))}) * 8
-
-        for signature_group in signatures:
-            for signature in signature_group:
+        score += len({tuple(group) for group in signatures}) * 8
+        for group in signatures:
+            for signature in group:
                 run = longest = 0
                 for occupied in signature:
-                    if occupied:
-                        run += 1
-                        longest = max(longest, run)
-                    else:
-                        run = 0
+                    run = run + 1 if occupied else 0
+                    longest = max(longest, run)
                 score -= max(0, longest - 2) * 8
         return score
 
@@ -141,12 +98,7 @@ class SeriesGenerator:
     def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
         return sum(x != y for x, y in zip(a, b))
 
-    def _column_counts(
-        self,
-        model: CardModel,
-        distribution: DistributionModel | None = None,
-        rng: random.Random | None = None,
-    ) -> list[list[int]]:
+    def _column_counts(self, model: CardModel, distribution: DistributionModel | None = None, rng: random.Random | None = None) -> list[list[int]]:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         if model is CardModel.A:
@@ -162,11 +114,7 @@ class SeriesGenerator:
 
         def candidates(extra: int) -> list[tuple[int, ...]]:
             if extra not in cache:
-                values = [
-                    allocation
-                    for allocation in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES)
-                    if sum(allocation) == extra
-                ]
+                values = [a for a in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES) if sum(a) == extra]
                 rng.shuffle(values)
                 cache[extra] = values
             return cache[extra]
@@ -174,16 +122,13 @@ class SeriesGenerator:
         def backtrack(position: int, has_three: bool) -> bool:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES and has_three
-
             column = columns[position]
             extra = targets[column] - CARDS_PER_SERIES
             remaining_columns = COLUMNS - position - 1
-            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1 :])
+            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1:])
             for allocation in candidates(extra):
                 next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
-                if min(next_remaining) < 0:
-                    continue
-                if sum(next_remaining) != future_extra:
+                if min(next_remaining) < 0 or sum(next_remaining) != future_extra:
                     continue
                 if any(value > remaining_columns * max_extra for value in next_remaining):
                     continue
@@ -200,59 +145,42 @@ class SeriesGenerator:
             raise RuntimeError("No se pudo equilibrar la distribución de Modelo B")
         return result
 
-    def _balanced_column_counts(self, model: CardModel) -> list[list[int]]:
-        return self._column_counts(model)
-
-    def _build_grids(
-        self,
-        column_counts: Sequence[Sequence[int]],
-        distribution: DistributionModel | None = None,
-        rng: random.Random | None = None,
-    ) -> list[tuple[tuple[int | None, ...], ...]] | None:
+    def _build_grids(self, column_counts: Sequence[Sequence[int]], distribution: DistributionModel | None = None, rng: random.Random | None = None, aesthetic: bool = True) -> list[tuple[tuple[int | None, ...], ...]] | None:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks: list[list[int]] = []
-
-        # No bloqueamos un patrón porque ya apareció en otro cartón. Lo que
-        # importa es que cada cartón tenga tres filas distintas y que la serie
-        # final tenga seis máscaras completas distintas. Esto evita que la
-        # búsqueda estética convierta la generación en una operación frágil.
         for counts in column_counts:
             masks = distribution.row_masks_for_counts(counts, rng)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
-            if any(
-                sum(bool(mask & (1 << column)) for mask in masks) != counts[column]
-                for column in range(COLUMNS)
-            ):
+            if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
             row_masks.append(masks)
 
-        grids = [
-            [[None for _ in range(COLUMNS)] for _ in range(ROWS)]
-            for _ in range(CARDS_PER_SERIES)
-        ]
+        grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
             values = list(self._values_for_column(column))
             rng.shuffle(values)
             cursor = 0
             for card_index in range(CARDS_PER_SERIES):
                 count = column_counts[card_index][column]
-                card_values = sorted(values[cursor : cursor + count])
+                card_values = sorted(values[cursor:cursor + count])
                 cursor += count
-                if len(card_values) != count:
-                    return None
                 mask = row_masks[card_index][column]
-                if mask.bit_count() != count:
+                if len(card_values) != count or mask.bit_count() != count:
                     return None
-                for value_index, row in enumerate(
-                    row for row in range(ROWS) if mask & (1 << row)
-                ):
+                rows = [row for row in range(ROWS) if mask & (1 << row)]
+                for value_index, row in enumerate(rows):
                     grids[card_index][row][column] = card_values[value_index]
             if cursor != len(values):
                 return None
 
-        return [tuple(tuple(row) for row in grid) for grid in grids]
+        result = [tuple(tuple(row) for row in grid) for grid in grids]
+        if aesthetic:
+            signatures = {tuple(self._row_signature(grid, row) for row in range(ROWS)) for grid in result}
+            if len(signatures) < 2:
+                return None
+        return result
 
     def _row_masks_for_counts(self, counts: Sequence[int]) -> list[int] | None:
         return DistributionModel.for_model(CardModel.A).row_masks_for_counts(counts, self._rng)
