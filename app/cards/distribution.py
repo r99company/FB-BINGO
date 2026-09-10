@@ -12,11 +12,7 @@ NUMBERS_PER_CARD = 15
 
 @dataclass(frozen=True, slots=True)
 class DistributionModel:
-    """Define how a card model distributes occupied cells within a series.
-
-    The Bingo rules remain outside this object. The model only decides column
-    loads and row masks; number selection and card validation stay in the core.
-    """
+    """Define how a card model distributes occupied cells within a series."""
 
     model: CardModel
 
@@ -60,10 +56,9 @@ class DistributionModel:
         for masks in choices:
             rng.shuffle(masks)
 
-        # Keep the physical column order while solving the mask. This makes
-        # adjacency constraints meaningful for the final printed card.
+        # Solve from left to right so visual spacing is evaluated in the same
+        # order in which the customer sees the printed card.
         max_consecutive = 3 if self.model is CardModel.A else 4
-        column_order = list(range(COLUMNS))
         chosen = [0] * COLUMNS
         remaining = [5, 5, 5]
 
@@ -88,33 +83,24 @@ class DistributionModel:
             chosen[column] = 0
             return True
 
-        def visual_score(column: int, mask: int) -> tuple[int, int, float]:
-            """Prefer alternating rows without making the layout deterministic."""
+        def visual_score(column: int, mask: int) -> tuple[int, float]:
             score = 0
             if column > 0:
-                score += 4 * sum(
+                score += 5 * sum(
                     bool(mask & (1 << row)) and bool(chosen[column - 1] & (1 << row))
                     for row in range(ROWS)
                 )
             if column < 4:
-                counts_now = [
-                    sum(
-                        bool(chosen[c] & (1 << row))
-                        for c in range(column + 1)
-                    )
-                    + (1 if mask & (1 << row) else 0)
-                    for row in range(ROWS)
-                ]
-                score += 6 * (max(counts_now) - min(counts_now))
-            return (score, sum(bool(mask & (1 << row)) for row in range(ROWS)), rng.random())
+                counts_now = prefix_counts()
+                score += 8 * (max(counts_now) - min(counts_now))
+            return score, rng.random()
 
-        def backtrack(position: int) -> bool:
-            if position == COLUMNS:
+        def backtrack(column: int) -> bool:
+            if column == COLUMNS:
                 return remaining == [0, 0, 0]
 
-            column = column_order[position]
-            slots_left = COLUMNS - position - 1
-            candidates = []
+            slots_left = COLUMNS - column - 1
+            candidates: list[tuple[tuple[int, float], int, list[int]]] = []
             for mask in choices[column]:
                 next_remaining = remaining[:]
                 for row in range(ROWS):
@@ -130,24 +116,25 @@ class DistributionModel:
                 chosen[column] = mask
                 if column == 3:
                     first_four = prefix_counts()
-                    if max(first_four) - min(first_four) > 1 or min(first_four) == 0:
+                    # In the first four columns every row must participate,
+                    # and their occupancy may differ by at most one. This
+                    # prevents the visibly coarse top/middle/bottom clumping
+                    # seen in earlier generated cards.
+                    if min(first_four) == 0 or max(first_four) - min(first_four) > 1:
                         chosen[column] = 0
                         continue
+                score = visual_score(column, mask)
                 chosen[column] = 0
-                candidates.append(mask)
+                candidates.append((score, mask, next_remaining))
 
-            candidates.sort(key=lambda mask: visual_score(column, mask))
-            for mask in candidates:
+            candidates.sort(key=lambda item: item[0])
+            for _, mask, next_remaining in candidates:
                 chosen[column] = mask
-                next_remaining = remaining[:]
-                for row in range(ROWS):
-                    if mask & (1 << row):
-                        next_remaining[row] -= 1
-                old = remaining[:]
+                old_remaining = remaining[:]
                 remaining[:] = next_remaining
-                if backtrack(position + 1):
+                if backtrack(column + 1):
                     return True
-                remaining[:] = old
+                remaining[:] = old_remaining
                 chosen[column] = 0
             return False
 
