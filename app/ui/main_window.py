@@ -14,8 +14,9 @@ from app.bingo.models import GameState
 from app.database import SQLiteSeriesRepository
 from app.settings.paths import database_path
 from app.ui.generator_window import GeneratorWidget
+from app.ui.live_prizes_window import LivePrizesWindow
 from app.ui.public_display import format_ball_count
-from app.verification import CardVerifier
+from app.verification import CardVerifier, LivePrizeTracker
 
 NEON_QSS = """
 QWidget#Root { background:#030719; color:#F7F9FF; font-family:'Segoe UI'; }
@@ -93,7 +94,7 @@ class TVWindow(QMainWindow):
 
 class BingoMainWindow(QMainWindow):
     def __init__(self) -> None:
-        super().__init__(); self.setWindowTitle("FB-BINGO — Sala de Juego"); self.resize(1540, 930); self.setMinimumSize(1200, 760); self.game = BingoGame(); self.repository = SQLiteSeriesRepository(database_path()); self._buttons = {}; self.tv_window = None; self.generator_window = None; self._build_ui(); self._sync_ui()
+        super().__init__(); self.setWindowTitle("FB-BINGO — Sala de Juego"); self.resize(1540, 930); self.setMinimumSize(1200, 760); self.game = BingoGame(); self.repository = SQLiteSeriesRepository(database_path()); self._buttons = {}; self.tv_window = None; self.generator_window = None; self.live_prizes_window = None; self.live_prize_tracker = LivePrizeTracker(self.repository); self._build_ui(); self._sync_ui()
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="Root"); self.setCentralWidget(root); root.setStyleSheet(NEON_QSS); outer = QVBoxLayout(root); outer.setContentsMargins(10, 10, 10, 10); outer.setSpacing(8)
@@ -102,18 +103,12 @@ class BingoMainWindow(QMainWindow):
             card = QFrame(objectName="HeaderCard"); lay = QVBoxLayout(card); small = QLabel(title); small.setObjectName("HeaderSmall"); val = QLabel(value); val.setObjectName("HeaderValuePink" if pink else "HeaderValue"); val.setAlignment(Qt.AlignmentFlag.AlignCenter); lay.addWidget(small); lay.addWidget(val); hr.addWidget(card, 1); self.header_values.append(val)
         outer.addWidget(header); outer.addWidget(self._build_control_bar()); outer.addLayout(self._build_center(), 1); outer.addWidget(self._build_footer())
         self._operator_shortcuts = []
-        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self)
-        verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-        verify_shortcut.setAutoRepeat(False)
-        verify_shortcut.activated.connect(lambda: getattr(self, "open_verification", lambda: None)())
-        self._operator_shortcuts.append(verify_shortcut)
+        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self); verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); verify_shortcut.setAutoRepeat(False); verify_shortcut.activated.connect(lambda: getattr(self, "open_verification", lambda: None)()); self._operator_shortcuts.append(verify_shortcut)
 
     def _build_control_bar(self) -> QFrame:
-        bar = QFrame(objectName="TopBar")
-        layout = QHBoxLayout(bar); layout.setContentsMargins(8, 5, 8, 5); layout.setSpacing(6)
+        bar = QFrame(objectName="TopBar"); layout = QHBoxLayout(bar); layout.setContentsMargins(8, 5, 8, 5); layout.setSpacing(6)
         def add_menu(title: str, entries: list[tuple[str, object]]) -> QPushButton:
-            button = QPushButton(title + " ▾"); button.setObjectName("Secondary")
-            menu = QMenu(button)
+            button = QPushButton(title + " ▾"); button.setObjectName("Secondary"); menu = QMenu(button)
             for label, callback in entries:
                 action = menu.addAction(label); action.triggered.connect(callback)
             button.setMenu(menu); return button
@@ -122,6 +117,7 @@ class BingoMainWindow(QMainWindow):
             ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()),
             ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()),
             ("📺 Pantalla TV", self.open_tv),
+            ("🏆 Premios en juego", self.open_live_prizes),
             ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)()),
         ])
         cards = add_menu("CARTONES", [
@@ -135,8 +131,7 @@ class BingoMainWindow(QMainWindow):
             ("F4 / Ctrl+4 · Finalizar / nueva partida", self.new_game),
             ("Ctrl+5 · Verificador de cartón", lambda: getattr(self, "open_verification", lambda: None)()),
         ])
-        layout.addWidget(controls); layout.addWidget(cards); layout.addStretch(1); layout.addWidget(help_menu)
-        return bar
+        layout.addWidget(controls); layout.addWidget(cards); layout.addStretch(1); layout.addWidget(help_menu); return bar
 
     def _build_center(self) -> QVBoxLayout:
         content = QVBoxLayout(); content.setSpacing(8)
@@ -167,10 +162,7 @@ class BingoMainWindow(QMainWindow):
         return content
 
     def _build_footer(self) -> QFrame:
-        footer = QFrame(objectName="BottomBar"); row = QHBoxLayout(footer); row.setContentsMargins(12, 6, 12, 6)
-        text = QLabel("FB-BINGO · OPERACIÓN POR TECLADO · F1 / F2 / F3 / F4 · Ctrl+1 / 2 / 3 / 4 · Ctrl+5 VERIFICADOR")
-        text.setObjectName("FooterText"); row.addWidget(text); row.addStretch(); status = QLabel("● SISTEMA CONECTADO"); status.setObjectName("StatusGood"); row.addWidget(status)
-        return footer
+        footer = QFrame(objectName="BottomBar"); row = QHBoxLayout(footer); row.setContentsMargins(12, 6, 12, 6); text = QLabel("FB-BINGO · OPERACIÓN POR TECLADO · F1 / F2 / F3 / F4 · Ctrl+1 / 2 / 3 / 4 · Ctrl+5 VERIFICADOR"); text.setObjectName("FooterText"); row.addWidget(text); row.addStretch(); status = QLabel("● SISTEMA CONECTADO"); status.setObjectName("StatusGood"); row.addWidget(status); return footer
 
     def enter_ball(self) -> bool:
         raw = self.ball_input.text().strip()
@@ -206,10 +198,17 @@ class BingoMainWindow(QMainWindow):
         self._sync_ui()
 
     def new_game(self) -> None:
-        self.game.reset(); self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA"); self._sync_ui(); self.ball_input.clear(); self.ball_input.setFocus()
+        self.game.reset(); self.live_prize_tracker.reset(); self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA"); self._sync_ui(); self.ball_input.clear(); self.ball_input.setFocus()
 
     def verify_card(self) -> None:
         self.open_verification()
+
+    def open_live_prizes(self) -> None:
+        if self.live_prizes_window is None:
+            self.live_prizes_window = LivePrizesWindow(self.live_prize_tracker, self)
+            self.live_prizes_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        self.live_prizes_window.refresh(self.game.history)
+        self.live_prizes_window.show(); self.live_prizes_window.raise_(); self.live_prizes_window.activateWindow()
 
     def open_tv(self) -> None:
         if self.tv_window is None: self.tv_window = TVWindow(self)
@@ -223,10 +222,9 @@ class BingoMainWindow(QMainWindow):
         state = self.game.state; current = state.current_number; count = len(state.drawn_numbers)
         self.current_label.setText("—" if current is None else str(current)); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.extracted_label.setText("—" if current is None else str(current)); self.count_label.setText(format_ball_count(count)); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M")); self.header_values[2].setText("—")
         recent = list(state.last_five[::-1])
-        for index, ball in enumerate(self.history_balls):
-            ball.setText(str(recent[index]) if index < len(recent) else "—")
-            ball.setProperty("tone", "pink" if index % 2 == 0 else "blue")
-            ball.style().unpolish(ball); ball.style().polish(ball); ball.update()
+        for index, ball in enumerate(self.history_balls): ball.setText(str(recent[index]) if index < len(recent) else "—"); ball.setProperty("tone", "pink" if index % 2 == 0 else "blue"); ball.style().unpolish(ball); ball.style().polish(ball); ball.update()
         for number, button in self._buttons.items(): button.setProperty("called", number in state.drawn_numbers); button.setProperty("current", number == current); button.style().unpolish(button); button.style().polish(button); button.update()
+        self.live_prize_tracker.update(state.drawn_numbers)
+        if self.live_prizes_window is not None and self.live_prizes_window.isVisible(): self.live_prizes_window.refresh(state.drawn_numbers)
         if self.tv_window is not None: self.tv_window.update_game(current, self.game.last_five)
         self.ball_input.setFocus()
