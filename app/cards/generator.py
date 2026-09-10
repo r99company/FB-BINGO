@@ -31,10 +31,11 @@ class BingoSeries:
 
 
 class SeriesGenerator:
-    """Genera series de Bingo 90 conservando la matriz exacta de cada cartón.
+    """Genera series de Bingo 90 con variedad matemática y visual.
 
-    El modelo de distribución decide las máscaras/ocupación. Nunca interviene
-    en la decisión de línea o bingo.
+    Las reglas del cartón son obligatorias. La estética se usa como criterio
+    de selección entre soluciones válidas, nunca como motivo para romper las
+    reglas del Bingo.
     """
 
     def __init__(self, seed: int | None = None, max_serial: int = MAX_SERIAL) -> None:
@@ -66,21 +67,20 @@ class SeriesGenerator:
         best_grids = None
         best_score = -1
 
-        # No usamos el primer patrón válido: buscamos unas pocas alternativas
-        # y nos quedamos con la serie que tenga mejor ritmo visual. Así se evita
-        # que los primeros cartones terminen con una fila demasiado parecida.
-        for _ in range(24):
+        # Generamos varias series candidatas. Esto es intencional: no queremos
+        # quedarnos con la primera solución matemática si otra tiene una
+        # distribución visual mucho más natural.
+        for _ in range(12):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng)
             if grids is None:
                 continue
+
             mask_signatures = {
                 tuple(tuple(cell is not None for cell in row) for row in grid)
                 for grid in grids
             }
             if len(mask_signatures) != CARDS_PER_SERIES:
-                continue
-            if model is CardModel.A and not self._has_unique_row_layouts(grids):
                 continue
 
             score = self._dynamic_layout_score(grids)
@@ -112,30 +112,39 @@ class SeriesGenerator:
         cls,
         grids: Sequence[Sequence[Sequence[int | None]]],
     ) -> int:
-        """Mide variedad visual sin cambiar ninguna regla matemática.
-
-        La primera fila pesa más porque era el punto problemático observado.
-        Una serie con más separación entre máscaras obtiene mayor puntuación.
-        """
+        """Premia variedad, separación y ritmo visual entre los seis cartones."""
         score = 0
         signatures = [
             [cls._row_signature(grid, row) for row in range(ROWS)]
             for grid in grids
         ]
+
         for row in range(ROWS):
             weight = 2 if row == 0 else 1
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
 
-        first_row_prefixes = {
+        # Más variedad en la zona izquierda y en la primera fila evita el
+        # aspecto de "bloque" que se detectó en las pruebas visuales.
+        prefix_values = {
             sum(signature for signature in signatures[index][0][:4])
             for index in range(len(signatures))
         }
-        score += len(first_row_prefixes) * 12
+        score += len(prefix_values) * 12
+        score += len({signatures[index][0] for index in range(len(signatures))}) * 8
 
-        first_row_signatures = {signatures[index][0] for index in range(len(signatures))}
-        score += len(first_row_signatures) * 8
+        # Penaliza columnas de una fila que formen un bloque de 3 consecutivos.
+        for signature_group in signatures:
+            for signature in signature_group:
+                run = longest = 0
+                for occupied in signature:
+                    if occupied:
+                        run += 1
+                        longest = max(longest, run)
+                    else:
+                        run = 0
+                score -= max(0, longest - 2) * 8
         return score
 
     @staticmethod
@@ -226,15 +235,25 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks: list[list[int]] = []
+        forbidden = [set(), set(), set()]
+
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng)
+            masks = distribution.row_masks_for_counts(counts, rng, forbidden=forbidden)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
-            if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
+            if any(
+                sum(bool(mask & (1 << column)) for mask in masks) != counts[column]
+                for column in range(COLUMNS)
+            ):
                 return None
             row_masks.append(masks)
+            for row in range(ROWS):
+                forbidden[row].add(masks[row])
 
-        grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
+        grids = [
+            [[None for _ in range(COLUMNS)] for _ in range(ROWS)]
+            for _ in range(CARDS_PER_SERIES)
+        ]
         for column in range(COLUMNS):
             values = list(self._values_for_column(column))
             rng.shuffle(values)
@@ -248,7 +267,9 @@ class SeriesGenerator:
                 mask = row_masks[card_index][column]
                 if mask.bit_count() != count:
                     return None
-                for value_index, row in enumerate(row for row in range(ROWS) if mask & (1 << row)):
+                for value_index, row in enumerate(
+                    row for row in range(ROWS) if mask & (1 << row)
+                ):
                     grids[card_index][row][column] = card_values[value_index]
             if cursor != len(values):
                 return None
