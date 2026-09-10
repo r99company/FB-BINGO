@@ -18,6 +18,9 @@ DEFAULTS: dict[str, Any] = {
     "series_bingo_prize_percent": 50.0,
     "tv_server_host": "127.0.0.1",
     "tv_server_port": 8765,
+    # PC que manda las bolas en tiempo real. La PC administradora se conecta
+    # como cliente y refleja automáticamente el estado de la locutora.
+    "station_role": "locutora",
 }
 
 
