@@ -11,9 +11,13 @@ def test_1500_cards_make_250_series() -> None:
     assert lot.series_count == 250
 
 
-def test_lot_must_use_complete_six_card_series() -> None:
-    with pytest.raises(ValueError, match="límites completos"):
-        plan_lot(1, 1499)
+def test_lot_can_start_at_any_card_when_quantity_is_six() -> None:
+    assert plan_lot(2, 7).card_count == 6
+    assert plan_lot(3, 8).card_count == 6
+    assert plan_lot(1501, 1506).card_count == 6
+
+    with pytest.raises(ValueError, match="múltiplo de 6"):
+        plan_lot(2, 8)
 
 
 def test_official_capacity_is_30000() -> None:
@@ -67,6 +71,21 @@ def test_existing_card_number_can_be_reprinted_without_duplicate_error(tmp_path)
     assert result.status == "generated"
     assert repository.count_series() == 1
     assert repository.count_cards() == 6
+
+
+def test_existing_arbitrary_range_can_be_reprinted_without_duplicate_error(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    generator = SeriesGenerator(seed=11)
+    repository.save(generator.generate("0001", CardModel.A, serial_start=1))
+    repository.save(generator.generate("0002", CardModel.A, serial_start=7))
+
+    service = ProductionService(repository)
+    lot = service.create_lot(2, 7, CardModel.A, operator="reimpresion")
+    result = service.generate_lot(lot.lot_id)
+
+    assert result.status == "generated"
+    assert repository.count_cards() == 12
+    assert [repository.get_card(str(n)).numbers for n in range(2, 8)]
 
 
 def test_same_series_can_be_reprinted_repeatedly_with_identical_cards(tmp_path) -> None:
