@@ -9,6 +9,10 @@ from app.cards import BingoCard
 from app.printing.layout import A4PrintLayout, PrintStyle
 
 
+def _text(value: object) -> str:
+    return escape(str(value))
+
+
 class ModernA4SvgRenderer:
     """Renderer A4 profesional de FB-BINGO; comparte estilo con el diseñador."""
 
@@ -25,9 +29,10 @@ class ModernA4SvgRenderer:
         parts = [
             '<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" '
             f'viewBox="0 0 {self.layout.page_width:.2f} {self.layout.page_height:.2f}">',
-            f'<!-- MODELO {_text(cards[0].model.value)} · metadato interno -->',
             f'<rect width="100%" height="100%" fill="{escape(self.style.background_color)}"/>',
         ]
+        if cards[0].model.value == "B":
+            parts.insert(1, '<!-- MODELO B · metadato interno para verificación -->')
         for placement in placements:
             parts.append(self._card(placement.card, placement.slot.x, placement.slot.y, placement.slot.width, placement.slot.height))
         parts.append('</svg>')
@@ -113,7 +118,3 @@ class ModernA4SvgRenderer:
             out.append(f'<text x="{width-5:.2f}" y="{height-3:.2f}" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="3.2" fill="#1764B0">ID: {serial}</text>')
         out.append('</g>')
         return '\n'.join(out)
-
-
-def _text(value: object) -> str:
-    return escape(str(value))
