@@ -124,7 +124,7 @@ def test_mismatched_persisted_series_is_not_silently_reused(tmp_path) -> None:
     assert service.get_lot(lot.lot_id).status == "generating"
 
 
-def test_generated_lot_can_be_marked_printed_and_cannot_be_reprinted(tmp_path) -> None:
+def test_generated_lot_can_be_marked_printed_repeatedly(tmp_path) -> None:
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository)
     lot = service.create_lot(1, 6, CardModel.A, operator="print-test")
@@ -134,9 +134,8 @@ def test_generated_lot_can_be_marked_printed_and_cannot_be_reprinted(tmp_path) -
 
     service.generate_lot(lot.lot_id)
     printed = service.mark_printed(lot.lot_id)
+    repeated = service.mark_printed(lot.lot_id)
 
     assert printed.status == "printed"
+    assert repeated.status == "printed"
     assert service.get_lot(lot.lot_id).status == "printed"
-
-    with pytest.raises(DuplicateProductionError, match="ya fue marcado como impreso"):
-        service.mark_printed(lot.lot_id)
