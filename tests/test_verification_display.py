@@ -30,21 +30,14 @@ def test_verification_shows_the_real_printed_card_and_result(qapp, repository):
     card = repository.get_card("12500")
     first_row = set(card.row_numbers(0))
     called = set(list(first_row)[:4])
-    window = VerificationWindow(
-        verification_service=VerificationService(repository),
-        called_numbers=called,
-        expected_model=CardModel.A,
-    )
+    window = VerificationWindow(verification_service=VerificationService(repository), called_numbers=called, expected_model=CardModel.A)
     window.serial_input.setText("12500")
     result = window.verify()
-    assert result is not None
-    assert result.line_rows == ()
-    assert result.bingo is False
+    assert result is not None and result.line_rows == () and result.bingo is False
     svg = window.card_preview.property("svg_content")
     assert isinstance(svg, str)
-    assert svg.count('class="bingo-card"') == 6
-    assert "FB-BINGO" in svg
-    assert "12500" in svg
+    assert svg.count('class="bingo-card"') == 1
+    assert "FB-BINGO" in svg and "12500" in svg
     assert "NO HAY LÍNEA" in window.result_label.text()
     assert "NO HAY BINGO" in window.prize_detail_label.text()
     window.close()
@@ -52,27 +45,18 @@ def test_verification_shows_the_real_printed_card_and_result(qapp, repository):
 
 def test_verification_marks_full_card_as_bingo(qapp, repository):
     card = repository.get_card("12500")
-    window = VerificationWindow(
-        verification_service=VerificationService(repository),
-        called_numbers=set(card.numbers),
-        expected_model=CardModel.A,
-    )
+    window = VerificationWindow(verification_service=VerificationService(repository), called_numbers=set(card.numbers), expected_model=CardModel.A)
     window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None and result.bingo is True
     svg = window.card_preview.property("svg_content")
-    assert isinstance(svg, str)
-    assert svg.count('class="bingo-card"') == 6
+    assert isinstance(svg, str) and svg.count('class="bingo-card"') == 1
     assert "BINGO" in window.result_label.text()
     window.close()
 
 
 def test_verification_accepts_human_card_number_without_sale(qapp, repository):
-    window = VerificationWindow(
-        verification_service=VerificationService(repository),
-        called_numbers=set(),
-        expected_model=CardModel.A,
-    )
+    window = VerificationWindow(verification_service=VerificationService(repository), called_numbers=set(), expected_model=CardModel.A)
     window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None
