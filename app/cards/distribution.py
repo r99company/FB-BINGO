@@ -60,14 +60,18 @@ class DistributionModel:
         for masks in choices:
             rng.shuffle(masks)
 
-        # Model A is the compact/interleaved format used by FB-BINGO: avoid
-        # visually monotonous runs longer than three occupied cells in a row.
-        # Model B keeps the more permissive legacy layout because it can place
-        # three numbers in a column.
+        # Keep the physical column order while solving the mask. This makes
+        # adjacency constraints meaningful for the final printed card.
         max_consecutive = 3 if self.model is CardModel.A else 4
-        column_order = sorted(range(COLUMNS), key=lambda c: (counts[c], rng.random()))
+        column_order = list(range(COLUMNS))
         chosen = [0] * COLUMNS
         remaining = [5, 5, 5]
+
+        def prefix_counts() -> list[int]:
+            return [
+                sum(bool(chosen[column] & (1 << row)) for column in range(4))
+                for row in range(ROWS)
+            ]
 
         def respects_spacing(column: int, mask: int) -> bool:
             chosen[column] = mask
@@ -84,12 +88,33 @@ class DistributionModel:
             chosen[column] = 0
             return True
 
+        def visual_score(column: int, mask: int) -> tuple[int, int, float]:
+            """Prefer alternating rows without making the layout deterministic."""
+            score = 0
+            if column > 0:
+                score += 4 * sum(
+                    bool(mask & (1 << row)) and bool(chosen[column - 1] & (1 << row))
+                    for row in range(ROWS)
+                )
+            if column < 4:
+                counts_now = [
+                    sum(
+                        bool(chosen[c] & (1 << row))
+                        for c in range(column + 1)
+                    )
+                    + (1 if mask & (1 << row) else 0)
+                    for row in range(ROWS)
+                ]
+                score += 6 * (max(counts_now) - min(counts_now))
+            return (score, sum(bool(mask & (1 << row)) for row in range(ROWS)), rng.random())
+
         def backtrack(position: int) -> bool:
             if position == COLUMNS:
                 return remaining == [0, 0, 0]
 
             column = column_order[position]
             slots_left = COLUMNS - position - 1
+            candidates = []
             for mask in choices[column]:
                 next_remaining = remaining[:]
                 for row in range(ROWS):
@@ -103,6 +128,21 @@ class DistributionModel:
                     continue
 
                 chosen[column] = mask
+                if column == 3:
+                    first_four = prefix_counts()
+                    if max(first_four) - min(first_four) > 1 or min(first_four) == 0:
+                        chosen[column] = 0
+                        continue
+                chosen[column] = 0
+                candidates.append(mask)
+
+            candidates.sort(key=lambda mask: visual_score(column, mask))
+            for mask in candidates:
+                chosen[column] = mask
+                next_remaining = remaining[:]
+                for row in range(ROWS):
+                    if mask & (1 << row):
+                        next_remaining[row] -= 1
                 old = remaining[:]
                 remaining[:] = next_remaining
                 if backtrack(position + 1):
