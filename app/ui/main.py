@@ -291,6 +291,7 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
         ("Ctrl+3", self.undo_number),
         ("F4", lambda: _f4_action(self)),
         ("Ctrl+4", lambda: _f4_action(self)),
+        ("Ctrl+5", lambda: self.open_verification()),
     )
     for sequence, callback in shortcuts:
         shortcut = QShortcut(QKeySequence(sequence), self)
