@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import random
 from typing import Sequence
 
-from .card import COLUMNS, ROWS, CardModel
+from .card import COLUMNS, CardModel
 
 CARDS_PER_SERIES = 6
 NUMBERS_PER_CARD = 15
@@ -45,14 +45,14 @@ class DistributionModel:
 
     @staticmethod
     def _row_patterns(max_run: int) -> list[int]:
-        patterns: list[int] = []
+        patterns: list[tuple[int, int]] = []
         for mask in range(1, 1 << COLUMNS):
             if mask.bit_count() != 5:
                 continue
 
             longest = current = 0
             transitions = 0
-            previous = 0
+            previous = False
             for column in range(COLUMNS):
                 occupied = bool(mask & (1 << column))
                 if occupied:
@@ -73,17 +73,15 @@ class DistributionModel:
             if not 1 <= prefix <= 3:
                 continue
 
-            # Entre dos máscaras válidas, damos preferencia a las que alternan
-            # más y dejan espacios repartidos. No cambia la validez matemática;
-            # solo evita que el generador se vea rígido o "amontonado".
+            # Más transiciones = más espacios intercalados y menos aspecto
+            # de "bloque". Las máscaras con la misma puntuación siguen siendo
+            # aleatorias para no repetir siempre el mismo diseño.
             patterns.append((transitions, mask))
 
+        rng = random.Random()
+        rng.shuffle(patterns)
         patterns.sort(key=lambda item: item[0], reverse=True)
         return [mask for _, mask in patterns]
-
-    @staticmethod
-    def _prefix_signature(mask: int) -> tuple[bool, ...]:
-        return tuple(bool(mask & (1 << column)) for column in range(4))
 
     def row_masks_for_counts(
         self, counts: Sequence[int], rng: random.Random
@@ -97,7 +95,16 @@ class DistributionModel:
         # puede haber pares consecutivos, pero nunca bloques largos de 3+.
         max_run = 2
         patterns = self._row_patterns(max_run)
-        rng.shuffle(patterns)
+        # La prioridad visual se mantiene, pero el orden entre patrones de igual
+        # puntuación cambia con cada generación.
+        tied = {}
+        for mask in patterns:
+            tied.setdefault(self._pattern_transitions(mask), []).append(mask)
+        patterns = []
+        for score in sorted(tied, reverse=True):
+            group = tied[score]
+            rng.shuffle(group)
+            patterns.extend(group)
         pattern_set = set(patterns)
 
         # Pick the first two rows randomly, then derive the third row directly
@@ -133,3 +140,14 @@ class DistributionModel:
                 return [first, second, third]
 
         return None
+
+    @staticmethod
+    def _pattern_transitions(mask: int) -> int:
+        transitions = 0
+        previous = False
+        for column in range(COLUMNS):
+            occupied = bool(mask & (1 << column))
+            if column and occupied != previous:
+                transitions += 1
+            previous = occupied
+        return transitions
