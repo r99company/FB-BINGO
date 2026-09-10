@@ -37,7 +37,6 @@ class LivePrizeTracker:
 
     @staticmethod
     def _position_from_serial(serial: str) -> tuple[str, int]:
-        # El serial estándar es SERIE-000001; se evita una consulta SQL por cartón.
         if "-" in serial:
             series_id, suffix = serial.rsplit("-", 1)
             if suffix.isdigit():
@@ -76,7 +75,10 @@ class LivePrizeTracker:
 
     def reset(self, called_numbers: set[int] | frozenset[int] = frozenset()) -> None:
         if not self._loaded:
-            self.load()
+            if called_numbers:
+                self.load()
+            else:
+                return
         self._remaining_card = {serial: 15 for serial in self._cards}
         self._remaining_rows = {
             (serial, row): sum(value is not None for value in card.grid[row])
@@ -113,9 +115,11 @@ class LivePrizeTracker:
                 self._bingo.add(serial)
 
     def update(self, called_numbers: set[int] | frozenset[int]) -> None:
-        if not self._loaded:
-            self.load()
         called = set(called_numbers)
+        if not self._loaded:
+            if not called:
+                return
+            self.load()
         if called < self._called:
             self.reset(called)
             return
