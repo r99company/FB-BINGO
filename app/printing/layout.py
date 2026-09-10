@@ -83,25 +83,49 @@ class A4PrintLayout:
 
     page_width = A4_WIDTH_MM * MM_TO_PT
     page_height = A4_HEIGHT_MM * MM_TO_PT
-    margin = 7.0 * MM_TO_PT
-    horizontal_gap = 3.0 * MM_TO_PT
-    vertical_gap = 2.5 * MM_TO_PT
+    DEFAULT_CARD_WIDTH_MM = 95.0
+    DEFAULT_CARD_HEIGHT_MM = 44.0
+    DEFAULT_HORIZONTAL_GAP_MM = 3.0
+    DEFAULT_VERTICAL_GAP_MM = 2.5
+
+    def __init__(
+        self,
+        *,
+        card_width_mm: float = DEFAULT_CARD_WIDTH_MM,
+        card_height_mm: float = DEFAULT_CARD_HEIGHT_MM,
+        horizontal_gap_mm: float = DEFAULT_HORIZONTAL_GAP_MM,
+        vertical_gap_mm: float = DEFAULT_VERTICAL_GAP_MM,
+    ) -> None:
+        self.card_width_mm = float(card_width_mm)
+        self.card_height_mm = float(card_height_mm)
+        self.horizontal_gap_mm = float(horizontal_gap_mm)
+        self.vertical_gap_mm = float(vertical_gap_mm)
+        if self.card_width_mm <= 0 or self.card_height_mm <= 0:
+            raise ValueError("El tamaño del cartón debe ser mayor que cero")
+        if self.horizontal_gap_mm < 0 or self.vertical_gap_mm < 0:
+            raise ValueError("La separación entre cartones no puede ser negativa")
+        if 2 * self.card_width_mm + self.horizontal_gap_mm > A4_WIDTH_MM:
+            raise ValueError("El ancho configurado no permite 2 columnas en A4")
+        if 6 * self.card_height_mm + 5 * self.vertical_gap_mm > A4_HEIGHT_MM:
+            raise ValueError("El alto configurado no permite 6 filas en A4")
+
+        self.margin_x_mm = (A4_WIDTH_MM - 2 * self.card_width_mm - self.horizontal_gap_mm) / 2
+        self.margin_y_mm = (A4_HEIGHT_MM - 6 * self.card_height_mm - 5 * self.vertical_gap_mm) / 2
+        self.margin = min(self.margin_x_mm, self.margin_y_mm) * MM_TO_PT
+        self.horizontal_gap = self.horizontal_gap_mm * MM_TO_PT
+        self.vertical_gap = self.vertical_gap_mm * MM_TO_PT
 
     def card_slots(self) -> tuple[CardSlot, ...]:
-        inner_width = self.page_width - 2 * self.margin
-        inner_height = self.page_height - 2 * self.margin
-        card_width = (inner_width - self.horizontal_gap) / 2
-        card_height = (inner_height - 5 * self.vertical_gap) / 6
+        card_width = self.card_width_mm * MM_TO_PT
+        card_height = self.card_height_mm * MM_TO_PT
+        margin_x = self.margin_x_mm * MM_TO_PT
+        margin_y = self.margin_y_mm * MM_TO_PT
         slots: list[CardSlot] = []
         index = 1
         for row in range(6):
-            y = self.margin + row * (card_height + self.vertical_gap)
-            if row == 5:
-                y = self.page_height - self.margin - card_height
+            y = margin_y + row * (card_height + self.vertical_gap)
             for column in range(2):
-                x = self.margin + column * (card_width + self.horizontal_gap)
-                if column == 1:
-                    x = self.page_width - self.margin - card_width
+                x = margin_x + column * (card_width + self.horizontal_gap)
                 slots.append(CardSlot(index=index, column=column, row=row, x=x, y=y, width=card_width, height=card_height))
                 index += 1
         return tuple(slots)
