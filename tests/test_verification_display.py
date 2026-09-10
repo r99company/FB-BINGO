@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from app.cards import BingoCard, CardModel
+from app.cards import CardModel
 from app.cards.generator import SeriesGenerator
 from app.database import SQLiteSeriesRepository
 from app.ui.main_window import TVWindow
@@ -26,7 +26,7 @@ def repository(tmp_path):
     return repo
 
 
-def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, repository):
+def test_verification_shows_the_real_printed_card_and_result(qapp, repository):
     card = repository.get_card("12500")
     first_row = set(card.row_numbers(0))
     called = set(list(first_row)[:4])
@@ -40,8 +40,11 @@ def test_verification_shows_complete_card_and_marks_only_called_numbers(qapp, re
     assert result is not None
     assert result.line_rows == ()
     assert result.bingo is False
-    assert len(window.card_cells) == 27
-    assert sum(bool(cell.property("called")) for cell in window.card_cells.values()) == 4
+    svg = window.card_preview.property("svg_content")
+    assert isinstance(svg, str)
+    assert svg.count('class="bingo-card"') == 6
+    assert "FB-BINGO" in svg
+    assert "12500" in svg
     assert "NO HAY LÍNEA" in window.result_label.text()
     assert "NO HAY BINGO" in window.prize_detail_label.text()
     window.close()
@@ -57,7 +60,9 @@ def test_verification_marks_full_card_as_bingo(qapp, repository):
     window.serial_input.setText("12500")
     result = window.verify()
     assert result is not None and result.bingo is True
-    assert sum(bool(cell.property("called")) for cell in window.card_cells.values()) == 15
+    svg = window.card_preview.property("svg_content")
+    assert isinstance(svg, str)
+    assert svg.count('class="bingo-card"') == 6
     assert "BINGO" in window.result_label.text()
     window.close()
 
