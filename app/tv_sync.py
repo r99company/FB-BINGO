@@ -161,8 +161,6 @@ def _install_admin_station_sync(window: Any) -> None:
         window.station_sync_role = "locutora"
         return
 
-    # Esta PC no debe aceptar entradas locales de bolas. La locutora es la única
-    # autoridad de la partida; aquí solo se replica el estado para administración.
     local_server = getattr(window, "tv_sync_server", None)
     if local_server is not None:
         local_server.shutdown()
@@ -247,6 +245,10 @@ def wire_operational_controls(window: Any) -> None:
             pass
         signal.connect(slot)
 
+    # Primero definimos el rol. Así, si es administrador, las señales quedan
+    # conectadas a los bloqueos y no a los handlers locales originales.
+    _install_admin_station_sync(window)
+
     for button in window.findChildren(QPushButton):
         text = button.text()
         if text == "ENTER":
@@ -262,4 +264,3 @@ def wire_operational_controls(window: Any) -> None:
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
     replace(window.ball_input.returnPressed, window.enter_ball)
-    _install_admin_station_sync(window)
