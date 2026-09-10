@@ -162,6 +162,15 @@ def _pause_with_history(self) -> None:
     _original_toggle_pause(self); _history_sync(self); _publish_tv(self)
 
 
+def _set_finish_button_mode(self: BingoMainWindow, new_game: bool) -> None:
+    for button in self.findChildren(QPushButton):
+        if button.property("fb_bingo_finish_button") is True or button.text().startswith(("■ FINALIZAR", "▶ NUEVA PARTIDA")):
+            button.setProperty("fb_bingo_finish_button", True)
+            _replace_signal_connection(button.clicked, self.new_game if new_game else self.finalize_game)
+            button.setText("▶ NUEVA PARTIDA\nF4" if new_game else "■ FINALIZAR\nF4")
+            button.style().unpolish(button); button.style().polish(button); button.update()
+
+
 def _finalize_game_with_history(self) -> None:
     if getattr(self, "_finalized", False): return
     old_game_id = getattr(self, "history_game_id", None)
@@ -177,9 +186,7 @@ def _finalize_game_with_history(self) -> None:
     self.ball_message.setText("✓ PARTIDA FINALIZADA · EXCEL GENERADO" if export_error is None else "✓ PARTIDA FINALIZADA · EXCEL NO GENERADO")
     self.ball_input.clear(); self.ball_input.setEnabled(False)
     self._sync_ui(); self.header_values[1].setText("FINALIZADA"); _publish_tv(self)
-    for button in self.findChildren(QPushButton):
-        if button.text().startswith("■ FINALIZAR") or button.property("fb_bingo_finish_button") is True:
-            button.setProperty("fb_bingo_finish_button", True); button.setText("▶ NUEVA PARTIDA\nF4"); button.style().unpolish(button); button.style().polish(button)
+    _set_finish_button_mode(self, True)
 
 
 def _new_game_with_history(self) -> None:
@@ -187,9 +194,7 @@ def _new_game_with_history(self) -> None:
     _original_new_game(self)
     self._finalized = False; self.ball_input.setEnabled(True); self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA")
     self._sync_ui(); self.header_values[1].setText("EN ESPERA"); _start_history_game(self)
-    for button in self.findChildren(QPushButton):
-        if button.property("fb_bingo_finish_button") is True:
-            button.setText("■ FINALIZAR\nF4"); button.setProperty("fb_bingo_finish_button", True); button.style().unpolish(button); button.style().polish(button)
+    _set_finish_button_mode(self, False)
     _publish_tv(self)
 
 
