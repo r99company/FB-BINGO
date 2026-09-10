@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from PySide6.QtWidgets import QApplication
+
+
+def _app() -> QApplication:
+    return QApplication.instance() or QApplication([])
+
 
 def test_designer_exposes_reference_sections_and_live_preview():
+    _app()
     from app.ui.designer_window import DesignerWindow
 
     window = DesignerWindow()
@@ -20,6 +27,7 @@ def test_designer_exposes_reference_sections_and_live_preview():
 
 
 def test_designer_preview_uses_print_style_and_hides_internal_model():
+    _app()
     from app.ui.designer_window import DesignerWindow
 
     window = DesignerWindow()
@@ -33,6 +41,7 @@ def test_designer_preview_uses_print_style_and_hides_internal_model():
 
 
 def test_designer_has_saved_default_visual_identity():
+    _app()
     from app.ui.designer_window import DesignerWindow
 
     window = DesignerWindow()
