@@ -38,6 +38,17 @@ class ModernA4SvgRenderer:
         parts.append('</svg>')
         return '\n'.join(parts)
 
+    def render_card(self, card: BingoCard, *, width: float = 180.0, height: float = 82.0) -> str:
+        """Renderiza un único cartón usando exactamente el mismo componente visual de impresión."""
+        parts = [
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            f'width="{width:.2f}mm" height="{height:.2f}mm" viewBox="0 0 {width:.2f} {height:.2f}">',
+            f'<rect width="100%" height="100%" fill="{escape(self.style.background_color)}"/>',
+            self._card(card, 0, 0, width, height),
+            '</svg>',
+        ]
+        return '\n'.join(parts)
+
     def render_columns(self, left_cards: Sequence[BingoCard], right_cards: Sequence[BingoCard] | None = None, *, duplicate_column: bool = False) -> str:
         return self.render(left_cards, right_cards, duplicate_column=duplicate_column)
 
