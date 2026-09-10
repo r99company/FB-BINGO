@@ -76,6 +76,11 @@ class SeriesGenerator:
                 continue
             if model is CardModel.A and not self._has_unique_row_layouts(grids):
                 continue
+            # La unicidad exacta no basta: dos cartones pueden ser distintos
+            # y, aun así, verse prácticamente iguales. Esta comprobación fuerza
+            # una separación visual real entre las seis tarjetas.
+            if not self._has_dynamic_series_layout(grids):
+                continue
             cards = tuple(
                 BingoCard(
                     serial=f"{series_id}-{serial_start + index:06d}",
@@ -87,6 +92,50 @@ class SeriesGenerator:
             return BingoSeries(series_id=series_id, cards=cards)
 
         raise RuntimeError("No se pudo generar una serie válida")
+
+    @staticmethod
+    def _row_signature(
+        grid: Sequence[Sequence[int | None]], row: int,
+    ) -> tuple[bool, ...]:
+        return tuple(grid[row][column] is not None for column in range(COLUMNS))
+
+    @staticmethod
+    def _hamming(a: Sequence[bool], b: Sequence[bool]) -> int:
+        return sum(x != y for x, y in zip(a, b))
+
+    @classmethod
+    def _has_dynamic_series_layout(
+        cls,
+        grids: Sequence[Sequence[Sequence[int | None]]],
+    ) -> bool:
+        """Evita seis cartones con el mismo ritmo visual.
+
+        Se presta especial atención a la primera fila, porque es donde el
+        problema se percibía con mayor claridad. Como cada fila tiene cinco
+        casillas, una distancia Hamming de 4 significa que dos filas comparten
+        como máximo tres posiciones ocupadas.
+        """
+        signatures = [
+            [cls._row_signature(grid, row) for row in range(ROWS)]
+            for grid in grids
+        ]
+
+        for row in range(ROWS):
+            for left in range(len(signatures)):
+                for right in range(left + 1, len(signatures)):
+                    minimum = 4 if row == 0 else 2
+                    if cls._hamming(signatures[left][row], signatures[right][row]) < minimum:
+                        return False
+
+        # Además, no permitimos que las tres filas de demasiados cartones
+        # comiencen con el mismo ritmo. Esto evita una serie visualmente rígida.
+        prefixes = [
+            tuple(sum(sig[:4]) for sig in card_signatures)
+            for card_signatures in signatures
+        ]
+        if len(set(prefixes)) < 4:
+            return False
+        return True
 
     @staticmethod
     def _has_unique_row_layouts(
