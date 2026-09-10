@@ -44,13 +44,6 @@ class SeriesGenerator:
         self._max_serial = max_serial
 
     def _series_rng(self, series_id: str) -> random.Random:
-        """Create an isolated RNG so the visual layout varies by series.
-
-        The series identifier is part of the entropy on purpose: generating
-        series 001 and 150 with the same base seed must not reproduce the same
-        card positions. The master RNG keeps successive generated series
-        independent when the generator is reused.
-        """
         entropy = self._rng.getrandbits(128)
         return random.Random(f"FB-BINGO:{series_id}:{entropy}")
 
@@ -99,7 +92,6 @@ class SeriesGenerator:
     def _has_unique_row_layouts(
         grids: Sequence[Sequence[Sequence[int | None]]],
     ) -> bool:
-        """Require each row position to have six distinct occupancy patterns."""
         for row in range(ROWS):
             signatures = {
                 tuple(grid[row][column] is not None for column in range(COLUMNS))
@@ -115,7 +107,6 @@ class SeriesGenerator:
         distribution: DistributionModel | None = None,
         rng: random.Random | None = None,
     ) -> list[list[int]]:
-        """Build model-specific column loads for a six-card series."""
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         if model is CardModel.A:
@@ -133,9 +124,7 @@ class SeriesGenerator:
             if extra not in cache:
                 values = [
                     allocation
-                    for allocation in itertools.product(
-                        range(max_extra + 1), repeat=CARDS_PER_SERIES
-                    )
+                    for allocation in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES)
                     if sum(allocation) == extra
                 ]
                 rng.shuffle(values)
@@ -149,13 +138,9 @@ class SeriesGenerator:
             column = columns[position]
             extra = targets[column] - CARDS_PER_SERIES
             remaining_columns = COLUMNS - position - 1
-            future_extra = sum(
-                targets[c] - CARDS_PER_SERIES for c in columns[position + 1 :]
-            )
+            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1 :])
             for allocation in candidates(extra):
-                next_remaining = [
-                    remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)
-                ]
+                next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
                 if min(next_remaining) < 0:
                     continue
                 if sum(next_remaining) != future_extra:
@@ -176,7 +161,6 @@ class SeriesGenerator:
         return result
 
     def _balanced_column_counts(self, model: CardModel) -> list[list[int]]:
-        """Compatibilidad histórica; delega en las reglas del modelo."""
         return self._column_counts(model)
 
     def _build_grids(
@@ -190,7 +174,9 @@ class SeriesGenerator:
         row_masks: list[list[int]] = []
         for counts in column_counts:
             masks = distribution.row_masks_for_counts(counts, rng)
-            if masks is None:
+            if masks is None or any(mask.bit_count() != 5 for mask in masks):
+                return None
+            if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
             row_masks.append(masks)
 
@@ -205,19 +191,17 @@ class SeriesGenerator:
                 cursor += count
                 if len(card_values) != count:
                     return None
-                value_index = 0
                 mask = row_masks[card_index][column]
-                for row in range(ROWS):
-                    if mask & (1 << row):
-                        grids[card_index][row][column] = card_values[value_index]
-                        value_index += 1
+                if mask.bit_count() != count:
+                    return None
+                for value_index, row in enumerate(row for row in range(ROWS) if mask & (1 << row)):
+                    grids[card_index][row][column] = card_values[value_index]
             if cursor != len(values):
                 return None
 
         return [tuple(tuple(row) for row in grid) for grid in grids]
 
     def _row_masks_for_counts(self, counts: Sequence[int]) -> list[int] | None:
-        """Compatibilidad histórica; delega al modelo A."""
         return DistributionModel.for_model(CardModel.A).row_masks_for_counts(counts, self._rng)
 
     @staticmethod
