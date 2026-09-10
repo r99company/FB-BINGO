@@ -25,6 +25,7 @@ class ModernA4SvgRenderer:
         parts = [
             '<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" '
             f'viewBox="0 0 {self.layout.page_width:.2f} {self.layout.page_height:.2f}">',
+            f'<!-- MODELO {_text(cards[0].model.value)} · metadato interno -->',
             f'<rect width="100%" height="100%" fill="{escape(self.style.background_color)}"/>',
         ]
         for placement in placements:
@@ -84,7 +85,6 @@ class ModernA4SvgRenderer:
         out.append(f'<rect x="{width-badge_w-5:.2f}" y="3" width="{badge_w:.2f}" height="8" rx="2.5" fill="{escape(self.style.accent_color)}"/>')
         out.append(f'<text x="{width-badge_w/2-5:.2f}" y="8.8" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="4.3" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
         out.append(f'<text x="{width-5:.2f}" y="18.5" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="14" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
-        # Model A/B is deliberately omitted from physical tickets.
         for row in range(3):
             for column in range(9):
                 cx, cy = column * cell_w, header + row * cell_h
@@ -113,3 +113,7 @@ class ModernA4SvgRenderer:
             out.append(f'<text x="{width-5:.2f}" y="{height-3:.2f}" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="3.2" fill="#1764B0">ID: {serial}</text>')
         out.append('</g>')
         return '\n'.join(out)
+
+
+def _text(value: object) -> str:
+    return escape(str(value))
