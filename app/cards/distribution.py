@@ -78,16 +78,32 @@ class DistributionModel:
         score -= sum(abs(value - 3) for value in center)
         return score
 
-    def row_masks_for_counts(self, counts: Sequence[int], rng: random.Random, forbidden: Sequence[set[int]] | None = None) -> list[int] | None:
-        """Construye tres máscaras de cinco casillas de forma determinista y rápida."""
+    def row_masks_for_counts(
+        self,
+        counts: Sequence[int],
+        rng: random.Random,
+        forbidden: Sequence[set[int]] | None = None,
+    ) -> list[int] | None:
+        """Construye tres máscaras de cinco casillas usando las casillas vacías.
+
+        Para cada columna con ``n`` números hay exactamente ``3-n`` filas vacías.
+        Un cartón de 15 números tiene 12 vacíos, por lo que cada fila debe tener
+        exactamente cuatro vacíos. El DFS sólo recorre estados factibles y evita
+        depender de intentos aleatorios que puedan agotar un presupuesto.
+        """
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
         max_per_column = 2 if self.model is CardModel.A else 3
         if any(count < 1 or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
+
         columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
-        choices = {n: list(itertools.combinations(range(3), n)) for n in range(1, max_per_column + 1)}
+        empty_counts = tuple(3 - count for count in counts)
+        choices = {
+            empty_count: list(itertools.combinations(range(3), empty_count))
+            for empty_count in range(3)
+        }
         for values in choices.values():
             rng.shuffle(values)
 
@@ -97,45 +113,44 @@ class DistributionModel:
                 return remaining == (0, 0, 0)
             column = columns[position]
             future = COLUMNS - position - 1
-            for rows in choices[counts[column]]:
-                if any(remaining[row] <= 0 for row in rows):
+            empty_count = empty_counts[column]
+            for empty_rows in choices[empty_count]:
+                if any(remaining[row] <= 0 for row in empty_rows):
                     continue
                 nxt = list(remaining)
-                for row in rows:
+                for row in empty_rows:
                     nxt[row] -= 1
                 if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
                     return True
             return False
 
-        if not possible(0, (5, 5, 5)):
+        if not possible(0, (4, 4, 4)):
             return None
 
-        def build(prefer_forbidden: bool = False) -> tuple[int, int, int] | None:
-            remaining = [5, 5, 5]
-            masks = [0, 0, 0]
-            for position, column in enumerate(columns):
-                future = COLUMNS - position - 1
-                candidates = []
-                for rows in choices[counts[column]]:
-                    if any(remaining[row] <= 0 for row in rows):
-                        continue
-                    nxt = list(remaining)
-                    for row in rows:
-                        nxt[row] -= 1
-                    if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
-                        candidates.append(rows)
-                if not candidates:
-                    return None
-                if prefer_forbidden:
-                    rng.shuffle(candidates)
-                rows = rng.choice(candidates)
-                for row in rows:
-                    remaining[row] -= 1
+        remaining = [4, 4, 4]
+        masks = [0, 0, 0]
+        for position, column in enumerate(columns):
+            future = COLUMNS - position - 1
+            empty_count = empty_counts[column]
+            candidates = []
+            for empty_rows in choices[empty_count]:
+                if any(remaining[row] <= 0 for row in empty_rows):
+                    continue
+                nxt = list(remaining)
+                for row in empty_rows:
+                    nxt[row] -= 1
+                if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                    candidates.append(empty_rows)
+            if not candidates:
+                return None
+            empty_rows = rng.choice(candidates)
+            for row in empty_rows:
+                remaining[row] -= 1
+            for row in range(3):
+                if row not in empty_rows:
                     masks[row] |= 1 << column
-            return tuple(masks)
 
-        for attempt in range(16):
-            triple = build(prefer_forbidden=attempt > 0)
-            if triple is not None and not any(triple[row] in forbidden[row] for row in range(3)):
-                return list(triple)
-        return None
+        triple = tuple(masks)
+        if any(triple[row] in forbidden[row] for row in range(3)):
+            return None
+        return list(triple)
