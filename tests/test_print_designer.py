@@ -30,6 +30,17 @@ def test_a4_layout_has_twelve_slots_in_two_columns_and_six_rows():
         assert slot.y + slot.height <= layout.page_height - layout.margin
 
 
+def test_default_a4_card_size_is_95x44_mm_for_two_series_per_page():
+    layout = A4PrintLayout()
+    slots = layout.card_slots()
+    assert layout.card_width_mm == 95.0
+    assert layout.card_height_mm == 44.0
+    assert abs(slots[0].width / layout.MM_TO_PT - 95.0) < 0.01
+    assert abs(slots[0].height / layout.MM_TO_PT - 44.0) < 0.01
+    assert abs((slots[1].x - slots[0].x - slots[0].width) / layout.MM_TO_PT - 3.0) < 0.01
+    assert abs((slots[2].y - slots[0].y - slots[0].height) / layout.MM_TO_PT - 2.5) < 0.01
+
+
 def test_a4_slots_do_not_overlap():
     slots = A4PrintLayout().card_slots()
     for left in slots:
