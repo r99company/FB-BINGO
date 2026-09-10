@@ -15,8 +15,7 @@ class DistributionModel:
     """Reglas de ocupación de casillas para un cartón de Bingo 90.
 
     Las reglas matemáticas son estrictas; la estética se resuelve mediante
-    puntuación y elección aleatoria entre muchas soluciones válidas. Así no
-    sacrificamos generación por intentar imponer una sola máscara "bonita".
+    puntuación y elección aleatoria entre muchas soluciones válidas.
     """
 
     model: CardModel
@@ -28,12 +27,6 @@ class DistributionModel:
         return cls(model=model)
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
-        """Reparte 90 posiciones entre 6 cartones de forma equilibrada.
-
-        Cada columna del 1-9, 10-19, ... 80-90 aporta 9, 10 u 11 números a
-        la serie. Cada cartón recibe exactamente 15 números y, en A, nunca
-        más de dos por columna.
-        """
         targets = [9] + [10] * 7 + [11]
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         loads = [0] * CARDS_PER_SERIES
@@ -44,9 +37,6 @@ class DistributionModel:
             extra = targets[column] - CARDS_PER_SERIES
             order = list(range(CARDS_PER_SERIES))
             rng.shuffle(order)
-            # Elegimos primero los cartones con menor carga y mezclamos los
-            # empates. Esto mantiene 15 números por cartón sin crear un orden
-            # fijo de máscaras entre series.
             order.sort(key=lambda i: (loads[i], rng.random()))
             for card_index in order[:extra]:
                 result[card_index][column] += 1
@@ -62,7 +52,6 @@ class DistributionModel:
         for mask in range(1 << COLUMNS):
             if mask.bit_count() != 5:
                 continue
-
             longest = current = 0
             for column in range(COLUMNS):
                 if mask & (1 << column):
@@ -70,9 +59,8 @@ class DistributionModel:
                     longest = max(longest, current)
                 else:
                     current = 0
-            if longest > max_run:
-                continue
-            patterns.append(mask)
+            if longest <= max_run:
+                patterns.append(mask)
         return patterns
 
     @staticmethod
@@ -88,17 +76,11 @@ class DistributionModel:
 
     @classmethod
     def _triple_score(cls, triple: tuple[int, int, int]) -> int:
-        """Puntuación estética, nunca una regla de validez."""
         score = sum(cls._transitions(mask) for mask in triple) * 5
-
-        # Preferimos que las cuatro primeras columnas y las cuatro últimas
-        # tengan presencia repartida entre las tres filas, pero sin exigirlo.
         prefix = [sum(bool(mask & (1 << c)) for c in range(4)) for mask in triple]
         suffix = [sum(bool(mask & (1 << c)) for c in range(5, 9)) for mask in triple]
         score -= (max(prefix) - min(prefix)) * 3
         score -= (max(suffix) - min(suffix)) * 3
-
-        # Recompensa una distribución menos "en bloque" en el centro.
         center = [sum(bool(mask & (1 << c)) for c in range(2, 7)) for mask in triple]
         score -= sum(abs(value - 3) for value in center)
         return score
@@ -116,12 +98,14 @@ class DistributionModel:
         if any(count < 1 or count > max_per_column for count in counts):
             return None
 
-        # Modelo A busca un patrón muy aireado (máximo 2 consecutivos). Para B
-        # permitimos hasta 3, porque su propia definición admite columnas más
-        # cargadas y no queremos deformar artificialmente la distribución.
-        max_run = 2 if self.model is CardModel.A else 3
+        # El requisito matemático solo necesita evitar tres consecutivos como
+        # máximo para el Modelo A. Permitimos bloques de 3, pero nunca de 4 o 5,
+        # para conservar un aspecto natural sin convertir la estética en un
+        # cuello de botella que haga fallar la generación.
+        max_run = 3
         patterns = self._row_patterns(max_run)
         rng.shuffle(patterns)
+        pattern_set = set(patterns)
 
         if forbidden is None:
             forbidden = [set(), set(), set()]
@@ -140,7 +124,7 @@ class DistributionModel:
                     if remaining:
                         third |= 1 << column
 
-                if not valid or third.bit_count() != 5 or third not in set(patterns):
+                if not valid or third.bit_count() != 5 or third not in pattern_set:
                     continue
 
                 triple = (first, second, third)
@@ -149,10 +133,7 @@ class DistributionModel:
                 if any(triple[row] in forbidden[row] for row in range(3)):
                     continue
 
-                score = self._triple_score(triple)
-                # Añadimos ruido pequeño para que dos series con la misma
-                # calidad visual no terminen escogiendo siempre el mismo patrón.
-                score = score * 100 + rng.randrange(100)
+                score = self._triple_score(triple) * 100 + rng.randrange(100)
                 if best is None or score > best[0]:
                     best = (score, triple)
 
