@@ -21,7 +21,6 @@ class PrintStyle:
     accent_color: str = "#FF4FA3"
     secondary_accent_color: str = "#8FD9FF"
     logo_path: str | None = None
-    # Model A/B is an internal generation rule and is not printed on the ticket.
     show_model: bool = False
     show_serial: bool = True
     show_qr_zone: bool = False
@@ -31,6 +30,8 @@ class PrintStyle:
     footer_text: str = "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA"
     show_footer: bool = True
     show_tagline: bool = True
+    font_family: str = "Arial"
+    number_font_size: float = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,8 +56,6 @@ class CardPlacement:
 
 @dataclass(frozen=True, slots=True)
 class PrintSlot:
-    """Backward-compatible logical position of a card inside an A4 page."""
-
     card: BingoCard
     row: int
     column: int
@@ -68,8 +67,6 @@ class PrintSlot:
 
 @dataclass(frozen=True, slots=True)
 class A4SeriesLayout:
-    """Logical distribution for one complete six-card series."""
-
     page_size: str
     columns: int
     cards_per_page: int
@@ -119,7 +116,6 @@ class A4PrintLayout:
         return tuple(CardPlacement(card=card, slot=slot) for card, slot in zip(physical_cards, slots))
 
     def place_columns(self, left: Sequence[BingoCard], right: Sequence[BingoCard] | None = None) -> tuple[CardPlacement, ...]:
-        """Place six cards in the left column and six cards in the right column."""
         if len(left) != 6 or (right is not None and len(right) != 6):
             raise ValueError("Each A4 column requires exactly 6 cards")
         right_cards = tuple(left) if right is None else tuple(right)
