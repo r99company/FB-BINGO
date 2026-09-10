@@ -46,9 +46,9 @@ class BingoCard:
             raise ValueError("El cartón debe tener una matriz de 3 x 9")
 
         numbers: list[int] = []
-        # Modelo A: distribución principal, permite hasta 3 números en una columna.
-        # Modelo B: distribución especial, limita cada columna a 1 o 2 números.
-        max_per_column = 3 if self.model is CardModel.A else 2
+        # Modelo A: hasta 2 números por columna.
+        # Modelo B: hasta 3 números por columna.
+        max_per_column = 2 if self.model is CardModel.A else 3
         for row in self.grid:
             if sum(value is not None for value in row) != 5:
                 raise ValueError("Cada fila debe contener exactamente 5 números")
