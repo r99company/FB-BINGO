@@ -31,6 +31,7 @@ class BingoSeries:
 
 class SeriesGenerator:
     """Genera series de Bingo 90 válidas y visualmente variadas."""
+
     def __init__(self, seed: int | None = None, max_serial: int = MAX_SERIAL) -> None:
         if max_serial < CARDS_PER_SERIES:
             raise ValueError("max_serial no permite completar una serie")
@@ -53,7 +54,7 @@ class SeriesGenerator:
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
-        for _ in range(120):
+        for _ in range(24):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -149,13 +150,16 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks: list[list[int]] = []
+        forbidden = [set(), set(), set()]
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng)
+            masks = distribution.row_masks_for_counts(counts, rng, forbidden=forbidden)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
             if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
             row_masks.append(masks)
+            for row in range(ROWS):
+                forbidden[row].add(masks[row])
 
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
