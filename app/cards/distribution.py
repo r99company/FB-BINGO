@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import itertools
 import random
+from functools import lru_cache
 from typing import Sequence
 
 from .card import COLUMNS, CardModel
@@ -13,13 +14,7 @@ NUMBERS_PER_CARD = 15
 
 @dataclass(frozen=True, slots=True)
 class DistributionModel:
-    """Reglas de ocupación de casillas para un cartón de Bingo 90.
-
-    Las reglas matemáticas son estrictas; la variedad visual se obtiene
-    muestreando un número limitado de soluciones válidas. Nunca se enumeran
-    todas las combinaciones posibles, porque eso hacía que la generación de
-    muchas series fuese innecesariamente lenta.
-    """
+    """Reglas de ocupación de casillas para Bingo de 90 bolas."""
 
     model: CardModel
 
@@ -31,19 +26,33 @@ class DistributionModel:
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
         targets = [9] + [10] * 7 + [11]
+        extras = [target - CARDS_PER_SERIES for target in targets]
+        remaining = [6] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        loads = [0] * CARDS_PER_SERIES
-        columns = list(range(COLUMNS))
-        rng.shuffle(columns)
-        for column in columns:
-            extra = targets[column] - CARDS_PER_SERIES
-            order = list(range(CARDS_PER_SERIES))
-            rng.shuffle(order)
-            order.sort(key=lambda i: (loads[i], rng.random()))
-            for card_index in order[:extra]:
-                result[card_index][column] += 1
-                loads[card_index] += 1
-        if loads != [6] * CARDS_PER_SERIES:
+        columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
+
+        def assign(position: int) -> bool:
+            if position == COLUMNS:
+                return remaining == [0] * CARDS_PER_SERIES
+            column = columns[position]
+            need = extras[column]
+            future = COLUMNS - position - 1
+            choices = list(itertools.combinations(range(CARDS_PER_SERIES), need))
+            rng.shuffle(choices)
+            for selected in choices:
+                if any(remaining[i] <= 0 for i in selected):
+                    continue
+                for i in selected:
+                    remaining[i] -= 1
+                    result[i][column] += 1
+                if all(value <= future for value in remaining) and assign(position + 1):
+                    return True
+                for i in selected:
+                    remaining[i] += 1
+                    result[i][column] -= 1
+            return False
+
+        if not assign(0):
             raise RuntimeError("No se pudo equilibrar la distribución de la serie")
         return result
 
@@ -69,80 +78,64 @@ class DistributionModel:
         score -= sum(abs(value - 3) for value in center)
         return score
 
-    def row_masks_for_counts(
-        self,
-        counts: Sequence[int],
-        rng: random.Random,
-        forbidden: Sequence[set[int]] | None = None,
-    ) -> list[int] | None:
-        """Construye tres máscaras de cinco casillas con las cargas dadas.
-
-        La búsqueda está acotada: obtiene varias soluciones válidas y escoge
-        la de mejor apariencia entre ellas. Esto conserva la variedad de los
-        cartones de referencia sin bloquear la generación de series.
-        """
+    def row_masks_for_counts(self, counts: Sequence[int], rng: random.Random, forbidden: Sequence[set[int]] | None = None) -> list[int] | None:
+        """Construye tres máscaras de cinco casillas de forma determinista y rápida."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
         max_per_column = 2 if self.model is CardModel.A else 3
         if any(count < 1 or count > max_per_column for count in counts):
             return None
-        if forbidden is None:
-            forbidden = [set(), set(), set()]
-
+        forbidden = forbidden or [set(), set(), set()]
         columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
-        best_score: int | None = None
-        best_triple: tuple[int, int, int] | None = None
+        choices = {n: list(itertools.combinations(range(3), n)) for n in range(1, max_per_column + 1)}
+        for values in choices.values():
+            rng.shuffle(values)
 
-        def find_one() -> tuple[int, int, int] | None:
+        @lru_cache(maxsize=None)
+        def possible(position: int, remaining: tuple[int, int, int]) -> bool:
+            if position == COLUMNS:
+                return remaining == (0, 0, 0)
+            column = columns[position]
+            future = COLUMNS - position - 1
+            for rows in choices[counts[column]]:
+                if any(remaining[row] <= 0 for row in rows):
+                    continue
+                nxt = list(remaining)
+                for row in rows:
+                    nxt[row] -= 1
+                if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                    return True
+            return False
+
+        if not possible(0, (5, 5, 5)):
+            return None
+
+        def build(prefer_forbidden: bool = False) -> tuple[int, int, int] | None:
             remaining = [5, 5, 5]
             masks = [0, 0, 0]
-
-            def recurse(position: int) -> bool:
-                if position == len(columns):
-                    return remaining == [0, 0, 0] and not any(
-                        masks[row] in forbidden[row] for row in range(3)
-                    )
-
-                column = columns[position]
-                count = counts[column]
-                choices = list(itertools.combinations(range(3), count))
-                rng.shuffle(choices)
-                future = len(columns) - position - 1
-
-                for rows in choices:
+            for position, column in enumerate(columns):
+                future = COLUMNS - position - 1
+                candidates = []
+                for rows in choices[counts[column]]:
                     if any(remaining[row] <= 0 for row in rows):
                         continue
+                    nxt = list(remaining)
                     for row in rows:
-                        remaining[row] -= 1
-                        masks[row] |= 1 << column
+                        nxt[row] -= 1
+                    if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                        candidates.append(rows)
+                if not candidates:
+                    return None
+                if prefer_forbidden:
+                    rng.shuffle(candidates)
+                rows = rng.choice(candidates)
+                for row in rows:
+                    remaining[row] -= 1
+                    masks[row] |= 1 << column
+            return tuple(masks)
 
-                    # Cada fila debe poder consumir exactamente las casillas
-                    # que faltan en las columnas todavía no asignadas.
-                    feasible = all(0 <= value <= future for value in remaining)
-                    if feasible and recurse(position + 1):
-                        return True
-
-                    for row in rows:
-                        remaining[row] += 1
-                        masks[row] &= ~(1 << column)
-                return False
-
-            return tuple(masks) if recurse(0) else None
-
-        # Con cargas de 1/2 (Modelo A) y 1/3 (Modelo B), encontrar una solución
-        # es pequeño; limitamos los intentos para que generar miles de series
-        # sea predecible en tiempo.
-        for _ in range(24):
-            triple = find_one()
-            if triple is None:
-                break
-            if len(set(triple)) < 2 and best_triple is not None:
-                continue
-            score = self._triple_score(triple) * 100 + rng.randrange(100)
-            if best_score is None or score > best_score:
-                best_score = score
-                best_triple = triple
-
-        if best_triple is not None:
-            return list(best_triple)
+        for attempt in range(16):
+            triple = build(prefer_forbidden=attempt > 0)
+            if triple is not None and not any(triple[row] in forbidden[row] for row in range(3)):
+                return list(triple)
         return None
