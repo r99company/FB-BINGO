@@ -30,7 +30,6 @@ class DistributionModel:
         targets = [9] + [10] * 7 + [11]
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         loads = [0] * CARDS_PER_SERIES
-
         columns = list(range(COLUMNS))
         rng.shuffle(columns)
         for column in columns:
@@ -41,27 +40,9 @@ class DistributionModel:
             for card_index in order[:extra]:
                 result[card_index][column] += 1
                 loads[card_index] += 1
-
         if loads != [6] * CARDS_PER_SERIES:
             raise RuntimeError("No se pudo equilibrar la distribución de la serie")
         return result
-
-    @staticmethod
-    def _row_patterns(max_run: int) -> list[int]:
-        patterns: list[int] = []
-        for mask in range(1 << COLUMNS):
-            if mask.bit_count() != 5:
-                continue
-            longest = current = 0
-            for column in range(COLUMNS):
-                if mask & (1 << column):
-                    current += 1
-                    longest = max(longest, current)
-                else:
-                    current = 0
-            if longest <= max_run:
-                patterns.append(mask)
-        return patterns
 
     @staticmethod
     def _transitions(mask: int) -> int:
@@ -91,50 +72,96 @@ class DistributionModel:
         rng: random.Random,
         forbidden: Sequence[set[int]] | None = None,
     ) -> list[int] | None:
+        """Construye tres máscaras de cinco casillas con las cargas dadas.
+
+        En lugar de recorrer cientos de miles de pares de máscaras, se hace
+        una pequeña búsqueda por columnas. Esto mantiene la variedad visual
+        sin convertir la generación en un cuello de botella.
+        """
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-
         max_per_column = 2 if self.model is CardModel.A else 3
         if any(count < 1 or count > max_per_column for count in counts):
             return None
-
-        # El requisito matemático solo necesita evitar tres consecutivos como
-        # máximo para el Modelo A. Permitimos bloques de 3, pero nunca de 4 o 5,
-        # para conservar un aspecto natural sin convertir la estética en un
-        # cuello de botella que haga fallar la generación.
-        max_run = 3
-        patterns = self._row_patterns(max_run)
-        rng.shuffle(patterns)
-        pattern_set = set(patterns)
-
         if forbidden is None:
             forbidden = [set(), set(), set()]
 
+        # Las columnas más cargadas primero reducen mucho el espacio de búsqueda.
+        columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
+        remaining = [5, 5, 5]
+        masks = [0, 0, 0]
         best: tuple[int, tuple[int, int, int]] | None = None
-        for first in patterns:
-            for second in patterns:
-                third = 0
-                valid = True
-                for column, target in enumerate(counts):
-                    used = ((first >> column) & 1) + ((second >> column) & 1)
-                    remaining = target - used
-                    if remaining not in (0, 1):
-                        valid = False
-                        break
-                    if remaining:
-                        third |= 1 << column
 
-                if not valid or third.bit_count() != 5 or third not in pattern_set:
-                    continue
-
-                triple = (first, second, third)
-                if len(set(triple)) != 3:
-                    continue
+        def recurse(position: int) -> None:
+            nonlocal best
+            if position == len(columns):
+                if remaining != [0, 0, 0]:
+                    return
+                triple = tuple(masks)
                 if any(triple[row] in forbidden[row] for row in range(3)):
-                    continue
-
+                    return
+                if len(set(triple)) < 2:
+                    # Se evita repetir las tres filas completas cuando existe
+                    # otra solución; no es una regla matemática del cartón.
+                    return
                 score = self._triple_score(triple) * 100 + rng.randrange(100)
                 if best is None or score > best[0]:
                     best = (score, triple)
+                return
 
-        return list(best[1]) if best is not None else None
+            column = columns[position]
+            count = counts[column]
+            choices = list(__import__("itertools").combinations(range(3), count))
+            rng.shuffle(choices)
+            for rows in choices:
+                if any(remaining[row] <= 0 for row in rows):
+                    continue
+                for row in rows:
+                    remaining[row] -= 1
+                    masks[row] |= 1 << column
+                # Poda: cada fila debe poder completar exactamente 5.
+                future = len(columns) - position - 1
+                feasible = all(0 <= value <= future for value in remaining)
+                if feasible:
+                    recurse(position + 1)
+                for row in rows:
+                    remaining[row] += 1
+                    masks[row] &= ~(1 << column)
+
+        recurse(0)
+        if best is not None:
+            return list(best[1])
+
+        # Fallback: en el improbable caso de que la preferencia de variedad
+        # elimine la única forma posible, devolvemos cualquier solución válida.
+        remaining = [5, 5, 5]
+        masks = [0, 0, 0]
+        result: list[int] | None = None
+
+        def fallback(position: int) -> bool:
+            nonlocal result
+            if position == len(columns):
+                if remaining == [0, 0, 0]:
+                    result = list(masks)
+                    return True
+                return False
+            column = columns[position]
+            choices = list(__import__("itertools").combinations(range(3), counts[column]))
+            rng.shuffle(choices)
+            for rows in choices:
+                if any(remaining[row] <= 0 for row in rows):
+                    continue
+                for row in rows:
+                    remaining[row] -= 1
+                    masks[row] |= 1 << column
+                future = len(columns) - position - 1
+                feasible = all(0 <= value <= future for value in remaining)
+                ok = feasible and fallback(position + 1)
+                for row in rows:
+                    remaining[row] += 1
+                    masks[row] &= ~(1 << column)
+                if ok:
+                    return True
+            return False
+
+        return result if fallback(0) else None
