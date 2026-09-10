@@ -87,7 +87,8 @@ class DistributionModel:
         """Construye tres máscaras de cinco casillas con distribución variable."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        max_per_column = 3 if self.model is CardModel.A else 2
+        # Modelo A: columnas de 1–2 números. Modelo B: columnas de 1–3.
+        max_per_column = 2 if self.model is CardModel.A else 3
         if any(count < 1 or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
