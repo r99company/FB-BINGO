@@ -84,16 +84,10 @@ class DistributionModel:
         rng: random.Random,
         forbidden: Sequence[set[int]] | None = None,
     ) -> list[int] | None:
-        """Construye tres máscaras de cinco casillas usando las casillas vacías.
-
-        Para cada columna con ``n`` números hay exactamente ``3-n`` filas vacías.
-        Un cartón de 15 números tiene 12 vacíos, por lo que cada fila debe tener
-        exactamente cuatro vacíos. El DFS sólo recorre estados factibles y evita
-        depender de intentos aleatorios que puedan agotar un presupuesto.
-        """
+        """Construye tres máscaras de cinco casillas con distribución variable."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        max_per_column = 2 if self.model is CardModel.A else 3
+        max_per_column = 3 if self.model is CardModel.A else 2
         if any(count < 1 or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
