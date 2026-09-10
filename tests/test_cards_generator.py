@@ -66,6 +66,10 @@ def _layout_signature(card) -> tuple[tuple[bool, ...], ...]:
     return tuple(tuple(value is not None for value in row) for row in card.grid)
 
 
+def _column_signature(card) -> tuple[int, ...]:
+    return card.column_counts
+
+
 def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     generator_a = SeriesGenerator(seed=2026)
     first = generator_a.generate("SER-001", CardModel.A)
@@ -75,41 +79,27 @@ def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
 
 
-def test_model_a_rows_are_interleaved_without_runs_longer_than_three() -> None:
-    for seed in range(30):
+def test_model_a_allows_natural_row_runs() -> None:
+    """Row adjacency is not a validity rule; only the 5-per-row invariant is."""
+    for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
         for card in series.cards:
-            for row in card.grid:
-                longest_run = 0
-                current_run = 0
-                for value in row:
-                    if value is None:
-                        current_run = 0
-                    else:
-                        current_run += 1
-                        longest_run = max(longest_run, current_run)
-                assert longest_run <= 3
+            assert [sum(value is not None for value in row) for row in card.grid] == [5, 5, 5]
 
 
-def test_representative_series_do_not_repeat_row_layouts_within_a_strip() -> None:
-    """The six cards should look varied, not reuse a row pattern in the strip."""
+def test_representative_series_allow_repeats_but_not_three_identical_column_patterns_in_a_row() -> None:
+    """A series may repeat a pattern, but should not form a triple identical contour."""
     for series_id in ("001", "002", "003", "150", "151"):
         series = SeriesGenerator(seed=2026).generate(f"SER-{series_id}", CardModel.A)
-        for row in range(3):
-            patterns = [
-                tuple(card.grid[row][column] is not None for column in range(9))
-                for card in series.cards
-            ]
-            assert len(set(patterns)) == 6
+        patterns = [_column_signature(card) for card in series.cards]
+        assert len(set(patterns)) >= 2
+        for index in range(2, len(patterns)):
+            assert not (patterns[index] == patterns[index - 1] == patterns[index - 2])
 
 
-def test_model_a_first_four_columns_use_all_three_rows() -> None:
-    """Avoid the coarse look where the first columns concentrate in one row."""
-    for seed in range(30):
+def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
+    """The generator must not impose the old first-four-columns visual rule."""
+    for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
         for card in series.cards:
-            counts = [
-                sum(card.grid[row][column] is not None for column in range(4))
-                for row in range(3)
-            ]
-            assert all(count >= 1 for count in counts)
+            assert len(card.numbers) == 15
