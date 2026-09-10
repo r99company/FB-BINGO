@@ -4,11 +4,10 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
 
 from app.cards import CardModel, SeriesGenerator
-from app.ui.main import BingoMainWindow
+from app.ui.main_window import BingoMainWindow
 from app.ui.verification_window import VerificationWindow
 
 
@@ -38,11 +37,12 @@ def test_operator_screen_uses_circular_recent_ball_indicators():
     app.processEvents()
 
 
-def test_ctrl5_is_dedicated_verification_shortcut():
+def test_help_menu_documents_ctrl5_verifier_shortcut():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
-    sequences = [shortcut.key().toString(QKeySequence.SequenceFormat.NativeText) for shortcut in window._operator_shortcuts]
-    assert any("Ctrl+5" in value for value in sequences)
+    menu_buttons = [button for button in window.findChildren(QPushButton) if button.text().startswith("AYUDA")]
+    assert len(menu_buttons) == 1
+    assert any("Ctrl+5" in action.text() and "Verificador" in action.text() for action in menu_buttons[0].menu().actions())
     window.close()
     app.processEvents()
 
