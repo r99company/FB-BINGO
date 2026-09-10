@@ -5,7 +5,7 @@ import itertools
 import random
 from typing import Sequence
 
-from .card import BingoCard, CardModel, COLUMNS, ROWS
+from .card import BingoCard, CardModel, COLUMNS, ROWS, NUMBERS_PER_CARD
 from .distribution import CARDS_PER_SERIES, DistributionModel
 
 MAX_SERIAL = 30_000
@@ -55,10 +55,9 @@ class SeriesGenerator:
         best_grids: list[tuple[tuple[int | None, ...], ...]] | None = None
         best_score = -10**9
 
-        # Una serie puede tener muchas distribuciones válidas. Probamos suficientes
-        # candidatos para que la diversidad sea una propiedad práctica y no una
-        # coincidencia de unos pocos intentos aleatorios. La validez matemática
-        # siempre se comprueba al construir BingoCard/BingoSeries.
+        # Muchas distribuciones son matemáticamente válidas. Probamos suficientes
+        # candidatos para que la variedad visual sea estable, incluso en lotes de
+        # cientos de series. La validez siempre la comprueba BingoCard/BingoSeries.
         for _ in range(96):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
@@ -98,18 +97,11 @@ class SeriesGenerator:
         grids: Sequence[Sequence[Sequence[int | None]]],
         column_counts: Sequence[Sequence[int]] | None = None,
     ) -> int:
-        """Puntúa diversidad visual entre los seis cartones.
-
-        Se favorecen máscaras completas diferentes, cambios de posición por fila,
-        equilibrio izquierda/centro/derecha y ausencia de bloques consecutivos
-        excesivamente largos. No se altera ninguna regla matemática del bingo.
-        """
+        """Puntúa diversidad visual entre los seis cartones."""
         score = 0
         signatures = [[cls._row_signature(grid, row) for row in range(ROWS)] for grid in grids]
         full_masks = [cls._card_mask_signature(grid) for grid in grids]
 
-        # Las máscaras completas repetidas son precisamente el aspecto de
-        # "plantilla" que se quiere evitar.
         unique_masks = len(set(full_masks))
         score += unique_masks * 80
         for left in range(len(full_masks)):
@@ -122,21 +114,19 @@ class SeriesGenerator:
                 if full_masks[left] == full_masks[right]:
                     score -= 220
 
-        # Variedad de posición vertical entre los seis cartones.
         for row in range(ROWS):
             weight = 3 if row == 1 else 2
             for left in range(len(signatures)):
                 for right in range(left + 1, len(signatures)):
                     score += cls._hamming(signatures[left][row], signatures[right][row]) * weight
 
-        # Evita que todas las ocupaciones se concentren en las mismas zonas.
         for group in signatures:
-            left_counts = [sum(mask[c] for mask in group) for c in range(3)]
-            center_counts = [sum(mask[c] for mask in group) for c in range(3, 6)]
-            right_counts = [sum(mask[c] for mask in group) for c in range(6, 9)]
-            zones = (sum(left_counts), sum(center_counts), sum(right_counts))
+            zones = (
+                sum(mask[c] for mask in group for c in range(0, 3)),
+                sum(mask[c] for mask in group for c in range(3, 6)),
+                sum(mask[c] for mask in group for c in range(6, 9)),
+            )
             score -= (max(zones) - min(zones)) * 2
-
             for signature in group:
                 run = longest = 0
                 for occupied in signature:
@@ -171,10 +161,6 @@ class SeriesGenerator:
         targets = [9] + [10] * 7 + [11]
         max_extra = 2 if model is CardModel.A else 1
 
-        # Cada cartón empieza con un número por columna. Después repartimos
-        # exactamente 36 números adicionales entre los seis cartones, respetando
-        # el máximo del modelo. Así Modelo A puede tener 3 por columna y Modelo B
-        # sólo 1 o 2 por columna.
         remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         columns = list(range(COLUMNS))
