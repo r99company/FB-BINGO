@@ -118,7 +118,7 @@ class GeneratorWidget(QWidget):
         self.qr = QComboBox()
         self.qr.addItem("SIN QR — sin zona reservada", False)
         self.qr.addItem("CON QR — reservar zona", True)
-        self.duplicate_column = QCheckBox("Duplicar la serie 1–6 en ambos lados")
+        self.duplicate_column = QCheckBox("Duplicar cada serie en ambos lados")
         self.duplicate_column.setChecked(False)
         self.logo = QLabel("Sin logo seleccionado")
         self.logo.setObjectName("Muted")
