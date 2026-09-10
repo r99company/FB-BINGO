@@ -9,8 +9,15 @@ def test_series_has_six_cards_and_ninety_unique_numbers() -> None:
     assert sorted(numbers) == list(range(1, 91))
 
 
-def test_model_a_cards_have_five_numbers_per_row_and_one_or_two_per_column() -> None:
+def test_model_a_cards_have_five_numbers_per_row_and_one_to_three_per_column() -> None:
     series = SeriesGenerator(seed=456).generate("SER-A", CardModel.A)
+    for card in series.cards:
+        assert [sum(cell is not None for cell in row) for row in card.grid] == [5, 5, 5]
+        assert all(1 <= count <= 3 for count in card.column_counts)
+
+
+def test_model_b_cards_have_five_numbers_per_row_and_one_or_two_per_column() -> None:
+    series = SeriesGenerator(seed=457).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert [sum(cell is not None for cell in row) for row in card.grid] == [5, 5, 5]
         assert all(1 <= count <= 2 for count in card.column_counts)
@@ -22,7 +29,7 @@ def test_column_positions_are_not_one_fixed_mask_repeated_six_times() -> None:
         tuple(tuple(cell is not None for cell in row) for row in card.grid)
         for card in series.cards
     }
-    assert len(masks) >= 2
+    assert len(masks) >= 4
 
 
 def test_numbers_stay_in_their_bingo_column_ranges() -> None:
