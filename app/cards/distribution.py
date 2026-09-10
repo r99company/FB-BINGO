@@ -74,14 +74,23 @@ class DistributionModel:
                 continue
 
             # Más transiciones = más espacios intercalados y menos aspecto
-            # de "bloque". Las máscaras con la misma puntuación siguen siendo
-            # aleatorias para no repetir siempre el mismo diseño.
+            # de "bloque". Las máscaras con la misma puntuación se mezclan
+            # después usando el generador aleatorio de la serie.
             patterns.append((transitions, mask))
 
-        rng = random.Random()
-        rng.shuffle(patterns)
         patterns.sort(key=lambda item: item[0], reverse=True)
         return [mask for _, mask in patterns]
+
+    @staticmethod
+    def _pattern_transitions(mask: int) -> int:
+        transitions = 0
+        previous = False
+        for column in range(COLUMNS):
+            occupied = bool(mask & (1 << column))
+            if column and occupied != previous:
+                transitions += 1
+            previous = occupied
+        return transitions
 
     def row_masks_for_counts(
         self, counts: Sequence[int], rng: random.Random
@@ -94,17 +103,20 @@ class DistributionModel:
         # Ambos modelos conservan el aspecto visual de las series de referencia:
         # puede haber pares consecutivos, pero nunca bloques largos de 3+.
         max_run = 2
-        patterns = self._row_patterns(max_run)
-        # La prioridad visual se mantiene, pero el orden entre patrones de igual
-        # puntuación cambia con cada generación.
-        tied = {}
-        for mask in patterns:
-            tied.setdefault(self._pattern_transitions(mask), []).append(mask)
-        patterns = []
-        for score in sorted(tied, reverse=True):
-            group = tied[score]
+        raw_patterns = self._row_patterns(max_run)
+
+        # Priorizamos máscaras con más alternancia, pero aleatorizamos las que
+        # tienen la misma puntuación para que las series no sean idénticas.
+        groups: dict[int, list[int]] = {}
+        for mask in raw_patterns:
+            groups.setdefault(self._pattern_transitions(mask), []).append(mask)
+
+        patterns: list[int] = []
+        for score in sorted(groups, reverse=True):
+            group = groups[score]
             rng.shuffle(group)
             patterns.extend(group)
+
         pattern_set = set(patterns)
 
         # Pick the first two rows randomly, then derive the third row directly
@@ -140,14 +152,3 @@ class DistributionModel:
                 return [first, second, third]
 
         return None
-
-    @staticmethod
-    def _pattern_transitions(mask: int) -> int:
-        transitions = 0
-        previous = False
-        for column in range(COLUMNS):
-            occupied = bool(mask & (1 << column))
-            if column and occupied != previous:
-                transitions += 1
-            previous = occupied
-        return transitions
