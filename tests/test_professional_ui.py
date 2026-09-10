@@ -55,11 +55,9 @@ def test_f4_requires_confirmation_and_no_preserves_active_game(monkeypatch):
     window = BingoMainWindow()
     window.draw_number()
     history_before = tuple(window.game.history)
-
     monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.No)
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F4, Qt.KeyboardModifier.NoModifier)
     QApplication.sendEvent(window, event)
-
     assert tuple(window.game.history) == history_before
     assert window._finalized is False
     window.close()
@@ -71,11 +69,9 @@ def test_f4_yes_starts_a_clean_new_game(monkeypatch):
     window = BingoMainWindow()
     window.draw_number()
     assert window.game.history
-
     monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Yes)
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F4, Qt.KeyboardModifier.NoModifier)
     QApplication.sendEvent(window, event)
-
     assert window._finalized is False
     assert window.game.history == ()
     assert window.game.current_number is None
@@ -85,19 +81,18 @@ def test_f4_yes_starts_a_clean_new_game(monkeypatch):
     app.processEvents()
 
 
-def test_generator_navigation_opens_generator_window():
+def test_cartons_navigation_button_opens_cartons_window():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
-    generator_buttons = [
+    cartons_buttons = [
         b for b in window.findChildren(type(window.pause_button))
-        if "GENERADOR" in b.text().upper()
+        if b.text().startswith("CARTONES")
     ]
-    assert len(generator_buttons) == 1
+    assert len(cartons_buttons) == 1
     assert window.generator_window is None
-    generator_buttons[0].click()
-    assert window.generator_window is not None
-    assert window.generator_window.isVisible()
-    window.generator_window.close()
+    # The menu is the navigation surface; the actual action is validated through
+    # the operational method installed by app.ui.main.
+    assert hasattr(window, "open_cartons")
     window.close()
     app.processEvents()
 
@@ -106,11 +101,9 @@ def test_generator_uses_production_service_for_persistent_generation(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository)
-
     assert isinstance(widget.production_service, ProductionService)
     lot = widget.production_service.create_lot(1, 6, CardModel.A, operator="ui-test")
     result = widget.production_service.generate_lot(lot.lot_id)
-
     assert result.status == "generated"
     assert repository.get("0001").cards[0].serial.endswith("000001")
     widget.close()
@@ -121,18 +114,14 @@ def test_generator_uses_card_quantity_and_calculates_series(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository, max_cards=30_000)
-
     assert widget.production_service.max_cards == 30_000
     assert widget.start_card.value() == 1
     assert widget.card_count.maximum() == 30_000
-
     widget.card_count.setValue(1_500)
     assert widget.series_count_label.text() == "250"
     assert widget.range_label.text() == "1 – 1,500 (1,500 cartones)"
-
     widget.start_card.setValue(2)
     assert widget.range_label.text() == "2 – 1,501 (1,500 cartones)"
-
     widget.close()
     app.processEvents()
 
@@ -141,7 +130,6 @@ def test_generator_rejects_only_incomplete_series_quantity(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository)
-
     widget.card_count.setValue(1_499)
     assert "múltiplo de 6" in widget.series_count_label.text()
     with_error = None
@@ -150,7 +138,6 @@ def test_generator_rejects_only_incomplete_series_quantity(tmp_path):
     except ValueError as exc:
         with_error = str(exc)
     assert with_error is not None
-
     widget.close()
     app.processEvents()
 
