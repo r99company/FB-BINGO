@@ -5,14 +5,14 @@ def _mask(card):
     return tuple(tuple(cell is not None for cell in row) for row in card.grid)
 
 
-def test_model_a_allows_three_numbers_in_a_column():
+def test_model_a_never_has_three_numbers_in_a_column():
     series = SeriesGenerator(seed=1001).generate("MODEL-A", CardModel.A)
-    assert all(1 <= count <= 3 for card in series.cards for count in card.column_counts)
-
-
-def test_model_b_never_has_three_numbers_in_a_column():
-    series = SeriesGenerator(seed=1002).generate("MODEL-B", CardModel.B)
     assert all(1 <= count <= 2 for card in series.cards for count in card.column_counts)
+
+
+def test_model_b_allows_three_numbers_in_a_column():
+    series = SeriesGenerator(seed=1002).generate("MODEL-B", CardModel.B)
+    assert all(1 <= count <= 3 for card in series.cards for count in card.column_counts)
 
 
 def test_each_series_seeks_strongly_different_card_layouts():
