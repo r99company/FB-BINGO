@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.cards import BingoCard, CardModel
+from app.cards.generator import SeriesGenerator
 from app.printing import A4SvgRenderer, PrintStyle
 from app.settings.paths import application_data_dir
 
@@ -38,7 +39,7 @@ class DesignerWindow(QWidget):
             "bg": "#FFFFFF", "empty": "#F7DDE7", "accent": "#FF4FA3",
             "secondary_accent": "#8FD9FF", "border": "#8FD9FF", "number": "#171B2B",
             "show_serial": True, "show_qr": True, "show_model": False,
-            "show_footer": True, "show_tagline": True,
+            "show_footer": True, "show_tagline": True, "model": "A",
         }}
 
     def _load(self):
@@ -133,7 +134,7 @@ class DesignerWindow(QWidget):
 
     @staticmethod
     def _grid():
-        # Modelo A: máximo 2 números por columna, mínimo 1, 5 por fila.
+        # Muestra fija válida para pruebas de compatibilidad del diseñador.
         return (
             (1, 13, 22, 34, 45, None, None, None, None),
             (5, 19, None, None, None, 56, 67, 78, None),
@@ -143,15 +144,28 @@ class DesignerWindow(QWidget):
     def _style(self):
         return PrintStyle(background_color=self.bg.text() or "#FFFFFF", empty_cell_color=self.empty.text() or "#F7DDE7", number_color=self.number.text() or "#171B2B", border_color=self.border.text() or "#8FD9FF", accent_color=self.accent.text() or "#FF4FA3", secondary_accent_color=self.secondary.text() or "#8FD9FF", logo_path=self.logo_path.text() or None, show_model=False, show_serial=self.show_serial.isChecked(), show_qr_zone=self.show_qr.isChecked(), brand_title=self.title_text.text() or "FB-BINGO", brand_tagline=self.tagline_text.text() or "¡LA DIVERSIÓN QUE NOS UNE!", footer_text=self.footer_text.text() or "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA", show_footer=self.show_footer.isChecked(), show_tagline=self.show_tagline.isChecked(), font_family=self.font.currentText() or "Arial", number_font_size=float(self.font_size.value() or 18))
 
+    def _selected_card_model(self) -> CardModel:
+        model = self.internal_model.currentData()
+        return model if isinstance(model, CardModel) else CardModel.A
+
     def _preview(self, *_):
         if not hasattr(self, "preview_svg"):
             return
         try:
-            cards = tuple(BingoCard(serial=f"0001-{int(self._preview_card_number or 11534) + i:06d}", model=CardModel.A, grid=self._grid()) for i in range(6))
+            model = self._selected_card_model()
+            preview_number = int(self._preview_card_number or 11534)
+            # La vista previa usa el mismo generador real: seis cartones
+            # distintos, con la distribución actual, en vez de seis copias.
+            series = SeriesGenerator(seed=preview_number).generate(
+                series_id="0001",
+                model=model,
+                serial_start=max(1, preview_number),
+            )
+            cards = series.cards
             svg = A4SvgRenderer(style=self._style()).render_columns(cards, cards)
             self._preview_svg_text = svg
             self.preview_svg.load(svg.encode("utf-8"))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RuntimeError):
             self._preview_svg_text = ""
 
     def section_buttons_text(self):
@@ -170,12 +184,13 @@ class DesignerWindow(QWidget):
         self._preview_card_number = "".join(ch for ch in str(number) if ch.isdigit()) or "11534"; self._preview()
 
     def current_design(self):
-        return {"font": self.font.currentText(), "font_size": self.font_size.value(), "width_mm": self.width.value(), "height_mm": self.height.value(), "title": self.title_text.text(), "tagline": self.tagline_text.text(), "footer": self.footer_text.text(), "logo": self.logo_path.text(), "bg": self.bg.text(), "empty": self.empty.text(), "accent": self.accent.text(), "secondary_accent": self.secondary.text(), "border": self.border.text(), "number": self.number.text(), "show_serial": self.show_serial.isChecked(), "show_qr": self.show_qr.isChecked(), "show_model": False, "show_footer": self.show_footer.isChecked(), "show_tagline": self.show_tagline.isChecked()}
+        return {"font": self.font.currentText(), "font_size": self.font_size.value(), "width_mm": self.width.value(), "height_mm": self.height.value(), "title": self.title_text.text(), "tagline": self.tagline_text.text(), "footer": self.footer_text.text(), "logo": self.logo_path.text(), "bg": self.bg.text(), "empty": self.empty.text(), "accent": self.accent.text(), "secondary_accent": self.secondary.text(), "border": self.border.text(), "number": self.number.text(), "show_serial": self.show_serial.isChecked(), "show_qr": self.show_qr.isChecked(), "show_model": False, "show_footer": self.show_footer.isChecked(), "show_tagline": self.show_tagline.isChecked(), "model": self._selected_card_model().name}
 
     def _load_design(self, name):
         if name not in self.designs or not hasattr(self, "font"):
             return
-        d = self.designs[name]; self.font.setCurrentText(d.get("font", "Arial")); self.font_size.setValue(int(d.get("font_size", 18))); self.width.setValue(int(d.get("width_mm", 120))); self.height.setValue(int(d.get("height_mm", 77))); self.title_text.setText(d.get("title", "FB-BINGO")); self.tagline_text.setText(d.get("tagline", "¡LA DIVERSIÓN QUE NOS UNE!")); self.footer_text.setText(d.get("footer", "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA")); self.logo_path.setText(d.get("logo", "")); self.bg.setText(d.get("bg", "#FFFFFF")); self.empty.setText(d.get("empty", "#F7DDE7")); self.accent.setText(d.get("accent", "#FF4FA3")); self.secondary.setText(d.get("secondary_accent", "#8FD9FF")); self.border.setText(d.get("border", "#8FD9FF")); self.number.setText(d.get("number", "#171B2B")); self.show_serial.setChecked(bool(d.get("show_serial", True))); self.show_qr.setChecked(bool(d.get("show_qr", True))); self.show_footer.setChecked(bool(d.get("show_footer", True))); self.show_tagline.setChecked(bool(d.get("show_tagline", True))); self._preview()
+        d = self.designs[name]; self.font.setCurrentText(d.get("font", "Arial")); self.font_size.setValue(int(d.get("font_size", 18))); self.width.setValue(int(d.get("width_mm", 120))); self.height.setValue(int(d.get("height_mm", 77))); self.title_text.setText(d.get("title", "FB-BINGO")); self.tagline_text.setText(d.get("tagline", "¡LA DIVERSIÓN QUE NOS UNE!")); self.footer_text.setText(d.get("footer", "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA")); self.logo_path.setText(d.get("logo", "")); self.bg.setText(d.get("bg", "#FFFFFF")); self.empty.setText(d.get("empty", "#F7DDE7")); self.accent.setText(d.get("accent", "#FF4FA3")); self.secondary.setText(d.get("secondary_accent", "#8FD9FF")); self.border.setText(d.get("border", "#8FD9FF")); self.number.setText(d.get("number", "#171B2B")); self.show_serial.setChecked(bool(d.get("show_serial", True))); self.show_qr.setChecked(bool(d.get("show_qr", True))); self.show_footer.setChecked(bool(d.get("show_footer", True))); self.show_tagline.setChecked(bool(d.get("show_tagline", True)))
+        model_name = str(d.get("model", "A")); self.internal_model.setCurrentIndex(1 if model_name == "B" else 0); self._preview()
 
     def _save(self):
         self.designs[self.model.currentText()] = self.current_design()
