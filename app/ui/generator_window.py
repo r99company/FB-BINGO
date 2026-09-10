@@ -40,6 +40,8 @@ class GeneratorWidget(QWidget):
         self.repository = repository or SQLiteSeriesRepository(database_path())
         self.production_service = ProductionService(self.repository, max_cards=max_cards)
         self._series = None
+        self._loaded_start_card: int | None = None
+        self._loaded_card_count: int | None = None
         self._logo_path: str | None = None
         self._svg = ""
         self._build_ui()
@@ -202,13 +204,17 @@ class GeneratorWidget(QWidget):
         first_series = (start_card - 1) // 6 + 1
         return first_series, start_card, end_card
 
-    def _load_requested_series(self, first_series: int) -> None:
+    def _load_requested_series(self, first_series: int, start_card: int, card_count: int) -> None:
         self._series = self.repository.get(f"{first_series:04d}")
+        self._loaded_start_card = start_card
+        self._loaded_card_count = card_count
+        self._svg = ""
 
     def generate_series(self) -> None:
         model = CardModel(self.model.currentData())
         try:
             first_series, start_card, end_card = self._requested_range()
+            card_count = end_card - start_card + 1
             lot = self.production_service.create_lot(
                 start_card,
                 end_card,
@@ -216,7 +222,7 @@ class GeneratorWidget(QWidget):
                 operator="generador-ui",
             )
             result = self.production_service.generate_lot(lot.lot_id)
-            self._load_requested_series(first_series)
+            self._load_requested_series(first_series, start_card, card_count)
             self._render_preview()
             self.preview_label.setText(
                 f"LISTO · {result.series_count:,} serie(s) · {result.card_count:,} cartones · "
@@ -253,13 +259,17 @@ class GeneratorWidget(QWidget):
 
     def preview_a4(self) -> None:
         try:
-            if self._series is None:
+            first_series, start_card, card_count = self._requested_range()[0], self.start_card.value(), self.card_count.value()
+            if (
+                self._series is None
+                or self._loaded_start_card != start_card
+                or self._loaded_card_count != card_count
+            ):
                 self.generate_series()
                 return
             self._render_preview()
-            first_series = int(self._series.series_id)
-            derecha = f"{first_series:04d}" if self.duplicate_column.isChecked() else f"{first_series + 1:04d}"
-            self.preview_label.setText(f"Vista A4 · izquierda {first_series:04d} · derecha {derecha}")
+            derecha = first_series if self.duplicate_column.isChecked() else first_series + 1
+            self.preview_label.setText(f"Vista A4 · izquierda {first_series:04d} · derecha {derecha:04d}")
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "Error de vista previa", str(exc))
 
@@ -277,9 +287,14 @@ class GeneratorWidget(QWidget):
 
     def print_a4(self) -> None:
         try:
-            first_series, _, _ = self._requested_range()
-            series_count = self.card_count.value() // 6
-            if self._series is None or int(self._series.series_id) != first_series:
+            first_series, start_card, end_card = self._requested_range()
+            card_count = end_card - start_card + 1
+            series_count = card_count // 6
+            if (
+                self._series is None
+                or self._loaded_start_card != start_card
+                or self._loaded_card_count != card_count
+            ):
                 self.generate_series()
             if self._series is None:
                 raise ValueError("No hay una producción cargada")
