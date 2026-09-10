@@ -48,6 +48,22 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     app.processEvents()
 
 
+def test_f4_shortcut_calls_finalize_then_new_game():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    assert len(window._operator_shortcuts) == 4
+    assert window._finalized is False
+
+    window._operator_shortcuts[3].activated.emit()
+    assert window._finalized is True
+
+    window._operator_shortcuts[3].activated.emit()
+    assert window._finalized is False
+    assert window.game.history == []
+    window.close()
+    app.processEvents()
+
+
 def test_generator_navigation_opens_generator_window():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
