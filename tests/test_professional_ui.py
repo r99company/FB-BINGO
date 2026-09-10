@@ -90,7 +90,7 @@ def test_generator_navigation_opens_generator_window():
     window = BingoMainWindow()
     generator_buttons = [
         b for b in window.findChildren(type(window.pause_button))
-        if "GENERADOR" in b.text().upper() or "CARTONES" in b.text().upper()
+        if "GENERADOR" in b.text().upper()
     ]
     assert len(generator_buttons) == 1
     assert window.generator_window is None
