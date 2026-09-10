@@ -8,7 +8,6 @@ from typing import Sequence
 from .card import BingoCard, CardModel, COLUMNS, ROWS
 from .distribution import CARDS_PER_SERIES, DistributionModel
 
-# 5.000 series x 6 cartones = 30.000 cartones físicos.
 MAX_SERIAL = 30_000
 
 
@@ -56,12 +55,7 @@ class SeriesGenerator:
         best_grids = None
         best_score = -10**9
 
-        # Una distribución de cargas por columna puede ser válida en cantidad
-        # pero imposible de acomodar en tres filas de cinco. Por eso se prueba
-        # repetidamente la pareja (cargas + máscaras), y solo se acepta una
-        # solución completa. La estética nunca convierte una serie válida en
-        # inválida.
-        for _ in range(512):
+        for _ in range(64):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -110,7 +104,41 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         if model is CardModel.A:
-            return distribution.column_counts(rng)
+            # Modelo A tiene una construcción exacta: una ocupación base de
+            # 1 por columna y 36 extras. Las columnas necesitan 3,4,...,4,5
+            # extras y cada cartón exactamente 6. La búsqueda trabaja sobre
+            # grados de un grafo bipartito, por lo que nunca devuelve una
+            # matriz de cargas desequilibrada.
+            targets = [9] + [10] * 7 + [11]
+            extras = [target - CARDS_PER_SERIES for target in targets]
+            remaining = [6] * CARDS_PER_SERIES
+            result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+            columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
+
+            def assign(position: int) -> bool:
+                if position == len(columns):
+                    return all(value == 0 for value in remaining)
+                column = columns[position]
+                need = extras[column]
+                future = len(columns) - position - 1
+                choices = list(itertools.combinations(range(CARDS_PER_SERIES), need))
+                rng.shuffle(choices)
+                for selected in choices:
+                    if any(remaining[i] <= 0 for i in selected):
+                        continue
+                    for i in selected:
+                        remaining[i] -= 1
+                        result[i][column] += 1
+                    if all(value <= future for value in remaining) and assign(position + 1):
+                        return True
+                    for i in selected:
+                        remaining[i] += 1
+                        result[i][column] -= 1
+                return False
+
+            if not assign(0):
+                raise RuntimeError("No se pudo equilibrar la distribución de Modelo A")
+            return result
 
         targets = [9] + [10] * 7 + [11]
         max_extra = 2
