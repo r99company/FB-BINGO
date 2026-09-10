@@ -38,7 +38,7 @@ class GeneratorWidget(QWidget):
         super().__init__()
         self.repository = repository or SQLiteSeriesRepository(database_path())
         self.production_service = ProductionService(self.repository, max_cards=max_cards)
-        self._series = None  # compatibilidad con el resto de la aplicación
+        self._series = None
         self._cards: tuple[BingoCard, ...] = ()
         self._loaded_start_card: int | None = None
         self._loaded_card_count: int | None = None
@@ -59,7 +59,6 @@ class GeneratorWidget(QWidget):
         self.model.addItem("Modelo A · PRINCIPAL", CardModel.A.value)
         self.model.addItem("Modelo B · ESPECIAL", CardModel.B.value)
 
-        # The starting card is completely independent from series boundaries.
         self.start_card = QSpinBox()
         self.start_card.setRange(1, self.production_service.max_cards)
         self.start_card.setValue(1)
@@ -75,7 +74,6 @@ class GeneratorWidget(QWidget):
         self.series_count_label.setObjectName("Muted")
         self.pages_label = QLabel()
         self.pages_label.setObjectName("Muted")
-        self._update_range_label()
         self.start_card.valueChanged.connect(self._update_range_label)
         self.card_count.valueChanged.connect(self._update_range_label)
 
@@ -125,6 +123,7 @@ class GeneratorWidget(QWidget):
         self.qr.addItem("CON QR — reservar zona", True)
         self.duplicate_column = QCheckBox("Duplicar cada serie en ambos lados")
         self.duplicate_column.setChecked(False)
+        self.duplicate_column.toggled.connect(self._update_range_label)
         self.logo = QLabel("Sin logo seleccionado")
         self.logo.setObjectName("Muted")
         self.logo.setWordWrap(True)
@@ -163,6 +162,7 @@ class GeneratorWidget(QWidget):
         self.preview_label.setObjectName("Muted")
         preview_layout.addWidget(self.preview_label)
         layout.addWidget(preview_panel, 1)
+        self._update_range_label()
 
     def _update_range_label(self) -> None:
         start = self.start_card.value()
@@ -179,7 +179,8 @@ class GeneratorWidget(QWidget):
             self.pages_label.setText("—")
             return
         series = count // 6
-        pages = series if self.duplicate_column.isChecked() else (series + 1) // 2
+        duplicate = hasattr(self, "duplicate_column") and self.duplicate_column.isChecked()
+        pages = series if duplicate else (series + 1) // 2
         self.range_label.setText(f"{start:,} – {end:,} ({count:,} cartones)")
         self.series_count_label.setText(f"{series:,}")
         self.pages_label.setText(f"{pages:,}")
@@ -223,12 +224,7 @@ class GeneratorWidget(QWidget):
         model = CardModel(self.model.currentData())
         try:
             start_card, end_card, card_count = self._requested_range()
-            lot = self.production_service.create_lot(
-                start_card,
-                end_card,
-                model=model,
-                operator="generador-ui",
-            )
+            lot = self.production_service.create_lot(start_card, end_card, model=model, operator="generador-ui")
             result = self.production_service.generate_lot(lot.lot_id)
             self._load_requested_cards(start_card, end_card)
             self._render_preview()
@@ -291,7 +287,8 @@ class GeneratorWidget(QWidget):
             painter = QPainter(printer)
             pages = 0
             try:
-                for offset in range(0, card_count, 6 if self.duplicate_column.isChecked() else 12):
+                step = 6 if self.duplicate_column.isChecked() else 12
+                for offset in range(0, card_count, step):
                     left, right = self._cards_for_page(offset)
                     svg = renderer.render_columns(left, right, duplicate_column=True) if right is left else (
                         renderer.render_columns(left, right) if right is not None else renderer.render(left)
