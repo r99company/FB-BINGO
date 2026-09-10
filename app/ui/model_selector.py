@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QWidget
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget
 
 from app.cards import CardModel
 
@@ -60,3 +61,54 @@ class GameModelSelector(QWidget):
             self.current_model = model
         finally:
             self._changing = False
+
+
+# La pantalla principal conserva los atajos F1-F4, pero los controles visuales
+# dejan de ocupar espacio. La ayuda queda accesible desde el menú superior.
+_original_bingo_main_window_init = None
+
+
+def _install_clean_operator_ui() -> None:
+    global _original_bingo_main_window_init
+    try:
+        from app.ui.main_window import BingoMainWindow
+    except Exception:
+        return
+    if getattr(BingoMainWindow, "_fb_help_installed", False):
+        return
+    _original_bingo_main_window_init = BingoMainWindow.__init__
+
+    def _init_with_clean_operator_ui(self, *args, **kwargs):
+        _original_bingo_main_window_init(self, *args, **kwargs)
+        for button in self.findChildren(QPushButton):
+            text = button.text()
+            if "F1" in text or "F2" in text or "F3" in text or "F4" in text:
+                button.hide()
+        help_menu = self.menuBar().addMenu("❓ AYUDA")
+        help_action = QAction("Controles F1-F4 y operación", self)
+        help_action.triggered.connect(lambda: QMessageBox.information(
+            self,
+            "FB-BINGO · AYUDA Y CONTROLES",
+            "<h2>🎱 Controles de la sala</h2>"
+            "<p><b>F1</b> · 🎱 Jugar / sortear una nueva bola</p>"
+            "<p><b>F2</b> · ⏸️ Pausar / reanudar la partida</p>"
+            "<p><b>F3</b> · ↩️ Deshacer la última bola</p>"
+            "<p><b>F4</b> · ■ Finalizar partida / 🆕 Nueva partida</p>"
+            "<hr>"
+            "<p><b>ENTER</b> · Registrar la bola física digitada.</p>"
+            "<p>También puede pulsar directamente una bola del tablero para cantarla.</p>"
+            "<p><b>F4</b> cambia automáticamente entre finalizar la partida y comenzar una nueva.</p>",
+        ))
+        help_menu.addAction(help_action)
+        self.menuBar().setStyleSheet(
+            "QMenuBar { background:#050C22; color:#FFFFFF; font-weight:800; padding:4px 8px; } "
+            "QMenuBar::item:selected { background:#D61A84; border-radius:5px; } "
+            "QMenu { background:#07132D; color:#FFFFFF; border:1px solid #174A86; } "
+            "QMenu::item:selected { background:#D61A84; }"
+        )
+
+    BingoMainWindow.__init__ = _init_with_clean_operator_ui
+    BingoMainWindow._fb_help_installed = True
+
+
+_install_clean_operator_ui()
