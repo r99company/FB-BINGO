@@ -26,6 +26,11 @@ class PrintStyle:
     show_serial: bool = True
     show_qr_zone: bool = False
     qr_caption: str = "ESCANEA PARA VERIFICAR"
+    brand_title: str = "FB-BINGO"
+    brand_tagline: str = "¡LA DIVERSIÓN QUE NOS UNE!"
+    footer_text: str = "BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA"
+    show_footer: bool = True
+    show_tagline: bool = True
 
 
 @dataclass(frozen=True, slots=True)
