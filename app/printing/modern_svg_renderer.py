@@ -10,7 +10,7 @@ from app.printing.layout import A4PrintLayout, PrintStyle
 
 
 class ModernA4SvgRenderer:
-    """Renderer A4 de FB-BINGO con distribución de 2 columnas x 6 filas."""
+    """Renderer A4 de FB-BINGO con identidad visual de sala de bingo."""
 
     def __init__(self, layout: A4PrintLayout | None = None, style: PrintStyle | None = None):
         self.layout = layout or A4PrintLayout()
@@ -62,32 +62,51 @@ class ModernA4SvgRenderer:
         serial = escape(card.serial)
         series = escape(card.serial.split('-')[0])
         card_number = escape(card.serial.split('-')[-1])
+        badge_w = min(31.0, width * 0.22)
         out = [
             f'<g class="bingo-card" transform="translate({x:.2f},{y:.2f})">',
-            f'<rect width="{width:.2f}" height="{height:.2f}" rx="5" fill="{escape(self.style.background_color)}" stroke="{escape(self.style.border_color)}" stroke-width="1.4"/>',
-            f'<rect width="{width:.2f}" height="{header:.2f}" rx="5" fill="{escape(self.style.secondary_accent_color)}"/>',
+            f'<rect width="{width:.2f}" height="{height:.2f}" rx="5" fill="{escape(self.style.background_color)}" stroke="{escape(self.style.border_color)}" stroke-width="1.2"/>',
+            f'<path d="M0 5 Q{width*.28:.2f} {header*.92:.2f} {width*.58:.2f} {header*.42:.2f} T{width:.2f} 4 L{width:.2f} 0 L0 0 Z" fill="{escape(self.style.accent_color)}" opacity="0.88"/>',
+            f'<path d="M0 {header*.76:.2f} Q{width*.30:.2f} {header*1.04:.2f} {width*.62:.2f} {header*.66:.2f} T{width:.2f} {header*.72:.2f}" fill="none" stroke="{escape(self.style.secondary_accent_color)}" stroke-width="3" opacity="0.95"/>',
         ]
         if logo:
-            out.append(f'<image href="{logo}" x="5" y="3" width="34" height="14" preserveAspectRatio="xMidYMid meet"/>')
+            out.append(f'<circle cx="14" cy="12" r="10" fill="#FFFFFF" opacity="0.96"/>')
+            out.append(f'<image href="{logo}" x="5" y="3" width="18" height="18" preserveAspectRatio="xMidYMid meet"/>')
         else:
-            out.append('<text x="5" y="11" font-family="Arial,sans-serif" font-size="7" font-weight="900" fill="#FFFFFF">FB-BINGO</text>')
+            out.append('<circle cx="14" cy="12" r="10" fill="#FFFFFF" opacity="0.96"/>')
+            out.append('<text x="14" y="14.4" text-anchor="middle" font-family="Arial,sans-serif" font-size="6.4" font-weight="900" fill="#1A67B7">FB</text>')
+            out.append('<text x="14" y="19" text-anchor="middle" font-family="Arial,sans-serif" font-size="3.2" font-weight="900" fill="#FF4FA3">BINGO</text>')
+        out.append(f'<text x="31" y="10.5" font-family="Arial,sans-serif" font-size="6.2" font-weight="900" fill="#1764B0">FB-BINGO</text>')
+        out.append(f'<text x="31" y="17" font-family="Arial,sans-serif" font-size="4.2" font-weight="bold" fill="#1764B0">¡LA DIVERSIÓN QUE NOS UNE!</text>')
+        out.append(f'<rect x="{width-badge_w-5:.2f}" y="3" width="{badge_w:.2f}" height="8" rx="2.5" fill="#FF4FA3"/>')
+        out.append(f'<text x="{width-badge_w/2-5:.2f}" y="8.8" text-anchor="middle" font-family="Arial,sans-serif" font-size="4.3" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
+        out.append(f'<text x="{width-5:.2f}" y="18.5" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
         if self.style.show_model:
             out.append(f'<text x="{width/2:.2f}" y="10.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="5.2" font-weight="bold" fill="#FFFFFF">MODELO {escape(card.model.value)}</text>')
-        out.append(f'<text x="{width-5:.2f}" y="10.5" text-anchor="end" font-family="Arial,sans-serif" font-size="5.2" font-weight="bold" fill="#FFFFFF">SERIE {series} · CARTÓN {card_number}</text>')
         for row in range(3):
             for column in range(9):
                 cx, cy = column * cell_w, header + row * cell_h
                 value = card.grid[row][column]
-                fill = self.style.background_color if value is not None else self.style.empty_cell_color
-                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" fill="{escape(fill)}" stroke="{escape(self.style.border_color)}" stroke-width="0.55"/>')
+                if value is not None:
+                    fill = self.style.background_color
+                elif (row + column) % 2 == 0:
+                    fill = self.style.empty_cell_color
+                else:
+                    fill = "#EEF8FF"
+                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="1.2" fill="{escape(fill)}" stroke="{escape(self.style.accent_color)}" stroke-width="0.55"/>')
                 if value is not None:
                     out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.68:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="{escape(self.style.number_color)}">{value}</text>')
+                elif (row + column) % 3 == 1:
+                    out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.68:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" fill="{escape(self.style.accent_color)}">★</text>')
+        out.append(f'<rect x="3" y="{height-footer:.2f}" width="{width-6:.2f}" height="{footer-1:.2f}" rx="3" fill="#F7FBFF" opacity="0.98"/>')
+        out.append(f'<text x="8" y="{height-3:.2f}" font-family="Arial,sans-serif" font-size="4.1" font-weight="900" fill="#1764B0">SERIE {series}</text>')
+        out.append(f'<text x="{width/2:.2f}" y="{height-3:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="3.8" font-weight="bold" fill="#1764B0">BINGO DE 90 BOLAS · JUEGA · DIVIÉRTETE · GANA</text>')
         if self.style.show_qr_zone:
-            qr_size = min(9.0, footer - 2.0)
-            qr_x, qr_y = width - qr_size - 5, height - qr_size - 2
+            qr_size = min(13.0, footer - 1.5)
+            qr_x, qr_y = width - qr_size - 5, height - qr_size - 1.5
             out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
-            out.append(f'<text x="{qr_x-2:.2f}" y="{height-3:.2f}" text-anchor="end" font-family="Arial,sans-serif" font-size="3.2" fill="{escape(self.style.number_color)}">{escape(self.style.qr_caption)}</text>')
+            out.append(f'<path d="M{qr_x+2:.2f} {qr_y+2:.2f}h3v3h-3z M{qr_x+7:.2f} {qr_y+2:.2f}h3v3h-3z M{qr_x+2:.2f} {qr_y+7:.2f}h3v3h-3z M{qr_x+7:.2f} {qr_y+7:.2f}h2v2h-2z" fill="#111827"/>')
         if self.style.show_serial:
-            out.append(f'<text x="{width/2:.2f}" y="{height-3:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="4.2" fill="{escape(self.style.number_color)}">SERIAL: {serial}</text>')
+            out.append(f'<text x="{width-5:.2f}" y="{height-3:.2f}" text-anchor="end" font-family="Arial,sans-serif" font-size="3.2" fill="#1764B0">ID: {serial}</text>')
         out.append('</g>')
         return '\n'.join(out)
