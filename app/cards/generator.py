@@ -55,7 +55,11 @@ class SeriesGenerator:
         best_grids = None
         best_score = -10**9
 
-        for _ in range(64):
+        # Un puñado de candidatos basta para obtener variedad visual. Antes se
+        # intentaban 64 construcciones y cada una podía disparar una búsqueda
+        # exhaustiva de máscaras, lo que hacía que la suite de pruebas se
+        # prolongara durante decenas de minutos.
+        for _ in range(12):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -104,11 +108,10 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         if model is CardModel.A:
-            # Modelo A tiene una construcción exacta: una ocupación base de
-            # 1 por columna y 36 extras. Las columnas necesitan 3,4,...,4,5
-            # extras y cada cartón exactamente 6. La búsqueda trabaja sobre
-            # grados de un grafo bipartito, por lo que nunca devuelve una
-            # matriz de cargas desequilibrada.
+            # Modelo A: cada columna contiene entre 1 y 2 números por cartón.
+            # Los totales de las nueve columnas son 9,10,...,10,11; después de
+            # la ocupación base queda un problema pequeño de reparto de 36
+            # extras, exactamente 6 para cada cartón.
             targets = [9] + [10] * 7 + [11]
             extras = [target - CARDS_PER_SERIES for target in targets]
             remaining = [6] * CARDS_PER_SERIES
@@ -140,6 +143,8 @@ class SeriesGenerator:
                 raise RuntimeError("No se pudo equilibrar la distribución de Modelo A")
             return result
 
+        # Modelo B conserva los mismos totales de columna, pero permite hasta
+        # 3 números en una columna.
         targets = [9] + [10] * 7 + [11]
         max_extra = 2
         remaining = [15 - COLUMNS] * CARDS_PER_SERIES
