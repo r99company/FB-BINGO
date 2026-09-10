@@ -15,13 +15,14 @@ class PrintStyle:
     """Visual settings for printed cards; game logic never depends on these."""
 
     background_color: str = "#FFFFFF"
-    empty_cell_color: str = "#F2E9FF"
+    empty_cell_color: str = "#F7DDE7"
     number_color: str = "#171B2B"
-    border_color: str = "#7D6BFF"
+    border_color: str = "#8FD9FF"
     accent_color: str = "#FF4FA3"
     secondary_accent_color: str = "#8FD9FF"
     logo_path: str | None = None
-    show_model: bool = True
+    # Model A/B is an internal generation rule and is not printed on the ticket.
+    show_model: bool = False
     show_serial: bool = True
     show_qr_zone: bool = False
     qr_caption: str = "ESCANEA PARA VERIFICAR"
