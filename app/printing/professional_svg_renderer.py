@@ -50,7 +50,7 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
             qr_size = min(40.0, max(34.0, header + 3.0))
             qr_x = width - qr_size - 3.0
             qr_y = 2.0
-            out.append(f'<rect x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.5" fill="#FFFFFF" stroke="#D7E5EF" stroke-width="0.8"/>')
+            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.5" fill="#FFFFFF" stroke="#D7E5EF" stroke-width="0.8"/>')
             q = qr_x + 3.0
             s = qr_size - 6.0
             finder = 9.0
