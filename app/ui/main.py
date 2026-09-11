@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__
 
 import sys
 import threading
@@ -188,7 +188,7 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
 
 
 def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
-    self.setMinimumSize(1180, 700); self.resize(1480, 860)
+    self.setMinimumSize(1200, 700); self.resize(1480, 860)
     root = self.centralWidget()
     if root is not None:
         root.setStyleSheet(root.styleSheet() + """
