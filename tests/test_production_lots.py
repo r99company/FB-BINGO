@@ -2,7 +2,13 @@ import pytest
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-from app.production import DuplicateProductionError, ProductionService, plan_lot
+from app.production import (
+    MAX_SUPPORTED_PRODUCTION_CAPACITY,
+    VALIDATED_PRODUCTION_CAPACITY,
+    DuplicateProductionError,
+    ProductionService,
+    plan_lot,
+)
 
 
 def test_1500_cards_make_250_series() -> None:
@@ -11,20 +17,30 @@ def test_1500_cards_make_250_series() -> None:
     assert lot.series_count == 250
 
 
+def test_validated_default_capacity_is_15000() -> None:
+    assert VALIDATED_PRODUCTION_CAPACITY == 15_000
+    lot = plan_lot(14_995, 15_000)
+    assert lot.card_count == 6
+    assert lot.series_count == 1
+    with pytest.raises(ValueError):
+        plan_lot(15_001, 15_006)
+
+
+def test_30000_remains_explicitly_supported() -> None:
+    assert MAX_SUPPORTED_PRODUCTION_CAPACITY == 30_000
+    lot = plan_lot(29_995, 30_000, max_cards=MAX_SUPPORTED_PRODUCTION_CAPACITY)
+    assert lot.card_count == 6
+    assert lot.series_count == 1
+    with pytest.raises(ValueError):
+        plan_lot(30_001, 30_006, max_cards=MAX_SUPPORTED_PRODUCTION_CAPACITY)
+
+
 def test_printing_metadata_can_start_at_any_card_when_quantity_is_six() -> None:
     assert plan_lot(2, 7).card_count == 6
     assert plan_lot(3, 8).card_count == 6
     assert plan_lot(1501, 1506).card_count == 6
     with pytest.raises(ValueError, match="múltiplo de 6"):
         plan_lot(2, 8)
-
-
-def test_official_capacity_is_30000() -> None:
-    lot = plan_lot(29_995, 30_000)
-    assert lot.card_count == 6
-    assert lot.series_count == 1
-    with pytest.raises(ValueError):
-        plan_lot(30_001, 30_006)
 
 
 def test_configured_capacity_must_be_positive_and_cover_requested_range() -> None:
@@ -37,6 +53,8 @@ def test_service_uses_configured_capacity(tmp_path) -> None:
     service = ProductionService(repository, max_cards=30_000)
     lot = service.create_lot(29_995, 30_000, CardModel.A, operator="test")
     assert lot.start_card == 29_995 and lot.end_card == 30_000
+    with pytest.raises(ValueError, match="máxima soportada"):
+        ProductionService(repository, max_cards=30_001)
 
 
 def test_generation_persists_series_and_reports_progress(tmp_path) -> None:
@@ -75,9 +93,7 @@ def test_arbitrary_print_range_reads_existing_cards_without_generating(tmp_path)
     repository.save(generator.generate("0001", CardModel.A, serial_start=1))
     repository.save(generator.generate("0002", CardModel.A, serial_start=7))
     before = repository.count_cards()
-
     requested = repository.get_cards_range(2, 7)
-
     assert [int(card.serial.split("-")[-1]) for card in requested] == list(range(2, 8))
     assert repository.count_cards() == before
     assert repository.get_series_id_for_card("2") == "0001"
@@ -127,7 +143,6 @@ def test_generation_can_resume_after_a_failure(tmp_path) -> None:
         service.generate_lot(lot.lot_id)
     assert service.get_lot(lot.lot_id).status == "failed"
     assert len(repository.get("0001").cards) == 6
-
     resumed = ProductionService(repository, generator=SeriesGenerator(seed=456)).generate_lot(lot.lot_id)
     assert resumed.status == "generated"
     assert len(repository.get("0002").cards) == 6
