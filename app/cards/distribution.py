@@ -25,16 +25,10 @@ class DistributionModel:
         return cls(model=model)
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
-        """Distribuye 90 números entre las 6 matrices sin forzar 1 por columna.
-
-        Una columna de un cartón puede quedar vacía. En una serie completa,
-        las seis matrices siguen repartiendo todos los números de esa columna
-        (9, 10 u 11 según el rango), y cada cartón conserva exactamente 15.
-        """
+        """Distribuye 90 números entre 6 cartones sin forzar las 9 columnas."""
         targets = [9] + [10] * 7 + [11]
         max_per_column = 2 if self.model is CardModel.A else 3
-        remaining = [NUMBERS_PER_CARD] * CARDS_PER_SERIES
-        result = [[0] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        full_mask = (1 << CARDS_PER_SERIES) - 1
         columns = sorted(range(COLUMNS), key=lambda c: (-targets[c], rng.random()))
         cache: dict[tuple[int, int], list[tuple[int, ...]]] = {}
 
@@ -50,54 +44,50 @@ class DistributionModel:
                 cache[key] = values
             return cache[key]
 
-        def assign(position: int) -> bool:
-            if position == COLUMNS:
-                return remaining == [0] * CARDS_PER_SERIES
-            column = columns[position]
-            target = targets[column]
-            future_columns = columns[position + 1:]
-            future_capacity = len(future_columns) * max_per_column
-            future_total = sum(targets[c] for c in future_columns)
-            for allocation in candidates(target):
-                next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
-                if min(next_remaining) < 0:
-                    continue
-                if sum(next_remaining) != future_total:
-                    continue
-                if any(value > future_capacity for value in next_remaining):
-                    continue
-                old_remaining = remaining[:]
-                for card_index, count in enumerate(allocation):
-                    result[card_index][column] = count
-                remaining[:] = next_remaining
-                if assign(position + 1):
-                    return True
-                remaining[:] = old_remaining
-            return False
+        for _attempt in range(64):
+            remaining = [NUMBERS_PER_CARD] * CARDS_PER_SERIES
+            result = [[0] * COLUMNS for _ in range(CARDS_PER_SERIES)]
 
-        if not assign(0):
-            raise RuntimeError(f"No se pudo equilibrar la distribución del Modelo {self.model.value}")
-
-        # Evita el caso visual que el usuario quiere eliminar: un cartón que
-        # ocupa obligatoriamente las nueve columnas. La búsqueda mantiene
-        # siempre 15 números y 5 por fila; solo cambia la ocupación de columnas.
-        if any(0 not in counts for counts in result):
-            # Intercambiar ocupaciones entre cartones no cambia los totales de
-            # cada columna. Probamos reasignaciones deterministas hasta lograr
-            # al menos una columna vacía por matriz.
-            for _ in range(128):
-                for column in rng.sample(range(COLUMNS), COLUMNS):
-                    donor = max(range(CARDS_PER_SERIES), key=lambda i: result[i][column])
-                    receiver = min(range(CARDS_PER_SERIES), key=lambda i: result[i][column])
-                    if result[donor][column] <= 0 or result[receiver][column] >= max_per_column:
+            def assign(position: int, zero_mask: int) -> bool:
+                if position == COLUMNS:
+                    return remaining == [0] * CARDS_PER_SERIES and zero_mask == full_mask
+                column = columns[position]
+                future_columns = columns[position + 1:]
+                future_count = len(future_columns)
+                future_total = sum(targets[c] for c in future_columns)
+                for allocation in candidates(targets[column]):
+                    next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
+                    if min(next_remaining) < 0 or sum(next_remaining) != future_total:
                         continue
-                    trial = [row[:] for row in result]
-                    trial[donor][column] -= 1
-                    trial[receiver][column] += 1
-                    if all(sum(row) == NUMBERS_PER_CARD for row in trial) and all(0 in row for row in trial):
-                        result = trial
-                        return result
-        return result
+                    if any(value > future_count * max_per_column for value in next_remaining):
+                        continue
+                    next_zero_mask = zero_mask
+                    for card_index, count in enumerate(allocation):
+                        if count == 0:
+                            next_zero_mask |= 1 << card_index
+                    if future_count == 0 and next_zero_mask != full_mask:
+                        continue
+                    if future_count:
+                        impossible_zero = any(
+                            not (next_zero_mask & (1 << i))
+                            and next_remaining[i] == future_count * max_per_column
+                            for i in range(CARDS_PER_SERIES)
+                        )
+                        if impossible_zero:
+                            continue
+                    old_remaining = remaining[:]
+                    for card_index, count in enumerate(allocation):
+                        result[card_index][column] = count
+                    remaining[:] = next_remaining
+                    if assign(position + 1, next_zero_mask):
+                        return True
+                    remaining[:] = old_remaining
+                return False
+
+            if assign(0, 0):
+                return result
+
+        raise RuntimeError(f"No se pudo equilibrar la distribución del Modelo {self.model.value}")
 
     @staticmethod
     def _transitions(mask: int) -> int:
