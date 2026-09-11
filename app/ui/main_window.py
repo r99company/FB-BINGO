@@ -128,7 +128,6 @@ class BingoMainWindow(QMainWindow):
         outer.addLayout(self._build_center(), 1)
         outer.addWidget(self._build_footer())
         self._operator_shortcuts = []
-        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self); verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); verify_shortcut.setAutoRepeat(False); verify_shortcut.activated.connect(lambda: getattr(self, "open_verification", lambda: None)()); self._operator_shortcuts.append(verify_shortcut)
         fullscreen_shortcut = QShortcut(QKeySequence("F11"), self); fullscreen_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); fullscreen_shortcut.setAutoRepeat(False); fullscreen_shortcut.activated.connect(self._toggle_fullscreen); self._operator_shortcuts.append(fullscreen_shortcut)
 
     def _toggle_fullscreen(self) -> None:
