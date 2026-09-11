@@ -174,3 +174,23 @@ def test_generated_lot_can_be_marked_printed_repeatedly(tmp_path) -> None:
     assert printed.status == "printed"
     assert repeated.status == "printed"
     assert service.get_lot(lot.lot_id).status == "printed"
+
+
+def test_production_keeps_new_card_layouts_unique_and_non_repetitive(tmp_path) -> None:
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    service = ProductionService(repository, generator=SeriesGenerator(seed=20260910))
+    lot = service.create_lot(1, 600, CardModel.A, operator="uniqueness-test")
+    result = service.generate_lot(lot.lot_id)
+
+    assert result.status == "generated"
+    cards = repository.get_cards_range(1, 600)
+    signatures = {service._layout_signature(card) for card in cards}
+    assert len(signatures) == 600
+
+    masks = [service._layout_mask(card) for card in cards]
+    for index in range(1, len(masks)):
+        previous_window = masks[max(0, index - service.RECENT_LAYOUT_WINDOW):index]
+        assert all(
+            service._mask_distance(masks[index], previous) >= service.MIN_RECENT_LAYOUT_DISTANCE
+            for previous in previous_window
+        )
