@@ -74,8 +74,10 @@ class ModernA4SvgRenderer:
         footer = min(12.0, height * 0.12) if self.style.show_footer else 2.0
         grid_top = header + 1.5
         grid_bottom = height - footer - 1.5
-        gap_x = min(0.9, width / 120.0)
-        gap_y = min(1.0, max(0.6, height / 55.0))
+        # La separación es intencional: evita que las tres filas parezcan una
+        # sola tabla compacta y mantiene cada número visualmente independiente.
+        gap_x = min(1.45, max(1.0, width / 78.0))
+        gap_y = min(1.65, max(1.15, height / 48.0))
         cell_w = (width - gap_x * 8) / 9
         cell_h = (grid_bottom - grid_top - gap_y * 2) / 3
         logo = self._logo_href()
@@ -102,7 +104,6 @@ class ModernA4SvgRenderer:
         if self.style.show_tagline:
             out.append(f'<text x="31" y="17" font-family="{font},Arial,sans-serif" font-size="4.2" font-weight="bold" fill="#1764B0">{escape(self.style.brand_tagline)}</text>')
 
-        # El QR queda arriba a la derecha, como en la referencia física.
         if self.style.show_qr_zone:
             qr_size = min(12.0, max(9.0, header - 6.0))
             qr_x = width - qr_size - 4.0
@@ -124,7 +125,7 @@ class ModernA4SvgRenderer:
                     fill = self.style.empty_cell_color
                 else:
                     fill = "#EEF8FF"
-                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="1.8" fill="{escape(fill)}" stroke="{escape(self.style.accent_color)}" stroke-width="0.55"/>')
+                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="2.2" fill="{escape(fill)}" stroke="{escape(self.style.accent_color)}" stroke-width="0.55"/>')
                 if value is not None:
                     out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.68:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="{number_size:.1f}" font-weight="900" fill="{escape(self.style.number_color)}">{value}</text>')
                 elif (row + column) % 3 == 1:
