@@ -106,6 +106,12 @@ class ProductionService:
         return True
 
     def create_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
+        # Este método es exclusivamente de GENERACIÓN. Nunca permite que un
+        # rango de impresión como 2–7 sea reinterpretado como una nueva serie.
+        if start_card < 1 or end_card < start_card:
+            raise ValueError("El rango de generación no es válido")
+        if (start_card - 1) % 6 != 0 or (end_card - start_card + 1) % 6 != 0:
+            raise ValueError("La generación debe comenzar al inicio de una serie y usar bloques de 6 cartones")
         planned = plan_lot(start_card, end_card, model=model, operator=operator, max_cards=self.max_cards)
         with self.repository._connect() as db:
             row = db.execute("SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots").fetchone()
@@ -203,8 +209,8 @@ class ProductionService:
             raise
         self._set_status(lot_id, "generated")
         return ProductionLot(lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-                              series_count=lot.series_count, model=lot.model, operator=lot.operator,
-                              status="generated", created_at=lot.created_at)
+                             series_count=lot.series_count, model=lot.model, operator=lot.operator,
+                             status="generated", created_at=lot.created_at)
 
     def mark_printed(self, lot_id: int) -> ProductionLot:
         lot = self.get_lot(lot_id)
