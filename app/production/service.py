@@ -5,28 +5,22 @@ import json
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-
 from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
-    """Raised when persisted card data is incomplete or internally inconsistent."""
+    """La biblioteca existente está incompleta o es internamente inconsistente."""
 
 
 class ProductionService:
-    """Coordinates six-card generation and repeatable printing/reprinting."""
+    """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
     MIN_RECENT_LAYOUT_DISTANCE = 6
     RELAXED_LAYOUT_DISTANCES = (6, 4, 2, 0)
     MAX_LAYOUT_RETRIES = 12
 
-    def __init__(
-        self,
-        repository: SQLiteSeriesRepository,
-        generator: SeriesGenerator | None = None,
-        max_cards: int = DEFAULT_PRODUCTION_CAPACITY,
-    ) -> None:
+    def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
         if max_cards < 1:
             raise ValueError("La capacidad de producción debe ser positiva")
         self.repository = repository
@@ -48,32 +42,22 @@ class ProductionService:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_production_range
-                    ON production_lots(start_card, end_card);
+                CREATE INDEX IF NOT EXISTS idx_production_range ON production_lots(start_card, end_card);
                 """
             )
 
     @staticmethod
     def _lot_from_row(row) -> ProductionLot:
         return ProductionLot(
-            lot_id=int(row["lot_id"]),
-            start_card=int(row["start_card"]),
-            end_card=int(row["end_card"]),
-            series_count=int(row["series_count"]),
-            model=CardModel(row["model"]),
-            operator=row["operator"],
-            status=row["status"],
-            created_at=row["created_at"],
+            lot_id=int(row["lot_id"]), start_card=int(row["start_card"]), end_card=int(row["end_card"]),
+            series_count=int(row["series_count"]), model=CardModel(row["model"]), operator=row["operator"],
+            status=row["status"], created_at=row["created_at"],
         )
 
     def _existing_serials_for_range(self, start_card: int, end_card: int) -> list[str]:
         with self.repository._connect() as db:
             rows = db.execute(
-                """
-                SELECT serial FROM cards
-                WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ?
-                ORDER BY CAST(substr(serial, -6) AS INTEGER)
-                """,
+                "SELECT serial FROM cards WHERE CAST(substr(serial, -6) AS INTEGER) BETWEEN ? AND ? ORDER BY CAST(substr(serial, -6) AS INTEGER)",
                 (start_card, end_card),
             ).fetchall()
         return [str(row["serial"]) for row in rows]
@@ -94,15 +78,14 @@ class ProductionService:
         last_series = (end_card - 1) // 6 + 1
         for series_number in range(first_series, last_series + 1):
             canonical_start = (series_number - 1) * 6 + 1
-            canonical_end = canonical_start + 5
-            yield f"{series_number:04d}", canonical_start, canonical_end
+            yield f"{series_number:04d}", canonical_start, canonical_start + 5
 
     @staticmethod
     def _layout_signature(card) -> str:
         return json.dumps(card.grid, separators=(",", ":"), ensure_ascii=False)
 
     @staticmethod
-    def _layout_mask(card) -> tuple[tuple[bool, ...], ...]:
+    def _layout_mask(card):
         return tuple(tuple(cell is not None for cell in row) for row in card.grid)
 
     @staticmethod
@@ -111,21 +94,15 @@ class ProductionService:
 
     def _candidate_is_unique_and_dynamic(self, series, used_layouts: set[str], recent_masks: list, min_distance: int) -> bool:
         signatures = [self._layout_signature(card) for card in series.cards]
-        if len(signatures) != len(set(signatures)):
+        if len(signatures) != len(set(signatures)) or any(signature in used_layouts for signature in signatures):
             return False
-        if any(signature in used_layouts for signature in signatures):
-            return False
-
         masks = [self._layout_mask(card) for card in series.cards]
         for left in range(len(masks)):
             for right in range(left + 1, len(masks)):
                 if self._mask_distance(masks[left], masks[right]) < min_distance:
                     return False
-
-        if min_distance:
-            for mask in masks:
-                if any(self._mask_distance(mask, previous) < min_distance for previous in recent_masks):
-                    return False
+        if min_distance and any(self._mask_distance(mask, previous) < min_distance for mask in masks for previous in recent_masks):
+            return False
         return True
 
     def create_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
@@ -144,28 +121,17 @@ class ProductionService:
         return lot
 
     def next_generation_start(self, card_count: int = 6) -> int:
-        """Return the first unused series-aligned block for a new production."""
         if card_count < 6 or card_count % 6:
             raise ValueError("La nueva producción debe usar una cantidad múltiplo de 6")
         start = self.repository.next_free_series_start(self.max_cards, 6)
         end = start + card_count - 1
         if end > self.max_cards:
             raise ValueError(f"No hay espacio para {card_count:,} cartones nuevos hasta {self.max_cards:,}")
-        # Find the first block that is entirely free, not merely its first six cards.
         while self._existing_serials_for_range(start, end):
             start += 6
             if start + card_count - 1 > self.max_cards:
                 raise ValueError(f"No hay un bloque de {card_count:,} cartones libres hasta {self.max_cards:,}")
         return start
-
-    def create_new_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
-        """Create a genuinely new production; it never silently reuses printed cards."""
-        planned = plan_lot(start_card, end_card, model=model, operator=operator, max_cards=self.max_cards)
-        if start_card != ((start_card - 1) // 6) * 6 + 1:
-            raise ValueError("Una nueva producción debe comenzar en el primer cartón de una serie de 6")
-        if self._existing_serials_for_range(start_card, end_card):
-            raise ValueError(f"El rango {start_card:,}–{end_card:,} ya existe. Para repetirlo use REIMPRIMIR.")
-        return self.create_lot(planned.start_card, planned.end_card, model=model, operator=operator)
 
     def get_lot(self, lot_id: int) -> ProductionLot:
         with self.repository._connect() as db:
@@ -186,36 +152,26 @@ class ProductionService:
         if not persisted:
             return False
         if persisted != expected:
-            raise DuplicateProductionError(
-                f"La serie {series_id} ya existe pero sus cartones no corresponden al rango {expected_start}-{expected_start + 5}"
-            )
+            raise DuplicateProductionError(f"La serie {series_id} existe pero sus cartones no corresponden al rango esperado")
         return True
 
     def generate_lot(self, lot_id: int, progress_callback: Callable[[int], None] | None = None) -> ProductionLot:
         lot = self.get_lot(lot_id)
-
-        # Un lote marcado como generado/impreso solo se puede reutilizar sin
-        # regenerar cuando TODOS sus cartones realmente existen en la BD.
         if lot.status in {"generated", "printed"} and self._range_is_fully_persisted(lot.start_card, lot.end_card):
-            result = ProductionLot(
-                lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-                series_count=lot.series_count, model=lot.model, operator=lot.operator,
-                status=lot.status, created_at=lot.created_at,
-            )
             if progress_callback:
                 progress_callback(lot.card_count)
-            return result
+            return ProductionLot(lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
+                                  series_count=lot.series_count, model=lot.model, operator=lot.operator,
+                                  status=lot.status, created_at=lot.created_at)
 
         self._set_status(lot_id, "generating")
         completed = 0
         used_layouts = self.repository.get_grid_signatures()
         recent_masks = [self._layout_mask(card) for card in self.repository.get_recent_cards(self.RECENT_LAYOUT_WINDOW)]
-
         try:
             for series_id, canonical_start, canonical_end in self._canonical_series_ranges(lot.start_card, lot.end_card):
                 if canonical_end > self.max_cards:
                     raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
-
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
                     for min_distance in self.RELAXED_LAYOUT_DISTANCES:
@@ -226,23 +182,17 @@ class ProductionService:
                                 break
                         if series is not None:
                             break
-
                     if series is None:
-                        raise DuplicateProductionError(
-                            f"No se pudo encontrar una distribución nueva para la serie {series_id}. "
-                            "La biblioteca actual puede contener demasiados patrones similares."
-                        )
+                        raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id}")
                     try:
                         self.repository.save(series)
                     except ValueError as exc:
                         raise DuplicateProductionError(str(exc)) from exc
-
                     masks = [self._layout_mask(card) for card in series.cards]
                     used_layouts.update(self._layout_signature(card) for card in series.cards)
                     recent_masks.extend(masks)
                     if len(recent_masks) > self.RECENT_LAYOUT_WINDOW:
                         recent_masks[:] = recent_masks[-self.RECENT_LAYOUT_WINDOW:]
-
                 overlap_start = max(lot.start_card, canonical_start)
                 overlap_end = min(lot.end_card, canonical_end)
                 completed += max(0, overlap_end - overlap_start + 1)
@@ -251,13 +201,10 @@ class ProductionService:
         except Exception:
             self._set_status(lot_id, "failed")
             raise
-
         self._set_status(lot_id, "generated")
-        return ProductionLot(
-            lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-            series_count=lot.series_count, model=lot.model, operator=lot.operator,
-            status="generated", created_at=lot.created_at,
-        )
+        return ProductionLot(lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
+                              series_count=lot.series_count, model=lot.model, operator=lot.operator,
+                              status="generated", created_at=lot.created_at)
 
     def mark_printed(self, lot_id: int) -> ProductionLot:
         lot = self.get_lot(lot_id)
@@ -266,8 +213,6 @@ class ProductionService:
         if lot.status != "generated":
             raise ValueError("El lote debe estar generado antes de marcarlo como impreso")
         self._set_status(lot_id, "printed")
-        return ProductionLot(
-            lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-            series_count=lot.series_count, model=lot.model, operator=lot.operator,
-            status="printed", created_at=lot.created_at,
-        )
+        return ProductionLot(lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
+                             series_count=lot.series_count, model=lot.model, operator=lot.operator,
+                             status="printed", created_at=lot.created_at)
