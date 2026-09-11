@@ -21,12 +21,12 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_allow_zero_to_two_numbers_per_column_and_have_empty_columns() -> None:
+def test_model_a_generated_cards_use_one_to_two_numbers_in_every_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(0 <= count <= 2 for count in card.column_counts)
-        assert 0 in card.column_counts
+        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert sum(count == 2 for count in card.column_counts) == 6
         assert card.model is CardModel.A
 
 
@@ -108,9 +108,9 @@ def test_representative_series_allow_repeats_but_not_three_identical_column_patt
             assert not (patterns[index] == patterns[index - 1] == patterns[index - 2])
 
 
-def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
+def test_model_a_requires_all_nine_columns_to_be_occupied() -> None:
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
         for card in series.cards:
             assert len(card.numbers) == 15
-            assert 0 in card.column_counts
+            assert all(1 <= count <= 2 for count in card.column_counts)
