@@ -23,7 +23,7 @@ class PrintStyle:
     logo_path: str | None = None
     show_model: bool = False
     show_serial: bool = True
-    show_qr_zone: bool = False
+    show_qr_zone: bool = True
     qr_caption: str = "ESCANEA PARA VERIFICAR"
     brand_title: str = "FB-BINGO"
     brand_tagline: str = "¡LA DIVERSIÓN QUE NOS UNE!"
