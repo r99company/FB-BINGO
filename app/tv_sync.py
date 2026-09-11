@@ -32,11 +32,12 @@ class GameSyncServer:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             server.bind((self.host, self._requested_port))
-        except OSError:
-            if self._requested_port == 0:
-                server.close()
-                raise
-            server.bind((self.host, 0))
+        except OSError as exc:
+            server.close()
+            raise OSError(
+                f"No se pudo abrir el puerto de sincronización {self._requested_port}. "
+                "Verifique que no esté siendo usado por otra instancia de FB-BINGO."
+            ) from exc
         self.port = int(server.getsockname()[1])
         server.listen(8)
         server.settimeout(0.25)
@@ -161,10 +162,6 @@ def _install_admin_station_sync(window: Any) -> None:
         window.station_sync_role = "locutora"
         return
 
-    local_server = getattr(window, "tv_sync_server", None)
-    if local_server is not None:
-        local_server.shutdown()
-
     client = GameSyncClient(
         str(settings.get("tv_server_host", "127.0.0.1")),
         int(settings.get("tv_server_port", 8765)),
@@ -205,21 +202,31 @@ def _install_admin_station_sync(window: Any) -> None:
                 raise ValueError("Bola remota inválida")
             if any(not 1 <= n <= 90 for n in history) or len(history) != len(set(history)):
                 raise ValueError("Historial remoto inválido")
-            if history != window.game.history or bool(state.get("status") == "PAUSADA") != bool(window.game.state.paused):
+            remote_status = str(state.get("status", "EN ESPERA"))
+            remote_paused = remote_status == "PAUSADA"
+            if history != window.game.history or remote_paused != bool(window.game.state.paused):
                 remaining = tuple(n for n in range(1, 91) if n not in history)
                 window.game.restore(
                     GameState(
                         drawn_numbers=history,
                         remaining_numbers=remaining,
-                        paused=state.get("status") == "PAUSADA",
+                        paused=remote_paused,
                     )
                 )
                 window._sync_ui()
-            if history:
-                window.ball_message.setText(
-                    f"✓ SINCRONIZADO · ÚLTIMA BOLA {history[-1]} · {len(history)} BOLAS"
-                )
+            if remote_status == "FINALIZADA":
+                window._finalized = True
+                window.header_values[1].setText("FINALIZADA")
+                window.ball_message.setText("✓ PARTIDA FINALIZADA · ESTADO RECIBIDO DE LOCUTORA")
+            elif remote_status == "PAUSADA":
+                window._finalized = False
+                window.header_values[1].setText("PAUSADA")
+                window.ball_message.setText("Ⅱ PARTIDA PAUSADA · ESTADO RECIBIDO DE LOCUTORA")
+            elif history:
+                window._finalized = False
+                window.ball_message.setText(f"✓ SINCRONIZADO · ÚLTIMA BOLA {history[-1]} · {len(history)} BOLAS")
             else:
+                window._finalized = False
                 window.ball_message.setText("✓ SINCRONIZADO · ESPERANDO PRIMERA BOLA")
             if state.get("game"):
                 window.header_values[0].setText(str(state["game"]))
