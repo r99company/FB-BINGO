@@ -16,13 +16,12 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    # Con 15 casillas ocupadas sobre una matriz 3x9, exigir seis cambios
-    # respecto de cada una de las últimas 60 máscaras hace que la producción
-    # grande se quede sin candidatos aunque existan diseños nuevos. Cuatro
-    # conserva una separación visual clara y permite escalar hacia 30.000.
+    # Model A debe mantener una separación visual real entre cartones
+    # consecutivos. No se relaja a 2/0: eso permitía que la producción
+    # pasara con matrices demasiado parecidas.
     MIN_RECENT_LAYOUT_DISTANCE = 4
-    RELAXED_LAYOUT_DISTANCES = (4, 2, 0)
     MAX_LAYOUT_RETRIES = 12
+    EXTENDED_LAYOUT_RETRIES = 48
 
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
         if max_cards < 1:
@@ -182,16 +181,22 @@ class ProductionService:
                     raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
-                    for min_distance in self.RELAXED_LAYOUT_DISTANCES:
-                        for variant in range(self.MAX_LAYOUT_RETRIES):
-                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
-                            if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, min_distance):
-                                series = candidate
-                                break
-                        if series is not None:
+                    # Primero probamos un conjunto pequeño para conservar el
+                    # rendimiento normal. Si no basta, ampliamos la búsqueda
+                    # sin relajar la separación mínima.
+                    for variant in range(self.MAX_LAYOUT_RETRIES):
+                        candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
+                        if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, self.MIN_RECENT_LAYOUT_DISTANCE):
+                            series = candidate
                             break
                     if series is None:
-                        raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id}")
+                        for variant in range(self.MAX_LAYOUT_RETRIES, self.EXTENDED_LAYOUT_RETRIES):
+                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
+                            if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, self.MIN_RECENT_LAYOUT_DISTANCE):
+                                series = candidate
+                                break
+                    if series is None:
+                        raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id} con separación visual mínima de {self.MIN_RECENT_LAYOUT_DISTANCE}")
                     try:
                         self.repository.save(series)
                     except ValueError as exc:
