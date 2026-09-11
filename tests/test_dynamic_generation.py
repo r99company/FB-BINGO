@@ -13,10 +13,19 @@ def _distance(first, second):
     )
 
 
-def test_model_a_never_has_three_numbers_in_a_column():
+def test_model_a_all_nine_columns_are_occupied_with_one_or_two_numbers():
     series = SeriesGenerator(seed=1001).generate("MODEL-A", CardModel.A)
-    assert all(0 <= count <= 2 for card in series.cards for count in card.column_counts)
-    assert all(0 in card.column_counts for card in series.cards)
+    assert all(1 <= count <= 2 for card in series.cards for count in card.column_counts)
+    assert all(sum(count == 2 for count in card.column_counts) == 6 for card in series.cards)
+
+
+def test_model_a_alternates_adjacent_column_masks():
+    series = SeriesGenerator(seed=1006).generate("MODEL-A-ROWS", CardModel.A)
+    for card in series.cards:
+        masks = []
+        for column in range(9):
+            masks.append(tuple(row for row in range(3) if card.grid[row][column] is not None))
+        assert all(left != right for left, right in zip(masks, masks[1:]))
 
 
 def test_model_b_allows_three_numbers_in_a_column():
