@@ -5,7 +5,7 @@ import json
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
+from .models import MAX_SUPPORTED_PRODUCTION_CAPACITY, DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
@@ -16,9 +16,6 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    # Model A debe mantener una separación visual real entre cartones
-    # consecutivos. No se relaja a 2/0: eso permitía que la producción
-    # pasara con matrices demasiado parecidas.
     MIN_RECENT_LAYOUT_DISTANCE = 4
     MAX_LAYOUT_RETRIES = 12
     EXTENDED_LAYOUT_RETRIES = 48
@@ -26,6 +23,8 @@ class ProductionService:
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
         if max_cards < 1:
             raise ValueError("La capacidad de producción debe ser positiva")
+        if max_cards > MAX_SUPPORTED_PRODUCTION_CAPACITY:
+            raise ValueError(f"La capacidad máxima soportada es {MAX_SUPPORTED_PRODUCTION_CAPACITY:,} cartones")
         self.repository = repository
         self.generator = generator or SeriesGenerator(max_serial=max_cards)
         self.max_cards = max_cards
@@ -181,9 +180,6 @@ class ProductionService:
                     raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
-                    # Primero probamos un conjunto pequeño para conservar el
-                    # rendimiento normal. Si no basta, ampliamos la búsqueda
-                    # sin relajar la separación mínima.
                     for variant in range(self.MAX_LAYOUT_RETRIES):
                         candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
                         if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, self.MIN_RECENT_LAYOUT_DISTANCE):
