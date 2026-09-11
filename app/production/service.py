@@ -113,7 +113,6 @@ class ProductionService:
         signatures = [self._layout_signature(card) for card in series.cards]
         if len(signatures) != len(set(signatures)):
             return False
-        # Exact matrix duplication is never allowed, even when visual-distance rules are relaxed.
         if any(signature in used_layouts for signature in signatures):
             return False
 
@@ -170,15 +169,16 @@ class ProductionService:
 
     def generate_lot(self, lot_id: int, progress_callback: Callable[[int], None] | None = None) -> ProductionLot:
         lot = self.get_lot(lot_id)
-        if lot.status in {"generated", "printed"}:
-            return lot
 
-        if self._range_is_fully_persisted(lot.start_card, lot.end_card):
-            self._set_status(lot_id, "generated")
+        # Un lote marcado como generado/impreso solo se puede reutilizar sin
+        # regenerar cuando TODOS sus cartones realmente existen en la BD.
+        # Esto permite recuperar lotes que quedaron marcados por una ejecución
+        # anterior que falló antes de persistir las matrices.
+        if lot.status in {"generated", "printed"} and self._range_is_fully_persisted(lot.start_card, lot.end_card):
             result = ProductionLot(
                 lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
                 series_count=lot.series_count, model=lot.model, operator=lot.operator,
-                status="generated", created_at=lot.created_at,
+                status=lot.status, created_at=lot.created_at,
             )
             if progress_callback:
                 progress_callback(lot.card_count)
@@ -196,9 +196,6 @@ class ProductionService:
 
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
-                    # La separación visual se intenta primero con fuerza. Si la
-                    # biblioteca ya es grande, solo se relaja la distancia visual;
-                    # nunca se permite repetir una matriz exacta.
                     for min_distance in self.RELAXED_LAYOUT_DISTANCES:
                         for _ in range(self.MAX_LAYOUT_RETRIES):
                             candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
