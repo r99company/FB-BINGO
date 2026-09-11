@@ -181,8 +181,8 @@ class ProductionService:
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
                     for min_distance in self.RELAXED_LAYOUT_DISTANCES:
-                        for _ in range(self.MAX_LAYOUT_RETRIES):
-                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
+                        for variant in range(self.MAX_LAYOUT_RETRIES):
+                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
                             if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, min_distance):
                                 series = candidate
                                 break
