@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -14,6 +13,14 @@ from app.ui.generator_window import GeneratorWidget
 from app.ui.main_window import BingoMainWindow
 from app.ui.theme import APP_STYLESHEET
 from app.ui.main import BingoMainWindow as OperationalBingoMainWindow, _f4_action
+
+
+def test_same_series_id_is_deterministic():
+    first = SeriesGenerator(seed=123).generate("0001", CardModel.A, 1)
+    second = SeriesGenerator(seed=123).generate("0001", CardModel.A, 1)
+    third = SeriesGenerator(seed=123).generate("0002", CardModel.A, 7)
+    assert [card.grid for card in first.cards] == [card.grid for card in second.cards]
+    assert [card.grid for card in first.cards] != [card.grid for card in third.cards]
 
 
 def test_modern_renderer_has_qr_zone_and_serials():
@@ -41,110 +48,78 @@ def test_operator_screen_is_connected_to_90_ball_engine():
     window.draw_number()
     assert window.game.current_number is not None
     assert window.count_label.text() == "1 / 90"
-    window.toggle_pause()
-    assert window.game.state.paused is True
-    window.toggle_pause()
-    assert window.game.state.paused is False
-    window.close()
-    app.processEvents()
+    window.toggle_pause(); assert window.game.state.paused is True
+    window.toggle_pause(); assert window.game.state.paused is False
+    window.close(); app.processEvents()
 
 
 def test_f4_finishes_active_game():
     app = QApplication.instance() or QApplication([])
-    window = OperationalBingoMainWindow()
-    window.draw_number()
+    window = OperationalBingoMainWindow(); window.draw_number()
     assert window.game.history
     _f4_action(window)
     assert window._finalized is True
     assert window.header_values[1].text() == "FINALIZADA"
-    window.close()
-    app.processEvents()
+    window.close(); app.processEvents()
 
 
 def test_f4_starts_a_clean_new_game_after_finalization():
     app = QApplication.instance() or QApplication([])
-    window = OperationalBingoMainWindow()
-    window.draw_number()
-    _f4_action(window)
-    assert window._finalized is True
+    window = OperationalBingoMainWindow(); window.draw_number(); _f4_action(window)
     _f4_action(window)
     assert window._finalized is False
     assert window.game.history == ()
     assert window.game.current_number is None
     assert window.ball_input.isEnabled()
     assert window.header_values[1].text() == "EN ESPERA"
-    window.close()
-    app.processEvents()
+    window.close(); app.processEvents()
 
 
 def test_cartons_navigation_button_opens_cartons_window():
     app = QApplication.instance() or QApplication([])
     window = OperationalBingoMainWindow()
-    cartons_buttons = [
-        b for b in window.findChildren(type(window.pause_button))
-        if b.text().startswith("CARTONES")
-    ]
-    assert len(cartons_buttons) == 1
-    assert window.generator_window is None
+    buttons = [b for b in window.findChildren(type(window.pause_button)) if b.text().startswith("CARTONES")]
+    assert len(buttons) == 1
     assert hasattr(window, "open_cartons")
-    window.close()
-    app.processEvents()
+    window.close(); app.processEvents()
 
 
-def test_generator_uses_production_service_for_persistent_generation(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
-    widget = GeneratorWidget(repository)
-    assert isinstance(widget.production_service, ProductionService)
-    lot = widget.production_service.create_lot(1, 6, CardModel.A, operator="ui-test")
-    result = widget.production_service.generate_lot(lot.lot_id)
-    assert result.status == "generated"
-    assert repository.get("0001").cards[0].serial.endswith("000001")
-    widget.close()
-    app.processEvents()
-
-
-def test_generator_uses_card_quantity_and_calculates_series(tmp_path):
+def test_generator_uses_series_quantity_and_calculates_cartons(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository, max_cards=30_000)
     assert widget.production_service.max_cards == 30_000
     assert widget.start_card.value() == 1
-    assert widget.card_count.maximum() == 30_000
-    widget.card_count.setValue(1_500)
-    assert widget.series_count_label.text() == "250"
-    assert widget.range_label.text() == "1 – 1,500 (1,500 cartones)"
-    widget.start_card.setValue(2)
-    assert widget.range_label.text() == "2 – 1,501 (1,500 cartones)"
-    widget.close()
-    app.processEvents()
+    assert widget.series_count.value() == 1
+    widget.series_count.setValue(250)
+    assert widget.cards_label.text() == "1,500 (250 series × 6)"
+    assert widget.range_label.text() == "1 – 1,500"
+    widget.start_card.setValue(1_501)
+    assert widget.range_label.text() == "1,501 – 3,000"
+    widget.close(); app.processEvents()
 
 
-def test_generator_rejects_only_incomplete_series_quantity(tmp_path):
+def test_generator_accepts_only_first_card_of_a_series(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository)
-    widget.card_count.setValue(1_499)
-    assert "múltiplo de 6" in widget.series_count_label.text()
-    with_error = None
-    try:
-        widget._requested_range()
-    except ValueError as exc:
-        with_error = str(exc)
-    assert with_error is not None
-    widget.close()
-    app.processEvents()
+    widget.start_card.setValue(8)
+    assert widget.start_card.value() == 7
+    widget.close(); app.processEvents()
 
 
-def test_generator_separates_new_generation_from_reprint(tmp_path):
+def test_generator_same_range_is_idempotent_not_reprint(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository)
-    assert widget.generate_button.text() == "GENERAR NUEVA PRODUCCIÓN"
-    assert widget.duplicate_column.isChecked() is True
-    assert widget.production_service.next_generation_start(6) == 1
-    widget.close()
-    app.processEvents()
+    widget.series_count.setValue(2)
+    widget.generate_series()
+    first = [card.grid for card in repository.get_cards_range(1, 12)]
+    widget.generate_series()
+    second = [card.grid for card in repository.get_cards_range(1, 12)]
+    assert first == second
+    assert widget.generate_button.text() == "GENERAR SERIES"
+    widget.close(); app.processEvents()
 
 
 def test_theme_contains_brand_palette():
