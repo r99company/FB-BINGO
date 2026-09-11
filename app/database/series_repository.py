@@ -157,12 +157,7 @@ class SQLiteSeriesRepository:
         return [self.get(str(row["series_id"])) for row in rows]
 
     def get_grid_signatures(self) -> set[str]:
-        """Return exact grid JSON signatures already persisted.
-
-        This is intentionally a read-only uniqueness index in Python rather
-        than a DB UNIQUE constraint, so old printed data can remain immutable
-        even if an older database contains a duplicated layout.
-        """
+        """Return exact grid JSON signatures already persisted."""
         with self._connect() as db:
             rows = db.execute("SELECT grid_json FROM cards").fetchall()
         return {str(row["grid_json"]) for row in rows}
@@ -182,6 +177,22 @@ class SQLiteSeriesRepository:
                 (int(limit),),
             ).fetchall()
         return tuple(self._card_from_row(row) for row in rows)
+
+    def next_free_series_start(self, max_cards: int, series_size: int = 6) -> int:
+        """Find the first completely unused six-card block aligned to a series."""
+        if max_cards < series_size:
+            raise ValueError("La capacidad no permite una serie completa")
+        if series_size != 6:
+            raise ValueError("FB-BINGO trabaja con series físicas de 6 cartones")
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT CAST(substr(serial, -6) AS INTEGER) AS number FROM cards"
+            ).fetchall()
+        occupied = {int(row["number"]) for row in rows if 1 <= int(row["number"]) <= max_cards}
+        for start in range(1, max_cards - series_size + 2, series_size):
+            if all(number not in occupied for number in range(start, start + series_size)):
+                return start
+        raise ValueError(f"No quedan bloques de {series_size} cartones libres hasta {max_cards:,}")
 
     def count_cards(self) -> int:
         with self._connect() as db:
