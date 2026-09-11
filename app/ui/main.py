@@ -1,4 +1,4 @@
-from __future__
+from __future__ import annotations
 
 import sys
 import threading
@@ -30,7 +30,6 @@ _original_call_number = BingoMainWindow.call_number
 _original_undo_number = BingoMainWindow.undo_number
 _original_toggle_pause = BingoMainWindow.toggle_pause
 _original_new_game = BingoMainWindow.new_game
-_original_open_tv = BingoMainWindow.open_tv
 
 
 def _open_cartons(self: BingoMainWindow) -> None:
@@ -223,8 +222,14 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     self.history_repository = SQLiteGameHistoryRepository(database_path()); self.history_service = GameHistoryService(self.history_repository); self.history_game_id = None
     _install_model_selector(self)
     settings = SettingsService(application_data_dir() / "settings.json")
-    self.tv_sync_server = GameSyncServer(host="0.0.0.0", port=int(settings.get("tv_server_port", 8765)))
-    self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True); self.tv_sync_thread.start()
+    role = str(settings.get("station_role", "locutora")).lower().strip()
+    self.station_sync_role = "administrador" if role == "administrador" else "locutora"
+    self.tv_sync_server = None
+    self.tv_sync_thread = None
+    if self.station_sync_role == "locutora":
+        self.tv_sync_server = GameSyncServer(host="0.0.0.0", port=int(settings.get("tv_server_port", 8765)))
+        self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True)
+        self.tv_sync_thread.start()
     self.tv_sync_client = GameSyncClient(str(settings.get("tv_server_host", "127.0.0.1")), int(settings.get("tv_server_port", 8765)))
     self.open_cartons = lambda: _open_cartons(self); self.open_sales = lambda: _open_sales(self); self.open_verification = lambda: _open_verification(self); self.open_reports = lambda: _open_reports(self); self.open_settings = lambda: _open_settings(self); self.open_tv = lambda: _open_tv(self)
     self.enter_ball = lambda: _enter_ball_with_history(self); self.draw_number = lambda: _draw_with_history(self); self.call_number = lambda number: _call_with_history(self, number); self.undo_number = lambda: _undo_with_history(self); self.toggle_pause = lambda: _pause_with_history(self); self.finalize_game = lambda: _finalize_game_with_history(self); self.new_game = lambda: _new_game_with_history(self)
@@ -240,7 +245,33 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     _install_operator_shortcuts(self)
 
 
+def _close_operator_resources(self: BingoMainWindow) -> None:
+    timer = getattr(self, "station_sync_timer", None)
+    if timer is not None:
+        timer.stop()
+    server = getattr(self, "tv_sync_server", None)
+    if server is not None:
+        server.shutdown()
+    for attr in ("live_prizes_window", "verification_window", "sales_window", "reports_window", "settings_window", "cartons_window", "tv_window"):
+        window = getattr(self, attr, None)
+        if window is not None:
+            try: window.close()
+            except RuntimeError: pass
+
+
 BingoMainWindow.__init__ = _init_with_operational_modules
+_original_close_event = getattr(BingoMainWindow, "closeEvent", None)
+
+
+def _close_event_with_resources(self: BingoMainWindow, event) -> None:
+    _close_operator_resources(self)
+    if _original_close_event is not None:
+        _original_close_event(self, event)
+    else:
+        event.accept()
+
+
+BingoMainWindow.closeEvent = _close_event_with_resources
 
 
 def _run_self_test() -> int:
