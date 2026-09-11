@@ -137,7 +137,7 @@ def test_generation_can_resume_after_a_failure(tmp_path) -> None:
     with pytest.raises(RuntimeError, match="fallo de impresión simulado"):
         service.generate_lot(lot.lot_id)
 
-    assert service.get_lot(lot.lot_id).status == "generating"
+    assert service.get_lot(lot.lot_id).status == "failed"
     assert len(repository.get("0001").cards) == 6
 
     resumed = ProductionService(repository, generator=SeriesGenerator(seed=456)).generate_lot(lot.lot_id)
@@ -156,7 +156,7 @@ def test_mismatched_persisted_series_is_not_silently_reused(tmp_path) -> None:
     with pytest.raises(DuplicateProductionError, match="0002"):
         service.generate_lot(lot.lot_id)
 
-    assert service.get_lot(lot.lot_id).status == "generating"
+    assert service.get_lot(lot.lot_id).status == "failed"
 
 
 def test_generated_lot_can_be_marked_printed_repeatedly(tmp_path) -> None:
