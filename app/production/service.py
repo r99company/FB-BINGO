@@ -16,8 +16,12 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    MIN_RECENT_LAYOUT_DISTANCE = 6
-    RELAXED_LAYOUT_DISTANCES = (6, 4, 2, 0)
+    # Con 15 casillas ocupadas sobre una matriz 3x9, exigir seis cambios
+    # respecto de cada una de las últimas 60 máscaras hace que la producción
+    # grande se quede sin candidatos aunque existan diseños nuevos. Cuatro
+    # conserva una separación visual clara y permite escalar hacia 30.000.
+    MIN_RECENT_LAYOUT_DISTANCE = 4
+    RELAXED_LAYOUT_DISTANCES = (4, 2, 0)
     MAX_LAYOUT_RETRIES = 12
 
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
@@ -106,8 +110,6 @@ class ProductionService:
         return True
 
     def create_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
-        # Este método es exclusivamente de GENERACIÓN. Nunca permite que un
-        # rango de impresión como 2–7 sea reinterpretado como una nueva serie.
         if start_card < 1 or end_card < start_card:
             raise ValueError("El rango de generación no es válido")
         if (start_card - 1) % 6 != 0 or (end_card - start_card + 1) % 6 != 0:
