@@ -16,7 +16,7 @@ def test_operator_screen_has_board_left_and_clean_input_only():
     window = BingoMainWindow()
 
     assert len(window._buttons) == 90
-    assert window.ball_input.placeholderText() == "1–90"
+    assert window.ball_input.placeholderText() == "1 – 90"
     assert not hasattr(window, "finish_button")
     assert window.findChildren(QLineEdit) and window.ball_input in window.findChildren(QLineEdit)
 
