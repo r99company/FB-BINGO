@@ -156,6 +156,33 @@ class SQLiteSeriesRepository:
             rows = db.execute("SELECT series_id FROM series ORDER BY series_id").fetchall()
         return [self.get(str(row["series_id"])) for row in rows]
 
+    def get_grid_signatures(self) -> set[str]:
+        """Return exact grid JSON signatures already persisted.
+
+        This is intentionally a read-only uniqueness index in Python rather
+        than a DB UNIQUE constraint, so old printed data can remain immutable
+        even if an older database contains a duplicated layout.
+        """
+        with self._connect() as db:
+            rows = db.execute("SELECT grid_json FROM cards").fetchall()
+        return {str(row["grid_json"]) for row in rows}
+
+    def get_recent_cards(self, limit: int = 60) -> tuple[BingoCard, ...]:
+        """Load the most recently numbered cards for visual anti-repetition checks."""
+        if limit < 1:
+            return ()
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT serial, model, grid_json
+                FROM cards
+                ORDER BY CAST(substr(serial, -6) AS INTEGER) DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        return tuple(self._card_from_row(row) for row in rows)
+
     def count_cards(self) -> int:
         with self._connect() as db:
             row = db.execute("SELECT COUNT(*) AS total FROM cards").fetchone()
