@@ -54,16 +54,11 @@ class DistributionModel:
                 result.append(mapped)
             return result
 
-        # En A partimos de una ocupación de 1 por columna y repartimos
-        # exactamente seis "dobles" por cartón. Los dobles totales que exige
-        # cada columna son [3,4,4,4,4,4,4,4,5]. Se genera mediante intercambios
-        # aleatorios para evitar una plantilla rígida repetida entre series.
         target = [3] + [4] * 7 + [5]
         for _ in range(128):
             extras = [[False] * COLUMNS for _ in range(CARDS_PER_SERIES)]
             for card in range(CARDS_PER_SERIES):
-                chosen = rng.sample(range(COLUMNS), 6)
-                for column in chosen:
+                for column in rng.sample(range(COLUMNS), 6):
                     extras[card][column] = True
             totals = [sum(extras[card][column] for card in range(CARDS_PER_SERIES)) for column in range(COLUMNS)]
             guard = 0
@@ -88,7 +83,6 @@ class DistributionModel:
                 if all(sum(row) == NUMBERS_PER_CARD for row in result):
                     rng.shuffle(result)
                     assert [sum(row[column] for row in result) for column in range(COLUMNS)] == [9] + [10] * 7 + [11]
-                    assert all(all(value in (1, 2) for value in row) for row in result)
                     return result
         raise RuntimeError("No se pudo construir una distribución válida del modelo A")
 
@@ -122,7 +116,6 @@ class DistributionModel:
         if len(set(triple)) < 3:
             score -= 240
 
-        # Evita que dos columnas vecinas repitan el mismo patrón de filas.
         column_masks = []
         for column in range(COLUMNS):
             mask = sum((1 << row) for row in range(3) if triple[row] & (1 << column))
@@ -132,16 +125,7 @@ class DistributionModel:
                 score -= 110
             else:
                 score += 22
-            if left in (3, 5, 6) and right in (3, 5, 6) and left == right:
-                score -= 90
 
-        # Penaliza bloques largos de la misma fila y premia cambios de fila.
-        for row in range(3):
-            signature = triple[row]
-            score += cls._transitions(signature) * 6
-            score -= max(0, cls._longest_run(signature) - 2) * 12
-
-        # Reparte la actividad entre las zonas izquierda/centro/derecha.
         zones = [
             sum(bool(mask & (1 << c)) for mask in triple for c in range(0, 3)),
             sum(bool(mask & (1 << c)) for mask in triple for c in range(3, 6)),
@@ -165,7 +149,9 @@ class DistributionModel:
             return None
         forbidden = forbidden or [set(), set(), set()]
 
-        columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
+        # Procesar en orden físico es importante: la regla de alternancia se
+        # aplica a columnas vecinas reales, no al orden de dificultad.
+        columns = list(range(COLUMNS))
         empty_counts = tuple(3 - count for count in counts)
         choices = {
             empty_count: list(itertools.combinations(range(3), empty_count))
@@ -211,11 +197,8 @@ class DistributionModel:
                     if not all(0 <= value <= future for value in nxt) or not possible(position + 1, tuple(nxt)):
                         continue
                     occupied_mask = sum(1 << row for row in range(3) if row not in empty_rows)
-                    if previous_column_mask == occupied_mask:
-                        # En A evitamos apilar exactamente el mismo par/simple
-                        # de filas en columnas consecutivas.
-                        if self.model is CardModel.A:
-                            continue
+                    if self.model is CardModel.A and previous_column_mask == occupied_mask:
+                        continue
                     candidates.append((empty_rows, occupied_mask))
                 if not candidates:
                     return None
