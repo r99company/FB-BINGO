@@ -21,19 +21,21 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
+def test_model_a_generated_cards_allow_zero_to_two_numbers_per_column_and_have_empty_columns() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert all(0 <= count <= 2 for count in card.column_counts)
+        assert 0 in card.column_counts
         assert card.model is CardModel.A
 
 
-def test_model_b_generated_cards_allow_one_to_three_numbers_per_column() -> None:
+def test_model_b_generated_cards_allow_zero_to_three_numbers_per_column_and_have_empty_columns() -> None:
     series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert all(0 <= count <= 3 for count in card.column_counts)
+        assert 0 in card.column_counts
         assert card.model is CardModel.B
 
 
@@ -97,3 +99,4 @@ def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
         series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
         for card in series.cards:
             assert len(card.numbers) == 15
+            assert 0 in card.column_counts
