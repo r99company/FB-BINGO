@@ -149,8 +149,9 @@ class DistributionModel:
             return None
         forbidden = forbidden or [set(), set(), set()]
 
-        # Procesar en orden físico es importante: la regla de alternancia se
-        # aplica a columnas vecinas reales, no al orden de dificultad.
+        # El orden es el orden físico de las columnas. Así, la regla contra
+        # máscaras iguales compara columna 1 con 2, 2 con 3, etc.; nunca con
+        # un orden artificial por cantidad de números.
         columns = list(range(COLUMNS))
         empty_counts = tuple(3 - count for count in counts)
         choices = {
@@ -161,7 +162,7 @@ class DistributionModel:
             rng.shuffle(values)
 
         @lru_cache(maxsize=None)
-        def possible(position: int, remaining: tuple[int, int, int]) -> bool:
+        def possible(position: int, remaining: tuple[int, int, int], previous_mask: int = -1) -> bool:
             if position == COLUMNS:
                 return remaining == (0, 0, 0)
             column = columns[position]
@@ -173,17 +174,22 @@ class DistributionModel:
                 nxt = list(remaining)
                 for row in empty_rows:
                     nxt[row] -= 1
-                if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                if not all(0 <= value <= future for value in nxt):
+                    continue
+                occupied_mask = sum(1 << row for row in range(3) if row not in empty_rows)
+                if self.model is CardModel.A and previous_mask == occupied_mask:
+                    continue
+                if possible(position + 1, tuple(nxt), occupied_mask):
                     return True
             return False
 
-        if not possible(0, (4, 4, 4)):
+        if not possible(0, (4, 4, 4), -1):
             return None
 
         def build_once() -> tuple[int, int, int] | None:
             remaining = [4, 4, 4]
             masks = [0, 0, 0]
-            previous_column_mask = None
+            previous_column_mask = -1
             for position, column in enumerate(columns):
                 future = COLUMNS - position - 1
                 empty_count = empty_counts[column]
@@ -194,7 +200,7 @@ class DistributionModel:
                     nxt = list(remaining)
                     for row in empty_rows:
                         nxt[row] -= 1
-                    if not all(0 <= value <= future for value in nxt) or not possible(position + 1, tuple(nxt)):
+                    if not all(0 <= value <= future for value in nxt) or not possible(position + 1, tuple(nxt), previous_column_mask if self.model is CardModel.A else -1):
                         continue
                     occupied_mask = sum(1 << row for row in range(3) if row not in empty_rows)
                     if self.model is CardModel.A and previous_column_mask == occupied_mask:
