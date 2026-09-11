@@ -25,35 +25,78 @@ class DistributionModel:
         return cls(model=model)
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
+        """Distribuye 90 números entre las 6 matrices sin forzar 1 por columna.
+
+        Una columna de un cartón puede quedar vacía. En una serie completa,
+        las seis matrices siguen repartiendo todos los números de esa columna
+        (9, 10 u 11 según el rango), y cada cartón conserva exactamente 15.
+        """
         targets = [9] + [10] * 7 + [11]
-        extras = [target - CARDS_PER_SERIES for target in targets]
-        remaining = [6] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
+        max_per_column = 2 if self.model is CardModel.A else 3
+        remaining = [NUMBERS_PER_CARD] * CARDS_PER_SERIES
+        result = [[0] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        columns = sorted(range(COLUMNS), key=lambda c: (-targets[c], rng.random()))
+        cache: dict[tuple[int, int], list[tuple[int, ...]]] = {}
+
+        def candidates(total: int) -> list[tuple[int, ...]]:
+            key = (total, max_per_column)
+            if key not in cache:
+                values = [
+                    allocation
+                    for allocation in itertools.product(range(max_per_column + 1), repeat=CARDS_PER_SERIES)
+                    if sum(allocation) == total
+                ]
+                rng.shuffle(values)
+                cache[key] = values
+            return cache[key]
 
         def assign(position: int) -> bool:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES
             column = columns[position]
-            need = extras[column]
-            future = COLUMNS - position - 1
-            choices = list(itertools.combinations(range(CARDS_PER_SERIES), need))
-            rng.shuffle(choices)
-            for selected in choices:
-                if any(remaining[i] <= 0 for i in selected):
+            target = targets[column]
+            future_columns = columns[position + 1:]
+            future_capacity = len(future_columns) * max_per_column
+            future_total = sum(targets[c] for c in future_columns)
+            for allocation in candidates(target):
+                next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
+                if min(next_remaining) < 0:
                     continue
-                for i in selected:
-                    remaining[i] -= 1
-                    result[i][column] += 1
-                if all(value <= future for value in remaining) and assign(position + 1):
+                if sum(next_remaining) != future_total:
+                    continue
+                if any(value > future_capacity for value in next_remaining):
+                    continue
+                old_remaining = remaining[:]
+                for card_index, count in enumerate(allocation):
+                    result[card_index][column] = count
+                remaining[:] = next_remaining
+                if assign(position + 1):
                     return True
-                for i in selected:
-                    remaining[i] += 1
-                    result[i][column] -= 1
+                remaining[:] = old_remaining
             return False
 
         if not assign(0):
-            raise RuntimeError("No se pudo equilibrar la distribución de la serie")
+            raise RuntimeError(f"No se pudo equilibrar la distribución del Modelo {self.model.value}")
+
+        # Evita el caso visual que el usuario quiere eliminar: un cartón que
+        # ocupa obligatoriamente las nueve columnas. La búsqueda mantiene
+        # siempre 15 números y 5 por fila; solo cambia la ocupación de columnas.
+        if any(0 not in counts for counts in result):
+            # Intercambiar ocupaciones entre cartones no cambia los totales de
+            # cada columna. Probamos reasignaciones deterministas hasta lograr
+            # al menos una columna vacía por matriz.
+            for _ in range(128):
+                for column in rng.sample(range(COLUMNS), COLUMNS):
+                    donor = max(range(CARDS_PER_SERIES), key=lambda i: result[i][column])
+                    receiver = min(range(CARDS_PER_SERIES), key=lambda i: result[i][column])
+                    if result[donor][column] <= 0 or result[receiver][column] >= max_per_column:
+                        continue
+                    trial = [row[:] for row in result]
+                    trial[donor][column] -= 1
+                    trial[receiver][column] += 1
+                    if all(sum(row) == NUMBERS_PER_CARD for row in trial) and all(0 in row for row in trial):
+                        result = trial
+                        return result
         return result
 
     @staticmethod
@@ -102,7 +145,7 @@ class DistributionModel:
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
         max_per_column = 2 if self.model is CardModel.A else 3
-        if any(count < 1 or count > max_per_column for count in counts):
+        if any(count < 0 or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
 
@@ -110,7 +153,7 @@ class DistributionModel:
         empty_counts = tuple(3 - count for count in counts)
         choices = {
             empty_count: list(itertools.combinations(range(3), empty_count))
-            for empty_count in range(3)
+            for empty_count in range(4)
         }
         for values in choices.values():
             rng.shuffle(values)
