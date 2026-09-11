@@ -143,6 +143,30 @@ class ProductionService:
             )
         return lot
 
+    def next_generation_start(self, card_count: int = 6) -> int:
+        """Return the first unused series-aligned block for a new production."""
+        if card_count < 6 or card_count % 6:
+            raise ValueError("La nueva producción debe usar una cantidad múltiplo de 6")
+        start = self.repository.next_free_series_start(self.max_cards, 6)
+        end = start + card_count - 1
+        if end > self.max_cards:
+            raise ValueError(f"No hay espacio para {card_count:,} cartones nuevos hasta {self.max_cards:,}")
+        # Find the first block that is entirely free, not merely its first six cards.
+        while self._existing_serials_for_range(start, end):
+            start += 6
+            if start + card_count - 1 > self.max_cards:
+                raise ValueError(f"No hay un bloque de {card_count:,} cartones libres hasta {self.max_cards:,}")
+        return start
+
+    def create_new_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
+        """Create a genuinely new production; it never silently reuses printed cards."""
+        planned = plan_lot(start_card, end_card, model=model, operator=operator, max_cards=self.max_cards)
+        if start_card != ((start_card - 1) // 6) * 6 + 1:
+            raise ValueError("Una nueva producción debe comenzar en el primer cartón de una serie de 6")
+        if self._existing_serials_for_range(start_card, end_card):
+            raise ValueError(f"El rango {start_card:,}–{end_card:,} ya existe. Para repetirlo use REIMPRIMIR.")
+        return self.create_lot(planned.start_card, planned.end_card, model=model, operator=operator)
+
     def get_lot(self, lot_id: int) -> ProductionLot:
         with self.repository._connect() as db:
             row = db.execute("SELECT * FROM production_lots WHERE lot_id = ?", (lot_id,)).fetchone()
@@ -172,8 +196,6 @@ class ProductionService:
 
         # Un lote marcado como generado/impreso solo se puede reutilizar sin
         # regenerar cuando TODOS sus cartones realmente existen en la BD.
-        # Esto permite recuperar lotes que quedaron marcados por una ejecución
-        # anterior que falló antes de persistir las matrices.
         if lot.status in {"generated", "printed"} and self._range_is_fully_persisted(lot.start_card, lot.end_card):
             result = ProductionLot(
                 lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
