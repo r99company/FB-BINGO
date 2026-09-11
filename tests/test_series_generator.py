@@ -9,12 +9,12 @@ def test_series_has_six_cards_and_ninety_unique_numbers() -> None:
     assert sorted(numbers) == list(range(1, 91))
 
 
-def test_model_a_cards_have_five_numbers_per_row_and_zero_to_two_per_column() -> None:
+def test_model_a_cards_have_five_numbers_per_row_and_one_to_two_per_column() -> None:
     series = SeriesGenerator(seed=456).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert [sum(cell is not None for cell in row) for row in card.grid] == [5, 5, 5]
-        assert all(0 <= count <= 2 for count in card.column_counts)
-        assert 0 in card.column_counts
+        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert sum(count == 2 for count in card.column_counts) == 6
 
 
 def test_model_b_cards_have_five_numbers_per_row_and_zero_to_three_per_column() -> None:
