@@ -16,11 +16,11 @@ class DuplicateProductionError(RuntimeError):
 class ProductionService:
     """Coordinates six-card generation and repeatable printing/reprinting."""
 
-    # Se mantiene el mismo estándar de diversidad que usamos dentro de una
-    # serie: una matriz nueva no debe parecerse demasiado a las últimas.
+    # Se mantiene una separación suficiente entre patrones recientes sin
+    # bloquear la generación masiva de miles de cartones.
     RECENT_LAYOUT_WINDOW = 60
-    MIN_RECENT_LAYOUT_DISTANCE = 8
-    MAX_LAYOUT_RETRIES = 32
+    MIN_RECENT_LAYOUT_DISTANCE = 6
+    MAX_LAYOUT_RETRIES = 12
 
     def __init__(
         self,
