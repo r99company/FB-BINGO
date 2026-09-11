@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
@@ -14,6 +15,12 @@ class DuplicateProductionError(RuntimeError):
 
 class ProductionService:
     """Coordinates six-card generation and repeatable printing/reprinting."""
+
+    # Se mantiene el mismo estándar de diversidad que usamos dentro de una
+    # serie: una matriz nueva no debe parecerse demasiado a las últimas.
+    RECENT_LAYOUT_WINDOW = 60
+    MIN_RECENT_LAYOUT_DISTANCE = 8
+    MAX_LAYOUT_RETRIES = 32
 
     def __init__(
         self,
@@ -93,6 +100,46 @@ class ProductionService:
             canonical_start = (series_number - 1) * 6 + 1
             canonical_end = canonical_start + 5
             yield f"{series_number:04d}", canonical_start, canonical_end
+
+    @staticmethod
+    def _layout_signature(card) -> str:
+        return json.dumps(card.grid, separators=(",", ":"), ensure_ascii=False)
+
+    @staticmethod
+    def _layout_mask(card) -> tuple[tuple[bool, ...], ...]:
+        return tuple(
+            tuple(cell is not None for cell in row)
+            for row in card.grid
+        )
+
+    @staticmethod
+    def _mask_distance(first, second) -> int:
+        return sum(
+            left != right
+            for row_left, row_right in zip(first, second)
+            for left, right in zip(row_left, row_right)
+        )
+
+    def _candidate_is_unique_and_dynamic(self, series, used_layouts: set[str], recent_masks: list) -> bool:
+        signatures = [self._layout_signature(card) for card in series.cards]
+        if len(signatures) != len(set(signatures)):
+            return False
+        if any(signature in used_layouts for signature in signatures):
+            return False
+
+        masks = [self._layout_mask(card) for card in series.cards]
+        for left in range(len(masks)):
+            for right in range(left + 1, len(masks)):
+                if self._mask_distance(masks[left], masks[right]) < self.MIN_RECENT_LAYOUT_DISTANCE:
+                    return False
+
+        for mask in masks:
+            if any(
+                self._mask_distance(mask, previous) < self.MIN_RECENT_LAYOUT_DISTANCE
+                for previous in recent_masks
+            ):
+                return False
+        return True
 
     def create_lot(
         self,
@@ -185,17 +232,36 @@ class ProductionService:
 
         self._set_status(lot_id, "generating")
         completed = 0
+        used_layouts = self.repository.get_grid_signatures()
+        recent_masks = [self._layout_mask(card) for card in self.repository.get_recent_cards(self.RECENT_LAYOUT_WINDOW)]
+
         for series_id, canonical_start, canonical_end in self._canonical_series_ranges(lot.start_card, lot.end_card):
             if canonical_end > self.max_cards:
                 raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
 
             persisted = self._series_is_persisted(series_id, canonical_start)
             if not persisted:
+                series = None
+                for _ in range(self.MAX_LAYOUT_RETRIES):
+                    candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
+                    if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks):
+                        series = candidate
+                        break
+                if series is None:
+                    raise DuplicateProductionError(
+                        f"No se pudo encontrar una distribución nueva para la serie {series_id} "
+                        f"después de {self.MAX_LAYOUT_RETRIES} intentos"
+                    )
                 try:
-                    series = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
                     self.repository.save(series)
                 except ValueError as exc:
                     raise DuplicateProductionError(str(exc)) from exc
+
+                masks = [self._layout_mask(card) for card in series.cards]
+                used_layouts.update(self._layout_signature(card) for card in series.cards)
+                recent_masks.extend(masks)
+                if len(recent_masks) > self.RECENT_LAYOUT_WINDOW:
+                    recent_masks[:] = recent_masks[-self.RECENT_LAYOUT_WINDOW:]
 
             overlap_start = max(lot.start_card, canonical_start)
             overlap_end = min(lot.end_card, canonical_end)
