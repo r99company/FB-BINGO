@@ -5,7 +5,7 @@ import threading
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QLabel
 
 from app.bingo import BingoGame
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
@@ -187,12 +187,15 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
 
 
 def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
-    self.setMinimumSize(1200, 700); self.resize(1480, 860)
+    # Tamaño operativo validado para el diseño profesional; no reducir el panel en pantallas pequeñas.
+    self.setMinimumSize(1200, 760); self.resize(1540, 930)
     root = self.centralWidget()
     if root is not None:
         root.setStyleSheet(root.styleSheet() + """
-            QPushButton#Ball { min-width:0; min-height:0; max-height:52px; border-radius:7px; font-size:14px; }
-            QPushButton#Ball:hover { border-width:1px; }
+            QPushButton#Ball { min-width:58px; max-width:58px; min-height:58px; max-height:58px; border-radius:29px; font-size:16px; background:#102A42; border:2px solid #0BB9FF; }
+            QPushButton#Ball:hover { background:#163A5B; border:2px solid #64D7FF; }
+            QPushButton#Ball[called="true"] { background:#A82C78; border:3px solid #FF4FA3; color:#FFFFFF; }
+            QPushButton#Ball[current="true"] { background:#14233D; border:3px solid #FFFFFF; color:#FFFFFF; }
             QLabel#CurrentBall { font-size:72px; border-radius:78px; }
             QLabel#CallState { min-height:22px; max-height:22px; background:#17324A; border:1px solid #365E78; border-radius:6px; padding:2px 8px; }
             QLabel#CurrentCaption { padding:5px 8px; }
@@ -203,15 +206,24 @@ def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
     if current is not None: current.setFixedSize(156, 156)
     state = getattr(self, "call_state", None)
     if state is not None: state.setText("BOLA CANTADA" if self.game.current_number is not None else "LISTO PARA JUGAR")
-    for button in getattr(self, "_buttons", {}).values(): button.setMinimumSize(0, 0); button.setMaximumHeight(52)
-    for panel in self.findChildren(type(self)):
+    for button in getattr(self, "_buttons", {}).values():
+        button.setMinimumSize(58, 58); button.setMaximumSize(58, 58); button.setSizePolicy(button.sizePolicy().Fixed, button.sizePolicy().Fixed)
+    # El digitador queda disponible internamente para pruebas/compatibilidad, pero no ocupa espacio visual.
+    if hasattr(self, "ball_input"):
+        self.ball_input.hide()
+    if hasattr(self, "ball_message"):
+        self.ball_message.hide()
+    for label in self.findChildren(QLabel):
+        if label.text().strip() in {"DIGITA EL NÚMERO", "Escribe la bola física y presiona ENTER"}:
+            label.hide()
+    for panel in self.findChildren(QFrame):
         if panel.objectName() == "Panel":
             layout = panel.layout()
             if layout is not None and hasattr(layout, "setSpacing"):
                 layout.setSpacing(4)
 
 
-def _install_model_selector(self: BingoMainWindow) -> None:
+def _install_model_selector(self) -> None:
     self.model_selector = GameModelSelector(self); self.model_selector.set_change_guard(lambda: not self.game.history or getattr(self, "_finalized", False))
     top = self.series_label.parentWidget(); row = top.layout(); row.insertWidget(max(0, row.count() - 1), self.model_selector)
 
@@ -250,8 +262,13 @@ def _close_operator_resources(self: BingoMainWindow) -> None:
     if timer is not None:
         timer.stop()
     server = getattr(self, "tv_sync_server", None)
+    thread = getattr(self, "tv_sync_thread", None)
     if server is not None:
         server.shutdown()
+    if thread is not None and thread.is_alive():
+        thread.join(timeout=1.0)
+    self.tv_sync_server = None
+    self.tv_sync_thread = None
     for attr in ("live_prizes_window", "verification_window", "sales_window", "reports_window", "settings_window", "cartons_window", "tv_window"):
         window = getattr(self, attr, None)
         if window is not None:
