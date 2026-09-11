@@ -39,7 +39,6 @@ class ModernA4SvgRenderer:
         return '\n'.join(parts)
 
     def render_card(self, card: BingoCard, *, width: float = 180.0, height: float = 82.0) -> str:
-        """Renderiza un único cartón usando exactamente el mismo componente visual de impresión."""
         parts = [
             '<svg xmlns="http://www.w3.org/2000/svg" '
             f'width="{width:.2f}mm" height="{height:.2f}mm" viewBox="0 0 {width:.2f} {height:.2f}">',
@@ -73,13 +72,17 @@ class ModernA4SvgRenderer:
     def _card(self, card: BingoCard, x: float, y: float, width: float, height: float) -> str:
         header = min(21.0, height * 0.20)
         footer = min(12.0, height * 0.12) if self.style.show_footer else 2.0
-        cell_w = width / 9
-        cell_h = (height - header - footer) / 3
+        grid_top = header + 1.5
+        grid_bottom = height - footer - 1.5
+        gap_x = min(0.9, width / 120.0)
+        gap_y = min(1.0, max(0.6, height / 55.0))
+        cell_w = (width - gap_x * 8) / 9
+        cell_h = (grid_bottom - grid_top - gap_y * 2) / 3
         logo = self._logo_href()
         serial = escape(card.serial)
         series = escape(card.serial.split('-')[0])
         card_number = escape(card.serial.split('-')[-1])
-        badge_w = min(31.0, width * 0.22)
+        badge_w = min(29.0, width * 0.22)
         font = escape(self.style.font_family)
         number_size = max(7.0, min(12.0, float(self.style.number_font_size)))
         out = [
@@ -98,12 +101,22 @@ class ModernA4SvgRenderer:
         out.append(f'<text x="31" y="10.5" font-family="{font},Arial,sans-serif" font-size="6.2" font-weight="900" fill="#1764B0">{escape(self.style.brand_title or "FB-BINGO")}</text>')
         if self.style.show_tagline:
             out.append(f'<text x="31" y="17" font-family="{font},Arial,sans-serif" font-size="4.2" font-weight="bold" fill="#1764B0">{escape(self.style.brand_tagline)}</text>')
-        out.append(f'<rect x="{width-badge_w-5:.2f}" y="3" width="{badge_w:.2f}" height="8" rx="2.5" fill="{escape(self.style.accent_color)}"/>')
-        out.append(f'<text x="{width-badge_w/2-5:.2f}" y="8.8" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="4.3" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
-        out.append(f'<text x="{width-5:.2f}" y="18.5" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="14" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
+
+        # El QR queda arriba a la derecha, como en la referencia física.
+        if self.style.show_qr_zone:
+            qr_size = min(12.0, max(9.0, header - 6.0))
+            qr_x = width - qr_size - 4.0
+            qr_y = 3.0
+            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.2" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
+            out.append(f'<path d="M{qr_x+1.6:.2f} {qr_y+1.6:.2f}h3.2v3.2h-3.2z M{qr_x+qr_size-4.8:.2f} {qr_y+1.6:.2f}h3.2v3.2h-3.2z M{qr_x+1.6:.2f} {qr_y+qr_size-4.8:.2f}h3.2v3.2h-3.2z M{qr_x+5.6:.2f} {qr_y+6:.2f}h2v2h-2z M{qr_x+8.5:.2f} {qr_y+4.8:.2f}h1.8v1.8h-1.8z M{qr_x+5.4:.2f} {qr_y+9:.2f}h1.8v1.8h-1.8z" fill="#111827"/>')
+        out.append(f'<rect x="{width-badge_w-5:.2f}" y="{header-8:.2f}" width="{badge_w:.2f}" height="7" rx="2.5" fill="{escape(self.style.accent_color)}"/>')
+        out.append(f'<text x="{width-badge_w/2-5:.2f}" y="{header-3.2:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="4.0" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
+        out.append(f'<text x="{width-5:.2f}" y="{header-0.8:.2f}" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="11.5" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
+
         for row in range(3):
             for column in range(9):
-                cx, cy = column * cell_w, header + row * cell_h
+                cx = column * (cell_w + gap_x)
+                cy = grid_top + row * (cell_h + gap_y)
                 value = card.grid[row][column]
                 if value is not None:
                     fill = self.style.background_color
@@ -111,20 +124,16 @@ class ModernA4SvgRenderer:
                     fill = self.style.empty_cell_color
                 else:
                     fill = "#EEF8FF"
-                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="1.2" fill="{escape(fill)}" stroke="{escape(self.style.accent_color)}" stroke-width="0.55"/>')
+                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="1.8" fill="{escape(fill)}" stroke="{escape(self.style.accent_color)}" stroke-width="0.55"/>')
                 if value is not None:
                     out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.68:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="{number_size:.1f}" font-weight="900" fill="{escape(self.style.number_color)}">{value}</text>')
                 elif (row + column) % 3 == 1:
                     out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.68:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="{number_size:.1f}" fill="{escape(self.style.accent_color)}">★</text>')
+
         if self.style.show_footer:
             out.append(f'<rect x="3" y="{height-footer:.2f}" width="{width-6:.2f}" height="{max(1,footer-1):.2f}" rx="3" fill="#F7FBFF" opacity="0.98"/>')
             out.append(f'<text x="8" y="{height-3:.2f}" font-family="{font},Arial,sans-serif" font-size="4.1" font-weight="900" fill="#1764B0">SERIE {series}</text>')
             out.append(f'<text x="{width/2:.2f}" y="{height-3:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="3.8" font-weight="bold" fill="#1764B0">{escape(self.style.footer_text)}</text>')
-        if self.style.show_qr_zone:
-            qr_size = min(13.0, max(6.0, footer - 1.5))
-            qr_x, qr_y = width - qr_size - 5, height - qr_size - 1.5
-            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
-            out.append(f'<path d="M{qr_x+2:.2f} {qr_y+2:.2f}h3v3h-3z M{qr_x+7:.2f} {qr_y+2:.2f}h3v3h-3z M{qr_x+2:.2f} {qr_y+7:.2f}h3v3h-3z M{qr_x+7:.2f} {qr_y+7:.2f}h2v2h-2z" fill="#111827"/>')
         if self.style.show_serial:
             out.append(f'<text x="{width-5:.2f}" y="{height-3:.2f}" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="3.2" fill="#1764B0">ID: {serial}</text>')
         out.append('</g>')
