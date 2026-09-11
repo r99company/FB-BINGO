@@ -67,9 +67,23 @@ class DistributionModel:
             previous = occupied
         return transitions
 
+    @staticmethod
+    def _longest_run(mask: int) -> int:
+        run = longest = 0
+        for column in range(COLUMNS):
+            if mask & (1 << column):
+                run += 1
+                longest = max(longest, run)
+            else:
+                run = 0
+        return longest
+
     @classmethod
     def _triple_score(cls, triple: tuple[int, int, int]) -> int:
-        score = sum(cls._transitions(mask) for mask in triple) * 5
+        score = sum(cls._transitions(mask) for mask in triple) * 8
+        score -= sum(max(0, cls._longest_run(mask) - 2) * 18 for mask in triple)
+        if len(set(triple)) < 3:
+            score -= 120
         prefix = [sum(bool(mask & (1 << c)) for c in range(4)) for mask in triple]
         suffix = [sum(bool(mask & (1 << c)) for c in range(5, 9)) for mask in triple]
         score -= (max(prefix) - min(prefix)) * 3
@@ -84,10 +98,9 @@ class DistributionModel:
         rng: random.Random,
         forbidden: Sequence[set[int]] | None = None,
     ) -> list[int] | None:
-        """Construye tres máscaras de cinco casillas con distribución variable."""
+        """Construye tres filas de cinco casillas con separación visual variable."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        # Modelo A: columnas de 1–2 números. Modelo B: columnas de 1–3.
         max_per_column = 2 if self.model is CardModel.A else 3
         if any(count < 1 or count > max_per_column for count in counts):
             return None
@@ -122,30 +135,41 @@ class DistributionModel:
         if not possible(0, (4, 4, 4)):
             return None
 
-        remaining = [4, 4, 4]
-        masks = [0, 0, 0]
-        for position, column in enumerate(columns):
-            future = COLUMNS - position - 1
-            empty_count = empty_counts[column]
-            candidates = []
-            for empty_rows in choices[empty_count]:
-                if any(remaining[row] <= 0 for row in empty_rows):
-                    continue
-                nxt = list(remaining)
+        def build_once() -> tuple[int, int, int] | None:
+            remaining = [4, 4, 4]
+            masks = [0, 0, 0]
+            for position, column in enumerate(columns):
+                future = COLUMNS - position - 1
+                empty_count = empty_counts[column]
+                candidates = []
+                for empty_rows in choices[empty_count]:
+                    if any(remaining[row] <= 0 for row in empty_rows):
+                        continue
+                    nxt = list(remaining)
+                    for row in empty_rows:
+                        nxt[row] -= 1
+                    if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                        candidates.append(empty_rows)
+                if not candidates:
+                    return None
+                empty_rows = rng.choice(candidates)
                 for row in empty_rows:
-                    nxt[row] -= 1
-                if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
-                    candidates.append(empty_rows)
-            if not candidates:
-                return None
-            empty_rows = rng.choice(candidates)
-            for row in empty_rows:
-                remaining[row] -= 1
-            for row in range(3):
-                if row not in empty_rows:
-                    masks[row] |= 1 << column
+                    remaining[row] -= 1
+                for row in range(3):
+                    if row not in empty_rows:
+                        masks[row] |= 1 << column
+            return tuple(masks)
 
-        triple = tuple(masks)
-        if any(triple[row] in forbidden[row] for row in range(3)):
-            return None
-        return list(triple)
+        best: tuple[int, int, int] | None = None
+        best_score = -10**9
+        for _ in range(24):
+            candidate = build_once()
+            if candidate is None:
+                continue
+            if any(candidate[row] in forbidden[row] for row in range(3)):
+                continue
+            score = self._triple_score(candidate)
+            if score > best_score:
+                best_score = score
+                best = candidate
+        return list(best) if best is not None else None
