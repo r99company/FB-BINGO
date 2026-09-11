@@ -84,7 +84,7 @@ def test_cartons_navigation_button_opens_cartons_window():
     window.close(); app.processEvents()
 
 
-def test_generator_uses_series_quantity_and_calculates_cartons(tmp_path):
+def test_generator_keeps_six_card_generation_boundary_and_allows_arbitrary_print_start(tmp_path):
     app = QApplication.instance() or QApplication([])
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     widget = GeneratorWidget(repository, max_cards=30_000)
@@ -92,10 +92,13 @@ def test_generator_uses_series_quantity_and_calculates_cartons(tmp_path):
     assert widget.start_card.value() == 1
     assert widget.series_count.value() == 1
     widget.series_count.setValue(250)
-    assert widget.cards_label.text() == "1,500 (250 series × 6)"
-    assert widget.range_label.text() == "1 – 1,500"
+    assert widget.generation_cards_label.text() == "1,500 (250 series × 6)"
+    assert widget.generation_range_label.text() == "1 – 1,500"
     widget.start_card.setValue(1_501)
-    assert widget.range_label.text() == "1,501 – 3,000"
+    assert widget.generation_range_label.text() == "1,501 – 3,000"
+    widget.print_start_card.setValue(2)
+    widget.print_count.setValue(6)
+    assert widget.print_end_label.text() == "7"
     widget.close(); app.processEvents()
 
 
