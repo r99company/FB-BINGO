@@ -8,20 +8,9 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QFileDialog,
-    QFormLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QSpinBox,
-    QToolButton,
-    QVBoxLayout,
-    QWidget,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
 from app.cards import BingoCard, CardModel
@@ -84,9 +73,9 @@ class GeneratorWidget(QWidget):
         form.addRow("Series de 6", self.series_count_label)
         form.addRow("Hojas A4", self.pages_label)
 
-        generate = QPushButton("GENERAR / CARGAR")
-        generate.setObjectName("Primary")
-        generate.clicked.connect(self.generate_series)
+        self.generate_button = QPushButton("GENERAR / CARGAR")
+        self.generate_button.setObjectName("Primary")
+        self.generate_button.clicked.connect(self.generate_series)
         print_button = QPushButton("IMPRIMIR CARTONES")
         print_button.setObjectName("Primary")
         print_button.clicked.connect(self.print_a4)
@@ -100,7 +89,7 @@ class GeneratorWidget(QWidget):
         save.setObjectName("Secondary")
         save.clicked.connect(self.save_a4)
 
-        form.addRow(generate)
+        form.addRow(self.generate_button)
         form.addRow(print_button)
         form.addRow(reprint_button)
         form.addRow(preview)
@@ -141,10 +130,10 @@ class GeneratorWidget(QWidget):
         form.addRow(advanced)
 
         info = QLabel(
-            "Puedes empezar desde cualquier cartón (1, 2, 3, 1501, etc.). "
-            "La cantidad se agrupa en bloques de 6 para impresión. Si esos cartones ya fueron generados, "
-            "FB-BINGO los carga exactamente iguales y permite imprimirlos de nuevo sin avisos de duplicado. "
-            "DUPLICAR repite físicamente la misma serie 1–6 en ambos lados de la hoja."
+            "La cantidad debe ser múltiplo de 6. Puedes empezar desde cualquier cartón. "
+            "Si el rango ya existe, FB-BINGO carga exactamente los mismos cartones para reimprimirlos; "
+            "si no existe, genera matrices nuevas sin repetir una matriz exacta. La separación visual se "
+            "mantiene siempre que sea posible y se relaja automáticamente antes de bloquear una producción grande."
         )
         info.setObjectName("Muted")
         info.setWordWrap(True)
@@ -224,8 +213,18 @@ class GeneratorWidget(QWidget):
         model = CardModel(self.model.currentData())
         try:
             start_card, end_card, card_count = self._requested_range()
+            self.generate_button.setEnabled(False)
+            self.generate_button.setText("GENERANDO…")
+            self.preview_label.setText(f"Generando {card_count:,} cartones…")
+            QApplication.processEvents()
+
             lot = self.production_service.create_lot(start_card, end_card, model=model, operator="generador-ui")
-            result = self.production_service.generate_lot(lot.lot_id)
+
+            def progress(done: int) -> None:
+                self.preview_label.setText(f"Generando… {done:,} / {card_count:,} cartones")
+                QApplication.processEvents()
+
+            result = self.production_service.generate_lot(lot.lot_id, progress_callback=progress)
             self._load_requested_cards(start_card, end_card)
             self._render_preview()
             self.preview_label.setText(
@@ -233,9 +232,12 @@ class GeneratorWidget(QWidget):
                 f"rango {start_card:,}–{end_card:,}. Puede imprimir o reimprimir sin límite."
             )
         except DuplicateProductionError as exc:
-            QMessageBox.warning(self, "No se pudo cargar la producción", str(exc))
+            QMessageBox.warning(self, "No se pudo completar la generación", str(exc))
         except (ValueError, RuntimeError, KeyError) as exc:
             QMessageBox.warning(self, "No se pudo generar", str(exc))
+        finally:
+            self.generate_button.setEnabled(True)
+            self.generate_button.setText("GENERAR / CARGAR")
 
     def _cards_for_page(self, offset: int) -> tuple[tuple[BingoCard, ...], tuple[BingoCard, ...] | None]:
         if not self._cards:
