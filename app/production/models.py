@@ -6,8 +6,13 @@ from datetime import datetime, timezone
 from app.cards import CardModel
 
 
-# Capacidad oficial: 5.000 series × 6 cartones = 30.000 cartones.
-DEFAULT_PRODUCTION_CAPACITY = 30_000
+# Producción validada para salida inicial: 2.500 series × 6 = 15.000 cartones.
+# El motor conserva capacidad estructural para ampliar posteriormente a 30.000,
+# pero la operación normal no debe intentar una carga de 30.000 sin una nueva
+# validación de estrés en el entorno real.
+VALIDATED_PRODUCTION_CAPACITY = 15_000
+MAX_SUPPORTED_PRODUCTION_CAPACITY = 30_000
+DEFAULT_PRODUCTION_CAPACITY = VALIDATED_PRODUCTION_CAPACITY
 
 
 @dataclass(frozen=True, slots=True)
