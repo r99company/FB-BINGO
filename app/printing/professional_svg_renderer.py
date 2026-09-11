@@ -41,10 +41,10 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
         if style.show_tagline:
             out.append(f'<text x="39" y="27" font-family="{font},Arial,sans-serif" font-size="5.6" font-weight="800" fill="#1971C2">{escape(style.brand_tagline)}</text>')
 
-        badge_x = width - 61.0
+        badge_x = width - 86.0
         out.append(f'<rect x="{badge_x:.2f}" y="4" width="28" height="9" rx="3" fill="#EC5A98"/>')
         out.append(f'<text x="{badge_x+14:.2f}" y="10.7" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="5.2" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
-        out.append(f'<text x="{width-39:.2f}" y="29" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="23" font-weight="900" fill="#10264A">{card_number}</text>')
+        out.append(f'<text x="{width-58:.2f}" y="29" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="23" font-weight="900" fill="#10264A">{card_number}</text>')
 
         if style.show_qr_zone:
             qr_size = min(40.0, max(34.0, header + 3.0))
