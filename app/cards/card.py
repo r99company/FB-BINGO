@@ -46,9 +46,8 @@ class BingoCard:
             raise ValueError("El cartón debe tener una matriz de 3 x 9")
 
         numbers: list[int] = []
-        # En un cartón físico puede haber columnas vacías. Lo que se limita es
-        # la cantidad máxima por columna: 2 en A y 3 en B.
         max_per_column = 2 if self.model is CardModel.A else 3
+        min_per_column = 1 if self.model is CardModel.A else 0
         for row in self.grid:
             if sum(value is not None for value in row) != 5:
                 raise ValueError("Cada fila debe contener exactamente 5 números")
@@ -56,10 +55,12 @@ class BingoCard:
         for column in range(COLUMNS):
             values = [self.grid[row][column] for row in range(ROWS)]
             count = sum(value is not None for value in values)
-            if not 0 <= count <= max_per_column:
-                raise ValueError(
-                    f"El modelo {self.model.value} permite entre 0 y {max_per_column} números por columna"
-                )
+            if not min_per_column <= count <= max_per_column:
+                if self.model is CardModel.A:
+                    rule = "entre 1 y 2"
+                else:
+                    rule = "entre 0 y 3"
+                raise ValueError(f"El modelo {self.model.value} permite {rule} números por columna")
             previous = [value for value in values if value is not None]
             if previous != sorted(previous):
                 raise ValueError("Los números de cada columna deben estar ordenados")
