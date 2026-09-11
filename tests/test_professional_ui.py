@@ -136,6 +136,17 @@ def test_generator_rejects_only_incomplete_series_quantity(tmp_path):
     app.processEvents()
 
 
+def test_generator_separates_new_generation_from_reprint(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    widget = GeneratorWidget(repository)
+    assert widget.generate_button.text() == "GENERAR NUEVA PRODUCCIÓN"
+    assert widget.duplicate_column.isChecked() is True
+    assert widget.production_service.next_generation_start(6) == 1
+    widget.close()
+    app.processEvents()
+
+
 def test_theme_contains_brand_palette():
     assert "#FF4FA3" in APP_STYLESHEET
     assert "#8FD9FF" in APP_STYLESHEET
