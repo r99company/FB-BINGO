@@ -15,12 +15,14 @@ def _distance(first, second):
 
 def test_model_a_never_has_three_numbers_in_a_column():
     series = SeriesGenerator(seed=1001).generate("MODEL-A", CardModel.A)
-    assert all(1 <= count <= 2 for card in series.cards for count in card.column_counts)
+    assert all(0 <= count <= 2 for card in series.cards for count in card.column_counts)
+    assert all(0 in card.column_counts for card in series.cards)
 
 
 def test_model_b_allows_three_numbers_in_a_column():
     series = SeriesGenerator(seed=1002).generate("MODEL-B", CardModel.B)
-    assert all(1 <= count <= 3 for card in series.cards for count in card.column_counts)
+    assert all(0 <= count <= 3 for card in series.cards for count in card.column_counts)
+    assert all(0 in card.column_counts for card in series.cards)
 
 
 def test_each_series_has_at_least_five_distinct_card_layouts():
