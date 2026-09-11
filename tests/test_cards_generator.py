@@ -78,6 +78,20 @@ def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
 
 
+def test_same_series_and_variant_zero_remains_deterministic() -> None:
+    generator = SeriesGenerator(seed=2026)
+    first = generator.generate("SER-010", CardModel.A, variant=0)
+    second = generator.generate("SER-010", CardModel.A, variant=0)
+    assert [card.grid for card in first.cards] == [card.grid for card in second.cards]
+
+
+def test_variants_provide_an_alternative_layout_for_production() -> None:
+    generator = SeriesGenerator(seed=2026)
+    first = generator.generate("SER-010", CardModel.A, variant=0)
+    alternative = generator.generate("SER-010", CardModel.A, variant=1)
+    assert [card.grid for card in first.cards] != [card.grid for card in alternative.cards]
+
+
 def test_model_a_allows_natural_row_runs() -> None:
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
