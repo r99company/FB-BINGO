@@ -43,7 +43,7 @@ def test_model_a_rejects_three_numbers_in_a_column() -> None:
         (2, 12, 22, 32, 42, None, None, None, None),
         (3, 13, 23, 33, 43, None, None, None, None),
     )
-    with pytest.raises(ValueError, match="Modelo A.*1 y 2"):
+    with pytest.raises(ValueError, match="modelo A.*1 y 2"):
         BingoCard(serial="A-THREE", model=CardModel.A, grid=grid)
 
 
@@ -59,9 +59,9 @@ def test_model_b_accepts_three_numbers_in_a_column() -> None:
 
 def test_model_b_allows_empty_columns() -> None:
     grid = (
-        (1, None, 21, None, 41, 51, None, 71, 80),
-        (2, None, None, 32, 42, None, 62, None, 82),
-        (9, None, 29, 39, None, 59, 69, None, 89),
+        (1, None, 21, None, 41, None, 61, None, 80),
+        (2, None, None, 32, 42, 52, 62, 72, 82),
+        (None, None, 29, 39, 49, 59, 69, None, 89),
     )
     card = BingoCard(serial="B-ZERO", model=CardModel.B, grid=grid)
     assert card.column_counts[1] == 0
