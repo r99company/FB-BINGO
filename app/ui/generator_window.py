@@ -44,8 +44,12 @@ class GeneratorWidget(QWidget):
         form = QFormLayout(controls)
 
         self.model = QComboBox()
-        self.model.addItem("Modelo A · PRINCIPAL", CardModel.A.value)
-        self.model.addItem("Modelo B · ESPECIAL", CardModel.B.value)
+        self.model.addItem("Modelo A · PRINCIPAL · 1–2 por columna", CardModel.A.value)
+        self.model.addItem("Modelo B · ESPECIAL · 0–3 por columna", CardModel.B.value)
+        self.model.setToolTip(
+            "Modelo A (principal): cada columna contiene de 1 a 2 números.\n"
+            "Modelo B (especial): cada columna puede contener de 0 a 3 números."
+        )
 
         self.start_card = QSpinBox()
         self.start_card.setRange(1, self.production_service.max_cards)
@@ -101,9 +105,11 @@ class GeneratorWidget(QWidget):
         advanced.setVisible(False); advanced_toggle.toggled.connect(advanced.setVisible); form.addRow(advanced)
 
         info = QLabel(
-            "IMPORTANTE: aquí no existe el concepto de reimpresión. Si vuelves a generar el mismo rango, "
-            "FB-BINGO recupera la misma serie y los mismos números. Para crear cartones nuevos usa el siguiente rango libre. "
-            "Ejemplo: 250 series desde el cartón 1 = cartones 1–1.500; después 250 series desde 1.501 = 1.501–3.000."
+            "REGLAS DE MODELOS: Modelo A es el principal y usa de 1 a 2 números por columna. "
+            "Modelo B es el especial y permite de 0 a 3 números por columna. "
+            "El modelo queda guardado en cada cartón para que impresión y verificación respeten la misma regla. "
+            "Aquí no existe el concepto de reimpresión: si vuelves a generar el mismo rango, FB-BINGO recupera la misma serie y los mismos números. "
+            "Para crear cartones nuevos usa el siguiente rango libre. Ejemplo: 250 series desde el cartón 1 = cartones 1–1.500; después 250 series desde 1.501 = 1.501–3.000."
         )
         info.setObjectName("Muted"); info.setWordWrap(True); form.addRow(info)
         layout.addWidget(controls)
@@ -172,7 +178,6 @@ class GeneratorWidget(QWidget):
             start, end, count = self._requested_range(); model = CardModel(self.model.currentData())
             self.generate_button.setEnabled(False); self.generate_button.setText("GENERANDO…")
             self.preview_label.setText(f"Preparando {self.series_count.value():,} series · {count:,} cartones…"); QApplication.processEvents()
-            # Un mismo rango es idempotente: si ya existe, se conserva la misma matriz.
             lot = self.production_service.create_lot(start, end, model=model, operator="generador-ui")
             def progress(done: int) -> None:
                 self.preview_label.setText(f"Generando… {done:,} / {count:,} cartones"); QApplication.processEvents()
