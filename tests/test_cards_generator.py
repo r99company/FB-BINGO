@@ -40,8 +40,8 @@ def test_model_b_allows_zero_to_three_numbers_per_column() -> None:
 def test_model_a_rejects_three_numbers_in_a_column() -> None:
     grid = (
         (1, 11, 21, 31, 41, None, None, None, None),
-        (2, 12, 22, 32, 42, 51, 61, None, None),
-        (3, 13, 23, 33, 43, 52, 62, 71, 81),
+        (2, 12, 22, 32, 42, None, None, None, None),
+        (3, 13, 23, 33, 43, None, None, None, None),
     )
     with pytest.raises(ValueError, match="Modelo A.*1 y 2"):
         BingoCard(serial="A-THREE", model=CardModel.A, grid=grid)
@@ -50,8 +50,8 @@ def test_model_a_rejects_three_numbers_in_a_column() -> None:
 def test_model_b_accepts_three_numbers_in_a_column() -> None:
     grid = (
         (1, 11, 21, 31, 41, None, None, None, None),
-        (2, 12, 22, None, None, 51, 61, None, None),
-        (3, 13, 23, None, None, 52, 62, 71, 81),
+        (2, 12, 22, 32, 42, None, None, None, None),
+        (3, 13, 23, 33, 43, None, None, None, None),
     )
     card = BingoCard(serial="B-THREE", model=CardModel.B, grid=grid)
     assert card.column_counts[0] == 3
@@ -59,12 +59,12 @@ def test_model_b_accepts_three_numbers_in_a_column() -> None:
 
 def test_model_b_allows_empty_columns() -> None:
     grid = (
-        (1, None, 21, None, 41, 51, None, 71, None),
-        (None, 12, None, 32, 42, None, 62, None, 82),
-        (9, None, 29, 39, None, 59, None, None, 89),
+        (1, None, 21, None, 41, 51, None, 71, 80),
+        (2, None, None, 32, 42, None, 62, None, 82),
+        (9, None, 29, 39, None, 59, 69, None, 89),
     )
     card = BingoCard(serial="B-ZERO", model=CardModel.B, grid=grid)
-    assert card.column_counts[1] == 1
+    assert card.column_counts[1] == 0
     assert all(0 <= count <= 3 for count in card.column_counts)
 
 
@@ -73,7 +73,7 @@ def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
         series = SeriesGenerator(seed=321).generate(f"SER-{model.value}", model)
         for card in series.cards:
             for column in range(9):
-                values = [card.grid[row][column] for row in range(3)]
+                values = [card.grid[row][column] for row in range(ROWS)]
                 values = [value for value in values if value is not None]
                 assert values == sorted(values)
 
@@ -130,3 +130,11 @@ def test_model_b_never_exceeds_three_numbers_per_column() -> None:
         for card in series.cards:
             assert all(0 <= count <= 3 for count in card.column_counts)
             assert len(card.numbers) == 15
+
+
+def test_generation_variant_changes_candidate_but_keeps_series_identity() -> None:
+    base = SeriesGenerator(seed=20260910).generate("SER-V", CardModel.A)
+    alternate = SeriesGenerator(seed=20260910).generate("SER-V", CardModel.A, variant=1)
+    assert base.series_id == alternate.series_id == "SER-V"
+    assert [card.serial for card in base.cards] == [card.serial for card in alternate.cards]
+    assert _layout_signature(base.cards[0]) != _layout_signature(alternate.cards[0])
