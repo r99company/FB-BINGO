@@ -10,7 +10,11 @@ NUMBERS_PER_CARD = 15
 
 
 class CardModel(StrEnum):
-    """Modelo visual/estructural usado al imprimir el cartón."""
+    """Modelo visual/estructural usado al imprimir el cartón.
+
+    Modelo A admite hasta 3 números por columna; Modelo B admite como
+    máximo 2. La distinción se conserva como metadato para verificación.
+    """
 
     A = "A"
     B = "B"
@@ -46,9 +50,7 @@ class BingoCard:
             raise ValueError("El cartón debe tener una matriz de 3 x 9")
 
         numbers: list[int] = []
-        # Modelo A: hasta 2 números por columna.
-        # Modelo B: hasta 3 números por columna.
-        max_per_column = 2 if self.model is CardModel.A else 3
+        max_per_column = 3 if self.model is CardModel.A else 2
         for row in self.grid:
             if sum(value is not None for value in row) != 5:
                 raise ValueError("Cada fila debe contener exactamente 5 números")
