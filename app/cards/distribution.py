@@ -26,10 +26,10 @@ class DistributionModel:
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
         targets = [9] + [10] * 7 + [11]
-        max_per_column = 3 if self.model is CardModel.A else 2
-        max_extra = max_per_column - 1
-        remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        min_per_column = self.model.min_numbers_per_column
+        max_per_column = self.model.max_numbers_per_column
+        remaining = [NUMBERS_PER_CARD - min_per_column * COLUMNS] * CARDS_PER_SERIES
+        result = [[min_per_column] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         columns = list(range(COLUMNS))
         rng.shuffle(columns)
         cache: dict[int, list[tuple[int, ...]]] = {}
@@ -38,7 +38,9 @@ class DistributionModel:
             if extra not in cache:
                 values = [
                     allocation
-                    for allocation in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES)
+                    for allocation in itertools.product(
+                        range(max_per_column - min_per_column + 1), repeat=CARDS_PER_SERIES
+                    )
                     if sum(allocation) == extra
                 ]
                 rng.shuffle(values)
@@ -49,18 +51,21 @@ class DistributionModel:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES
             column = columns[position]
-            extra = targets[column] - CARDS_PER_SERIES
+            extra = targets[column] - min_per_column * CARDS_PER_SERIES
             future = COLUMNS - position - 1
-            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1:])
+            future_extra = sum(
+                targets[c] - min_per_column * CARDS_PER_SERIES
+                for c in columns[position + 1 :]
+            )
             for allocation in candidates(extra):
                 next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
                 if min(next_remaining) < 0 or sum(next_remaining) != future_extra:
                     continue
-                if any(value > future * max_extra for value in next_remaining):
+                if any(value > future * (max_per_column - min_per_column) for value in next_remaining):
                     continue
-                for i, added in enumerate(allocation):
-                    result[i][column] = 1 + added
                 old_remaining = remaining[:]
+                for i, added in enumerate(allocation):
+                    result[i][column] = min_per_column + added
                 remaining[:] = next_remaining
                 if assign(position + 1):
                     return True
@@ -116,8 +121,9 @@ class DistributionModel:
         """Construye tres filas de cinco casillas con separación visual variable."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        max_per_column = 3 if self.model is CardModel.A else 2
-        if any(count < 1 or count > max_per_column for count in counts):
+        min_per_column = self.model.min_numbers_per_column
+        max_per_column = self.model.max_numbers_per_column
+        if any(count < min_per_column or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
 
@@ -125,7 +131,7 @@ class DistributionModel:
         empty_counts = tuple(3 - count for count in counts)
         choices = {
             empty_count: list(itertools.combinations(range(3), empty_count))
-            for empty_count in range(3)
+            for empty_count in range(4)
         }
         for values in choices.values():
             rng.shuffle(values)
