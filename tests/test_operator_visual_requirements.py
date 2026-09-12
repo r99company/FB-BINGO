@@ -15,7 +15,9 @@ def test_operator_board_uses_circular_ball_style_and_hidden_digitizer() -> None:
     app.processEvents()
 
     assert len(window._buttons) == 90
-    assert "border-radius:29px" in window.styleSheet()
+    root = window.centralWidget()
+    assert root is not None
+    assert "border-radius:29px" in root.styleSheet()
     assert not window.ball_input.isVisible()
     assert not window.ball_message.isVisible()
     assert all(
