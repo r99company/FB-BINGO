@@ -5,7 +5,7 @@ import threading
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QLabel
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QLabel, QFrame, QSizePolicy
 
 from app.bingo import BingoGame
 from app.database import SQLiteGameHistoryRepository, SQLiteSeriesRepository
@@ -148,8 +148,10 @@ def _set_finish_button_mode(self: BingoMainWindow, new_game: bool) -> None:
         for candidate in self.findChildren(QPushButton):
             if candidate.property("fb_bingo_finish_button") is True: button = candidate; break
     if button is None: return
-    button.setProperty("fb_bingo_finish_button", True); _replace_signal_connection(button.clicked, self.new_game if new_game else self.finalize_game)
-    button.setText("▶ NUEVA PARTIDA\nF4 · Ctrl+4" if new_game else "■ FINALIZAR\nF4 · Ctrl+4"); button.style().unpolish(button); button.style().polish(button); button.update()
+    button.setProperty("fb_bingo_finish_button", True)
+    _replace_signal_connection(button.clicked, self.new_game if new_game else self.finalize_game)
+    button.setText("▶ NUEVA PARTIDA\nF4 · Ctrl+4" if new_game else "■ FINALIZAR\nF4 · Ctrl+4")
+    button.style().unpolish(button); button.style().polish(button); button.update()
 
 
 def _finalize_game_with_history(self) -> None:
@@ -187,7 +189,6 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
 
 
 def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
-    # Tamaño operativo validado para el diseño profesional; no reducir el panel en pantallas pequeñas.
     self.setMinimumSize(1200, 760); self.resize(1540, 930)
     root = self.centralWidget()
     if root is not None:
@@ -207,20 +208,15 @@ def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
     state = getattr(self, "call_state", None)
     if state is not None: state.setText("BOLA CANTADA" if self.game.current_number is not None else "LISTO PARA JUGAR")
     for button in getattr(self, "_buttons", {}).values():
-        button.setMinimumSize(58, 58); button.setMaximumSize(58, 58); button.setSizePolicy(button.sizePolicy().Fixed, button.sizePolicy().Fixed)
-    # El digitador queda disponible internamente para pruebas/compatibilidad, pero no ocupa espacio visual.
-    if hasattr(self, "ball_input"):
-        self.ball_input.hide()
-    if hasattr(self, "ball_message"):
-        self.ball_message.hide()
+        button.setMinimumSize(58, 58); button.setMaximumSize(58, 58)
+        button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+    if hasattr(self, "ball_input"): self.ball_input.hide()
+    if hasattr(self, "ball_message"): self.ball_message.hide()
     for label in self.findChildren(QLabel):
-        if label.text().strip() in {"DIGITA EL NÚMERO", "Escribe la bola física y presiona ENTER"}:
-            label.hide()
+        if label.text().strip() in {"DIGITA EL NÚMERO", "Escribe la bola física y presiona ENTER"}: label.hide()
     for panel in self.findChildren(QFrame):
-        if panel.objectName() == "Panel":
-            layout = panel.layout()
-            if layout is not None and hasattr(layout, "setSpacing"):
-                layout.setSpacing(4)
+        if panel.objectName() == "Panel" and panel.layout() is not None:
+            panel.layout().setSpacing(4)
 
 
 def _install_model_selector(self) -> None:
@@ -236,12 +232,10 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
     settings = SettingsService(application_data_dir() / "settings.json")
     role = str(settings.get("station_role", "locutora")).lower().strip()
     self.station_sync_role = "administrador" if role == "administrador" else "locutora"
-    self.tv_sync_server = None
-    self.tv_sync_thread = None
+    self.tv_sync_server = None; self.tv_sync_thread = None
     if self.station_sync_role == "locutora":
         self.tv_sync_server = GameSyncServer(host="0.0.0.0", port=int(settings.get("tv_server_port", 8765)))
-        self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True)
-        self.tv_sync_thread.start()
+        self.tv_sync_thread = threading.Thread(target=self.tv_sync_server.serve_forever, daemon=True); self.tv_sync_thread.start()
     self.tv_sync_client = GameSyncClient(str(settings.get("tv_server_host", "127.0.0.1")), int(settings.get("tv_server_port", 8765)))
     self.open_cartons = lambda: _open_cartons(self); self.open_sales = lambda: _open_sales(self); self.open_verification = lambda: _open_verification(self); self.open_reports = lambda: _open_reports(self); self.open_settings = lambda: _open_settings(self); self.open_tv = lambda: _open_tv(self)
     self.enter_ball = lambda: _enter_ball_with_history(self); self.draw_number = lambda: _draw_with_history(self); self.call_number = lambda number: _call_with_history(self, number); self.undo_number = lambda: _undo_with_history(self); self.toggle_pause = lambda: _pause_with_history(self); self.finalize_game = lambda: _finalize_game_with_history(self); self.new_game = lambda: _new_game_with_history(self)
@@ -259,16 +253,11 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
 
 def _close_operator_resources(self: BingoMainWindow) -> None:
     timer = getattr(self, "station_sync_timer", None)
-    if timer is not None:
-        timer.stop()
-    server = getattr(self, "tv_sync_server", None)
-    thread = getattr(self, "tv_sync_thread", None)
-    if server is not None:
-        server.shutdown()
-    if thread is not None and thread.is_alive():
-        thread.join(timeout=1.0)
-    self.tv_sync_server = None
-    self.tv_sync_thread = None
+    if timer is not None: timer.stop()
+    server = getattr(self, "tv_sync_server", None); thread = getattr(self, "tv_sync_thread", None)
+    if server is not None: server.shutdown()
+    if thread is not None and thread.is_alive(): thread.join(timeout=1.0)
+    self.tv_sync_server = None; self.tv_sync_thread = None
     for attr in ("live_prizes_window", "verification_window", "sales_window", "reports_window", "settings_window", "cartons_window", "tv_window"):
         window = getattr(self, attr, None)
         if window is not None:
@@ -282,10 +271,8 @@ _original_close_event = getattr(BingoMainWindow, "closeEvent", None)
 
 def _close_event_with_resources(self: BingoMainWindow, event) -> None:
     _close_operator_resources(self)
-    if _original_close_event is not None:
-        _original_close_event(self, event)
-    else:
-        event.accept()
+    if _original_close_event is not None: _original_close_event(self, event)
+    else: event.accept()
 
 
 BingoMainWindow.closeEvent = _close_event_with_resources
