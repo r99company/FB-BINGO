@@ -31,13 +31,20 @@ class DistributionModel:
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
 
+        max_per_column = 3 if self.model is CardModel.A else 2
+        max_extra = max_per_column - 1
+
         def assign(position: int) -> bool:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES
             column = columns[position]
             need = extras[column]
             future = COLUMNS - position - 1
-            choices = list(itertools.combinations(range(CARDS_PER_SERIES), need))
+            choices = [
+                selected
+                for selected in itertools.combinations(range(CARDS_PER_SERIES), need)
+                if need <= CARDS_PER_SERIES * max_extra
+            ]
             rng.shuffle(choices)
             for selected in choices:
                 if any(remaining[i] <= 0 for i in selected):
@@ -45,7 +52,7 @@ class DistributionModel:
                 for i in selected:
                     remaining[i] -= 1
                     result[i][column] += 1
-                if all(value <= future for value in remaining) and assign(position + 1):
+                if all(value <= future * max_extra for value in remaining) and assign(position + 1):
                     return True
                 for i in selected:
                     remaining[i] += 1
@@ -53,7 +60,7 @@ class DistributionModel:
             return False
 
         if not assign(0):
-            raise RuntimeError("No se pudo equilibrar la distribución de la serie")
+            raise RuntimeError(f"No se pudo equilibrar la distribución del Modelo {self.model.value}")
         return result
 
     @staticmethod
@@ -101,7 +108,7 @@ class DistributionModel:
         """Construye tres filas de cinco casillas con separación visual variable."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
-        max_per_column = 2 if self.model is CardModel.A else 3
+        max_per_column = 3 if self.model is CardModel.A else 2
         if any(count < 1 or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
