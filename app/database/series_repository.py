@@ -116,7 +116,12 @@ class SQLiteSeriesRepository:
         return self._card_from_row(row)
 
     def get_cards_range(self, start_card: int, end_card: int) -> tuple[BingoCard, ...]:
-        """Load an arbitrary consecutive card range for printing/reprinting."""
+        """Carga los cartones existentes del rango para impresión o previsualización.
+
+        Si todavía no se han generado, devuelve una tupla vacía para que la
+        pantalla de producción pueda abrirse y mostrar cuántos hay disponibles.
+        Los flujos que requieren el rango completo validan su longitud después.
+        """
         if start_card < 1 or end_card < start_card:
             raise ValueError("El rango de cartones no es válido")
         with self._connect() as db:
@@ -129,11 +134,7 @@ class SQLiteSeriesRepository:
                 """,
                 (start_card, end_card),
             ).fetchall()
-        cards = tuple(self._card_from_row(row) for row in rows)
-        expected = end_card - start_card + 1
-        if len(cards) != expected:
-            raise KeyError(f"No están disponibles todos los cartones {start_card}-{end_card}")
-        return cards
+        return tuple(self._card_from_row(row) for row in rows)
 
     def get_card_position(self, serial: str) -> tuple[str, int]:
         """Devuelve la serie y posición humana (1..6) de un cartón."""

@@ -5,7 +5,7 @@ import json
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-from .models import DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
+from .models import MAX_SUPPORTED_PRODUCTION_CAPACITY, DEFAULT_PRODUCTION_CAPACITY, ProductionLot, plan_lot
 
 
 class DuplicateProductionError(RuntimeError):
@@ -16,13 +16,15 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    MIN_RECENT_LAYOUT_DISTANCE = 6
-    RELAXED_LAYOUT_DISTANCES = (6, 4, 2, 0)
+    MIN_RECENT_LAYOUT_DISTANCE = 4
     MAX_LAYOUT_RETRIES = 12
+    EXTENDED_LAYOUT_RETRIES = 48
 
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
         if max_cards < 1:
             raise ValueError("La capacidad de producción debe ser positiva")
+        if max_cards > MAX_SUPPORTED_PRODUCTION_CAPACITY:
+            raise ValueError(f"La capacidad máxima soportada es {MAX_SUPPORTED_PRODUCTION_CAPACITY:,} cartones")
         self.repository = repository
         self.generator = generator or SeriesGenerator(max_serial=max_cards)
         self.max_cards = max_cards
@@ -106,6 +108,10 @@ class ProductionService:
         return True
 
     def create_lot(self, start_card: int, end_card: int, model: CardModel = CardModel.A, operator: str = "") -> ProductionLot:
+        if start_card < 1 or end_card < start_card:
+            raise ValueError("El rango de generación no es válido")
+        if (start_card - 1) % 6 != 0 or (end_card - start_card + 1) % 6 != 0:
+            raise ValueError("La generación debe comenzar al inicio de una serie y usar bloques de 6 cartones")
         planned = plan_lot(start_card, end_card, model=model, operator=operator, max_cards=self.max_cards)
         with self.repository._connect() as db:
             row = db.execute("SELECT COALESCE(MAX(lot_id), 0) + 1 AS next_id FROM production_lots").fetchone()
@@ -174,16 +180,19 @@ class ProductionService:
                     raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
-                    for min_distance in self.RELAXED_LAYOUT_DISTANCES:
-                        for _ in range(self.MAX_LAYOUT_RETRIES):
-                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
-                            if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, min_distance):
-                                series = candidate
-                                break
-                        if series is not None:
+                    for variant in range(self.MAX_LAYOUT_RETRIES):
+                        candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
+                        if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, self.MIN_RECENT_LAYOUT_DISTANCE):
+                            series = candidate
                             break
                     if series is None:
-                        raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id}")
+                        for variant in range(self.MAX_LAYOUT_RETRIES, self.EXTENDED_LAYOUT_RETRIES):
+                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start, variant=variant)
+                            if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, self.MIN_RECENT_LAYOUT_DISTANCE):
+                                series = candidate
+                                break
+                    if series is None:
+                        raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id} con separación visual mínima de {self.MIN_RECENT_LAYOUT_DISTANCE}")
                     try:
                         self.repository.save(series)
                     except ValueError as exc:
@@ -203,8 +212,8 @@ class ProductionService:
             raise
         self._set_status(lot_id, "generated")
         return ProductionLot(lot_id=lot.lot_id, start_card=lot.start_card, end_card=lot.end_card,
-                              series_count=lot.series_count, model=lot.model, operator=lot.operator,
-                              status="generated", created_at=lot.created_at)
+                             series_count=lot.series_count, model=lot.model, operator=lot.operator,
+                             status="generated", created_at=lot.created_at)
 
     def mark_printed(self, lot_id: int) -> ProductionLot:
         lot = self.get_lot(lot_id)

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from app.cards import BingoCard
 
+from .verifier import CardVerifier
+
 
 @dataclass(frozen=True)
 class VerificationResult:
@@ -18,27 +20,16 @@ class VerificationResult:
 
 
 class CardCheckService:
-    """Verifica un cartón almacenado usando su matriz real y las bolas llamadas."""
+    """Compatibilidad de servicio: delega la regla de premio al verificador único."""
 
     @staticmethod
     def check(card: BingoCard, called_numbers: set[int] | frozenset[int]) -> VerificationResult:
-        called = set(called_numbers)
-        if any(number < 1 or number > 90 for number in called):
-            raise ValueError("Las bolas llamadas deben estar entre 1 y 90")
-
-        rows = tuple(
-            row_index
-            for row_index in range(3)
-            if all(
-                value is None or value in called
-                for value in card.grid[row_index]
-            )
-            and any(value is not None for value in card.grid[row_index])
-        )
-        bingo = card.numbers.issubset(called)
+        verifier = CardVerifier(card)
+        line_rows = verifier.line_winners(called_numbers)
+        bingo = verifier.is_bingo(called_numbers)
         return VerificationResult(
             serial=card.serial,
             model=card.model.value,
-            line_rows=rows,
+            line_rows=line_rows,
             bingo=bingo,
         )

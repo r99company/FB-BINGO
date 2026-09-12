@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import itertools
 import random
 from typing import Sequence
 
@@ -40,14 +39,14 @@ class SeriesGenerator:
         self._rng = random.Random(seed)
         self._max_serial = max_serial
 
-    def _series_rng(self, series_id: str) -> random.Random:
-        # La serie depende de su ID, no del momento de generación. Así,
-        # 0001 vuelve a producir los mismos números y 0002 produce otros.
-        material = f"FB-BINGO|{self._seed}|{series_id}".encode("utf-8")
+    def _series_rng(self, series_id: str, variant: int = 0) -> random.Random:
+        # El variant permite buscar otra matriz si la primera ya existe en la
+        # biblioteca. Con variant=0 la generación sigue siendo reproducible.
+        material = f"FB-BINGO|{self._seed}|{series_id}|{int(variant)}".encode("utf-8")
         seed = int.from_bytes(hashlib.sha256(material).digest()[:16], "big")
         return random.Random(seed)
 
-    def generate(self, series_id: str, model: CardModel = CardModel.A, serial_start: int = 1) -> BingoSeries:
+    def generate(self, series_id: str, model: CardModel = CardModel.A, serial_start: int = 1, variant: int = 0) -> BingoSeries:
         series_id = str(series_id).strip()
         if not series_id:
             raise ValueError("El identificador de serie es obligatorio")
@@ -55,12 +54,14 @@ class SeriesGenerator:
             raise ValueError("serial_start debe ser positivo")
         if serial_start + CARDS_PER_SERIES - 1 > self._max_serial:
             raise ValueError(f"Una serie no puede superar el serial {self._max_serial}")
+        if variant < 0:
+            raise ValueError("variant no puede ser negativo")
 
-        rng = self._series_rng(series_id)
+        rng = self._series_rng(series_id, variant)
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
-        for _ in range(192):
+        for _ in range(32):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None:
@@ -150,46 +151,12 @@ class SeriesGenerator:
     def _hamming(a, b) -> int:
         return sum(x != y for x, y in zip(a, b))
 
-    def _column_counts(self, model, distribution=None, rng=None):
+    @staticmethod
+    def _column_counts(model, distribution=None, rng=None):
+        """Única fuente de verdad para la ocupación de columnas."""
         distribution = distribution or DistributionModel.for_model(model)
-        rng = rng or self._rng
-        targets = [9] + [10] * 7 + [11]
-        max_extra = 1 if model is CardModel.A else 2
-        remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        columns = list(range(COLUMNS)); rng.shuffle(columns); cache = {}
-
-        def candidates(extra):
-            if extra not in cache:
-                values = [a for a in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES) if sum(a) == extra]
-                rng.shuffle(values); cache[extra] = values
-            return cache[extra]
-
-        def backtrack(position):
-            if position == COLUMNS:
-                return remaining == [0] * CARDS_PER_SERIES
-            column = columns[position]
-            extra = targets[column] - CARDS_PER_SERIES
-            remaining_columns = COLUMNS - position - 1
-            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1:])
-            for allocation in candidates(extra):
-                next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
-                if min(next_remaining) < 0 or sum(next_remaining) != future_extra:
-                    continue
-                if any(value > remaining_columns * max_extra for value in next_remaining):
-                    continue
-                old_remaining = remaining[:]
-                for card_index, added in enumerate(allocation):
-                    result[card_index][column] = 1 + added
-                remaining[:] = next_remaining
-                if backtrack(position + 1):
-                    return True
-                remaining[:] = old_remaining
-            return False
-
-        if not backtrack(0):
-            raise RuntimeError(f"No se pudo equilibrar la distribución de Modelo {model.value}")
-        return result
+        rng = rng or random.Random()
+        return distribution.column_counts(rng)
 
     def _build_grids(self, column_counts, distribution=None, rng=None, aesthetic=True):
         distribution = distribution or DistributionModel.for_model(CardModel.A)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
-from app.printing.modern_svg_renderer import ModernA4SvgRenderer
+from app.printing.professional_svg_renderer import ProfessionalA4SvgRenderer
+
+ModernA4SvgRenderer = ProfessionalA4SvgRenderer
 
 __all__ = ["ModernA4SvgRenderer"]

@@ -25,36 +25,66 @@ class DistributionModel:
         return cls(model=model)
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
-        targets = [9] + [10] * 7 + [11]
-        extras = [target - CARDS_PER_SERIES for target in targets]
-        remaining = [6] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
+        """Genera la ocupación de columnas de una serie de seis.
 
-        def assign(position: int) -> bool:
-            if position == COLUMNS:
-                return remaining == [0] * CARDS_PER_SERIES
-            column = columns[position]
-            need = extras[column]
-            future = COLUMNS - position - 1
-            choices = list(itertools.combinations(range(CARDS_PER_SERIES), need))
-            rng.shuffle(choices)
-            for selected in choices:
-                if any(remaining[i] <= 0 for i in selected):
-                    continue
-                for i in selected:
-                    remaining[i] -= 1
-                    result[i][column] += 1
-                if all(value <= future for value in remaining) and assign(position + 1):
-                    return True
-                for i in selected:
-                    remaining[i] += 1
-                    result[i][column] -= 1
-            return False
+        Modelo A: las nueve columnas siempre están ocupadas y cada una tiene
+        1 o 2 números. Cada cartón tiene exactamente seis columnas dobles y
+        tres simples. En la serie, las columnas contienen 9,10,...,10,11
+        números respectivamente, permitiendo cubrir 1-90 exactamente una vez.
 
-        if not assign(0):
-            raise RuntimeError("No se pudo equilibrar la distribución de la serie")
-        return result
+        Modelo B: conserva la libertad 0-3 por columna.
+        """
+        if self.model is CardModel.B:
+            template = [
+                [1, 0, 3, 2, 2, 2, 2, 2, 1],
+                [2, 2, 0, 2, 2, 2, 2, 2, 1],
+                [2, 2, 1, 0, 2, 2, 1, 2, 3],
+                [2, 2, 2, 2, 0, 2, 1, 2, 2],
+                [2, 2, 2, 2, 2, 0, 2, 1, 2],
+                [0, 2, 2, 2, 2, 2, 2, 1, 2],
+            ]
+            rng.shuffle(template)
+            middle = list(range(1, 8))
+            rng.shuffle(middle)
+            result = []
+            for source in template:
+                mapped = [source[0]] + [0] * 7 + [source[8]]
+                for target_column, source_column in enumerate(middle, start=1):
+                    mapped[target_column] = source[source_column]
+                result.append(mapped)
+            return result
+
+        target = [3] + [4] * 7 + [5]
+        for _ in range(128):
+            extras = [[False] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+            for card in range(CARDS_PER_SERIES):
+                for column in rng.sample(range(COLUMNS), 6):
+                    extras[card][column] = True
+            totals = [sum(extras[card][column] for card in range(CARDS_PER_SERIES)) for column in range(COLUMNS)]
+            guard = 0
+            while totals != target and guard < 200:
+                guard += 1
+                over = [c for c in range(COLUMNS) if totals[c] > target[c]]
+                under = [c for c in range(COLUMNS) if totals[c] < target[c]]
+                if not over or not under:
+                    break
+                source = rng.choice(over)
+                dest = rng.choice(under)
+                candidates = [card for card in range(CARDS_PER_SERIES) if extras[card][source] and not extras[card][dest]]
+                if not candidates:
+                    break
+                card = rng.choice(candidates)
+                extras[card][source] = False
+                extras[card][dest] = True
+                totals[source] -= 1
+                totals[dest] += 1
+            if totals == target:
+                result = [[1 + int(extras[card][column]) for column in range(COLUMNS)] for card in range(CARDS_PER_SERIES)]
+                if all(sum(row) == NUMBERS_PER_CARD for row in result):
+                    rng.shuffle(result)
+                    assert [sum(row[column] for row in result) for column in range(COLUMNS)] == [9] + [10] * 7 + [11]
+                    return result
+        raise RuntimeError("No se pudo construir una distribución válida del modelo A")
 
     @staticmethod
     def _transitions(mask: int) -> int:
@@ -80,17 +110,51 @@ class DistributionModel:
 
     @classmethod
     def _triple_score(cls, triple: tuple[int, int, int]) -> int:
-        score = sum(cls._transitions(mask) for mask in triple) * 8
-        score -= sum(max(0, cls._longest_run(mask) - 2) * 18 for mask in triple)
+        """Puntúa una máscara para favorecer el aspecto alternado de A."""
+        score = sum(cls._transitions(mask) for mask in triple) * 24
+        score -= sum(max(0, cls._longest_run(mask) - 2) * 80 for mask in triple)
         if len(set(triple)) < 3:
-            score -= 120
-        prefix = [sum(bool(mask & (1 << c)) for c in range(4)) for mask in triple]
-        suffix = [sum(bool(mask & (1 << c)) for c in range(5, 9)) for mask in triple]
-        score -= (max(prefix) - min(prefix)) * 3
-        score -= (max(suffix) - min(suffix)) * 3
-        center = [sum(bool(mask & (1 << c)) for c in range(2, 7)) for mask in triple]
-        score -= sum(abs(value - 3) for value in center)
+            score -= 360
+
+        column_masks = []
+        for column in range(COLUMNS):
+            mask = sum((1 << row) for row in range(3) if triple[row] & (1 << column))
+            column_masks.append(mask)
+        for left, right in zip(column_masks, column_masks[1:]):
+            if left == right:
+                score -= 180
+            else:
+                score += 28
+
+        zones = [
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(0, 3)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(3, 6)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(6, 9)),
+        ]
+        score -= (max(zones) - min(zones)) * 12
         return score
+
+    @classmethod
+    def _passes_visual_constraints(cls, triple: tuple[int, int, int]) -> bool:
+        """Garantiza una composición profesional, no solo matemáticamente válida."""
+        if len(set(triple)) < 2:
+            return False
+        if any(cls._longest_run(mask) > 2 for mask in triple):
+            return False
+
+        column_masks = []
+        for column in range(COLUMNS):
+            mask = sum((1 << row) for row in range(3) if triple[row] & (1 << column))
+            column_masks.append(mask)
+        if any(left == right for left, right in zip(column_masks, column_masks[1:])):
+            return False
+
+        zones = [
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(0, 3)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(3, 6)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(6, 9)),
+        ]
+        return max(zones) - min(zones) <= 2
 
     def row_masks_for_counts(
         self,
@@ -98,25 +162,29 @@ class DistributionModel:
         rng: random.Random,
         forbidden: Sequence[set[int]] | None = None,
     ) -> list[int] | None:
-        """Construye tres filas de cinco casillas con separación visual variable."""
+        """Construye tres filas de cinco casillas con posiciones dispersas."""
         if len(counts) != COLUMNS or sum(counts) != NUMBERS_PER_CARD:
             return None
         max_per_column = 2 if self.model is CardModel.A else 3
-        if any(count < 1 or count > max_per_column for count in counts):
+        min_per_column = 1 if self.model is CardModel.A else 0
+        if any(count < min_per_column or count > max_per_column for count in counts):
             return None
         forbidden = forbidden or [set(), set(), set()]
 
-        columns = sorted(range(COLUMNS), key=lambda c: (-counts[c], rng.random()))
+        # El orden es el orden físico de las columnas. Así, la regla contra
+        # máscaras iguales compara columna 1 con 2, 2 con 3, etc.; nunca con
+        # un orden artificial por cantidad de números.
+        columns = list(range(COLUMNS))
         empty_counts = tuple(3 - count for count in counts)
         choices = {
             empty_count: list(itertools.combinations(range(3), empty_count))
-            for empty_count in range(3)
+            for empty_count in range(4)
         }
         for values in choices.values():
             rng.shuffle(values)
 
         @lru_cache(maxsize=None)
-        def possible(position: int, remaining: tuple[int, int, int]) -> bool:
+        def possible(position: int, remaining: tuple[int, int, int], previous_mask: int = -1) -> bool:
             if position == COLUMNS:
                 return remaining == (0, 0, 0)
             column = columns[position]
@@ -128,16 +196,22 @@ class DistributionModel:
                 nxt = list(remaining)
                 for row in empty_rows:
                     nxt[row] -= 1
-                if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
+                if not all(0 <= value <= future for value in nxt):
+                    continue
+                occupied_mask = sum(1 << row for row in range(3) if row not in empty_rows)
+                if self.model is CardModel.A and previous_mask == occupied_mask:
+                    continue
+                if possible(position + 1, tuple(nxt), occupied_mask):
                     return True
             return False
 
-        if not possible(0, (4, 4, 4)):
+        if not possible(0, (4, 4, 4), -1):
             return None
 
         def build_once() -> tuple[int, int, int] | None:
             remaining = [4, 4, 4]
             masks = [0, 0, 0]
+            previous_column_mask = -1
             for position, column in enumerate(columns):
                 future = COLUMNS - position - 1
                 empty_count = empty_counts[column]
@@ -148,11 +222,15 @@ class DistributionModel:
                     nxt = list(remaining)
                     for row in empty_rows:
                         nxt[row] -= 1
-                    if all(0 <= value <= future for value in nxt) and possible(position + 1, tuple(nxt)):
-                        candidates.append(empty_rows)
+                    if not all(0 <= value <= future for value in nxt) or not possible(position + 1, tuple(nxt), previous_column_mask if self.model is CardModel.A else -1):
+                        continue
+                    occupied_mask = sum(1 << row for row in range(3) if row not in empty_rows)
+                    if self.model is CardModel.A and previous_column_mask == occupied_mask:
+                        continue
+                    candidates.append((empty_rows, occupied_mask))
                 if not candidates:
                     return None
-                empty_rows = rng.choice(candidates)
+                empty_rows, previous_column_mask = rng.choice(candidates)
                 for row in empty_rows:
                     remaining[row] -= 1
                 for row in range(3):
@@ -162,11 +240,13 @@ class DistributionModel:
 
         best: tuple[int, int, int] | None = None
         best_score = -10**9
-        for _ in range(24):
+        for _ in range(128 if self.model is CardModel.A else 24):
             candidate = build_once()
             if candidate is None:
                 continue
             if any(candidate[row] in forbidden[row] for row in range(3)):
+                continue
+            if self.model is CardModel.A and not self._passes_visual_constraints(candidate):
                 continue
             score = self._triple_score(candidate)
             if score > best_score:

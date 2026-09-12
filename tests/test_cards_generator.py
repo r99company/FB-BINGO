@@ -21,19 +21,21 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
+def test_model_a_generated_cards_use_one_to_two_numbers_in_every_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
         assert all(1 <= count <= 2 for count in card.column_counts)
+        assert sum(count == 2 for count in card.column_counts) == 6
         assert card.model is CardModel.A
 
 
-def test_model_b_generated_cards_allow_one_to_three_numbers_per_column() -> None:
+def test_model_b_generated_cards_allow_zero_to_three_numbers_per_column_and_have_empty_columns() -> None:
     series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert all(0 <= count <= 3 for count in card.column_counts)
+        assert 0 in card.column_counts
         assert card.model is CardModel.B
 
 
@@ -76,6 +78,20 @@ def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
 
 
+def test_same_series_and_variant_zero_remains_deterministic() -> None:
+    generator = SeriesGenerator(seed=2026)
+    first = generator.generate("SER-010", CardModel.A, variant=0)
+    second = generator.generate("SER-010", CardModel.A, variant=0)
+    assert [card.grid for card in first.cards] == [card.grid for card in second.cards]
+
+
+def test_variants_provide_an_alternative_layout_for_production() -> None:
+    generator = SeriesGenerator(seed=2026)
+    first = generator.generate("SER-010", CardModel.A, variant=0)
+    alternative = generator.generate("SER-010", CardModel.A, variant=1)
+    assert [card.grid for card in first.cards] != [card.grid for card in alternative.cards]
+
+
 def test_model_a_allows_natural_row_runs() -> None:
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
@@ -92,8 +108,9 @@ def test_representative_series_allow_repeats_but_not_three_identical_column_patt
             assert not (patterns[index] == patterns[index - 1] == patterns[index - 2])
 
 
-def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
+def test_model_a_requires_all_nine_columns_to_be_occupied() -> None:
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
         for card in series.cards:
             assert len(card.numbers) == 15
+            assert all(1 <= count <= 2 for count in card.column_counts)

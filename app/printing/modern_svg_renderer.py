@@ -72,12 +72,12 @@ class ModernA4SvgRenderer:
     def _card(self, card: BingoCard, x: float, y: float, width: float, height: float) -> str:
         header = min(21.0, height * 0.20)
         footer = min(12.0, height * 0.12) if self.style.show_footer else 2.0
-        grid_top = header + 1.5
-        grid_bottom = height - footer - 1.5
-        # La separación es intencional: evita que las tres filas parezcan una
-        # sola tabla compacta y mantiene cada número visualmente independiente.
-        gap_x = min(1.45, max(1.0, width / 78.0))
-        gap_y = min(1.65, max(1.15, height / 48.0))
+        grid_top = header + 1.7
+        grid_bottom = height - footer - 1.7
+        # La separación vertical es deliberada: cada fila debe leerse como una
+        # fila independiente, sin que los números parezcan una tabla pegada.
+        gap_x = min(1.55, max(1.10, width / 74.0))
+        gap_y = min(2.15, max(1.75, height / 24.0))
         cell_w = (width - gap_x * 8) / 9
         cell_h = (grid_bottom - grid_top - gap_y * 2) / 3
         logo = self._logo_href()
