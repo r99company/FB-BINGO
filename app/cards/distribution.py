@@ -111,10 +111,10 @@ class DistributionModel:
     @classmethod
     def _triple_score(cls, triple: tuple[int, int, int]) -> int:
         """Puntúa una máscara para favorecer el aspecto alternado de A."""
-        score = sum(cls._transitions(mask) for mask in triple) * 18
-        score -= sum(max(0, cls._longest_run(mask) - 2) * 35 for mask in triple)
+        score = sum(cls._transitions(mask) for mask in triple) * 24
+        score -= sum(max(0, cls._longest_run(mask) - 2) * 80 for mask in triple)
         if len(set(triple)) < 3:
-            score -= 240
+            score -= 360
 
         column_masks = []
         for column in range(COLUMNS):
@@ -122,17 +122,39 @@ class DistributionModel:
             column_masks.append(mask)
         for left, right in zip(column_masks, column_masks[1:]):
             if left == right:
-                score -= 110
+                score -= 180
             else:
-                score += 22
+                score += 28
 
         zones = [
             sum(bool(mask & (1 << c)) for mask in triple for c in range(0, 3)),
             sum(bool(mask & (1 << c)) for mask in triple for c in range(3, 6)),
             sum(bool(mask & (1 << c)) for mask in triple for c in range(6, 9)),
         ]
-        score -= (max(zones) - min(zones)) * 7
+        score -= (max(zones) - min(zones)) * 12
         return score
+
+    @classmethod
+    def _passes_visual_constraints(cls, triple: tuple[int, int, int]) -> bool:
+        """Garantiza una composición profesional, no solo matemáticamente válida."""
+        if len(set(triple)) < 2:
+            return False
+        if any(cls._longest_run(mask) > 2 for mask in triple):
+            return False
+
+        column_masks = []
+        for column in range(COLUMNS):
+            mask = sum((1 << row) for row in range(3) if triple[row] & (1 << column))
+            column_masks.append(mask)
+        if any(left == right for left, right in zip(column_masks, column_masks[1:])):
+            return False
+
+        zones = [
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(0, 3)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(3, 6)),
+            sum(bool(mask & (1 << c)) for mask in triple for c in range(6, 9)),
+        ]
+        return max(zones) - min(zones) <= 2
 
     def row_masks_for_counts(
         self,
@@ -218,11 +240,13 @@ class DistributionModel:
 
         best: tuple[int, int, int] | None = None
         best_score = -10**9
-        for _ in range(96 if self.model is CardModel.A else 24):
+        for _ in range(128 if self.model is CardModel.A else 24):
             candidate = build_once()
             if candidate is None:
                 continue
             if any(candidate[row] in forbidden[row] for row in range(3)):
+                continue
+            if self.model is CardModel.A and not self._passes_visual_constraints(candidate):
                 continue
             score = self._triple_score(candidate)
             if score > best_score:
