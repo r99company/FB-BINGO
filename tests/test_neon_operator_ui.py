@@ -21,7 +21,8 @@ def test_operator_window_has_approved_layout_and_90_ball_board():
     assert window.current_label.objectName() == "CurrentBall"
     assert window.count_label.text() == "0 / 90"
     assert window.ball_input.placeholderText() == "1 – 90"
-    assert window.ball_input.hasFocus()
+    # El digitizador no debe ocupar espacio visual en la pantalla profesional.
+    assert not window.ball_input.isVisible()
     labels = _texts(window)
     assert "CONTROLES DEL JUEGO" not in labels
     assert "INFORMACIÓN GENERAL" not in labels
