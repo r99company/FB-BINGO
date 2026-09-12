@@ -21,20 +21,42 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
+def test_model_a_generated_cards_allow_one_to_three_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert all(1 <= count <= 3 for count in card.column_counts)
         assert card.model is CardModel.A
 
 
-def test_model_b_generated_cards_allow_one_to_three_numbers_per_column() -> None:
+def test_model_b_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert all(1 <= count <= 2 for count in card.column_counts)
         assert card.model is CardModel.B
+
+
+def test_model_a_accepts_three_numbers_in_a_column() -> None:
+    grid = (
+        (1, 11, 21, 31, 41, None, None, None, None),
+        (2, 12, 22, 32, 42, 51, 61, None, None),
+        (3, 13, 23, 33, 43, 52, 62, 71, 81),
+    )
+    from app.cards import BingoCard
+    card = BingoCard(serial="A-THREE", model=CardModel.A, grid=grid)
+    assert card.column_counts[0] == 3
+
+
+def test_model_b_rejects_three_numbers_in_a_column() -> None:
+    grid = (
+        (1, 11, 21, 31, 41, None, None, None, None),
+        (2, 12, 22, 32, 42, 51, 61, None, None),
+        (3, 13, 23, 33, 43, 52, 62, 71, 81),
+    )
+    from app.cards import BingoCard
+    with pytest.raises(ValueError, match="Modelo B"):
+        BingoCard(serial="B-THREE", model=CardModel.B, grid=grid)
 
 
 def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
