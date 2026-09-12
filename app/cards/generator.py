@@ -40,21 +40,29 @@ class SeriesGenerator:
         self._rng = random.Random(seed)
         self._max_serial = max_serial
 
-    def _series_rng(self, series_id: str) -> random.Random:
-        material = f"FB-BINGO|{self._seed}|{series_id}".encode("utf-8")
+    def _series_rng(self, series_id: str, variant: int = 0) -> random.Random:
+        material = f"FB-BINGO|{self._seed}|{series_id}|{int(variant)}".encode("utf-8")
         seed = int.from_bytes(hashlib.sha256(material).digest()[:16], "big")
         return random.Random(seed)
 
-    def generate(self, series_id: str, model: CardModel = CardModel.A, serial_start: int = 1) -> BingoSeries:
+    def generate(
+        self,
+        series_id: str,
+        model: CardModel = CardModel.A,
+        serial_start: int = 1,
+        variant: int = 0,
+    ) -> BingoSeries:
         series_id = str(series_id).strip()
         if not series_id:
             raise ValueError("El identificador de serie es obligatorio")
         if serial_start < 1:
             raise ValueError("serial_start debe ser positivo")
+        if variant < 0:
+            raise ValueError("variant no puede ser negativo")
         if serial_start + CARDS_PER_SERIES - 1 > self._max_serial:
             raise ValueError(f"Una serie no puede superar el serial {self._max_serial}")
 
-        rng = self._series_rng(series_id)
+        rng = self._series_rng(series_id, variant)
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
