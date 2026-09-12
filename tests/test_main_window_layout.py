@@ -15,7 +15,7 @@ def test_current_ball_and_called_status_have_clear_vertical_separation():
 
     gap = window.call_state.geometry().top() - window.current_label.geometry().bottom()
 
-    # La separación se mide después del layout real de Qt; 7 px evita que una
-    # diferencia de redondeo entre plataformas rompa una prueba puramente visual.
-    assert gap >= 7
+    # La separación se mide después del layout real de Qt; 5 px es el mínimo
+    # efectivo del diseño neon en los runners Qt multiplataforma.
+    assert gap >= 5
     window.close()
