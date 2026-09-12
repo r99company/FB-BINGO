@@ -73,7 +73,7 @@ def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
         series = SeriesGenerator(seed=321).generate(f"SER-{model.value}", model)
         for card in series.cards:
             for column in range(9):
-                values = [card.grid[row][column] for row in range(ROWS)]
+                values = [card.grid[row][column] for row in range(3)]
                 values = [value for value in values if value is not None]
                 assert values == sorted(values)
 
