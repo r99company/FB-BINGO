@@ -152,34 +152,46 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         targets = [9] + [10] * 7 + [11]
-        max_per_column = 3 if model is CardModel.A else 2
-        max_extra = max_per_column - 1
-        remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        columns = list(range(COLUMNS)); rng.shuffle(columns); cache = {}
+        min_per_column = model.min_numbers_per_column
+        max_per_column = model.max_numbers_per_column
+        remaining = [NUMBERS_PER_CARD - min_per_column * COLUMNS] * CARDS_PER_SERIES
+        result = [[min_per_column] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        columns = list(range(COLUMNS))
+        rng.shuffle(columns)
+        cache: dict[int, list[tuple[int, ...]]] = {}
 
-        def candidates(extra):
+        def candidates(extra: int):
             if extra not in cache:
-                values = [a for a in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES) if sum(a) == extra]
-                rng.shuffle(values); cache[extra] = values
+                values = [
+                    allocation
+                    for allocation in itertools.product(
+                        range(max_per_column - min_per_column + 1), repeat=CARDS_PER_SERIES
+                    )
+                    if sum(allocation) == extra
+                ]
+                rng.shuffle(values)
+                cache[extra] = values
             return cache[extra]
 
-        def backtrack(position):
+        def backtrack(position: int) -> bool:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES
             column = columns[position]
-            extra = targets[column] - CARDS_PER_SERIES
+            extra = targets[column] - min_per_column * CARDS_PER_SERIES
             remaining_columns = COLUMNS - position - 1
-            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1:])
+            future_extra = sum(
+                targets[c] - min_per_column * CARDS_PER_SERIES
+                for c in columns[position + 1 :]
+            )
             for allocation in candidates(extra):
                 next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
                 if min(next_remaining) < 0 or sum(next_remaining) != future_extra:
                     continue
-                if any(value > remaining_columns * max_extra for value in next_remaining):
+                if any(value > remaining_columns * (max_per_column - min_per_column) for value in next_remaining):
                     continue
                 old_remaining = remaining[:]
                 for card_index, added in enumerate(allocation):
-                    result[card_index][column] = 1 + added
+                    result[card_index][column] = min_per_column + added
                 remaining[:] = next_remaining
                 if backtrack(position + 1):
                     return True
@@ -187,7 +199,7 @@ class SeriesGenerator:
             return False
 
         if not backtrack(0):
-            raise RuntimeError(f"No se pudo equilibrar la distribución de Modelo {model.value}")
+            raise RuntimeError(f"No se pudo equilibrar la distribución del Modelo {model.value}")
         return result
 
     def _build_grids(self, column_counts, distribution=None, rng=None, aesthetic=True):
@@ -203,10 +215,13 @@ class SeriesGenerator:
             row_masks.append(masks)
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
-            values = list(self._values_for_column(column)); rng.shuffle(values); cursor = 0
+            values = list(self._values_for_column(column))
+            rng.shuffle(values)
+            cursor = 0
             for card_index in range(CARDS_PER_SERIES):
                 count = column_counts[card_index][column]
-                card_values = sorted(values[cursor:cursor + count]); cursor += count
+                card_values = sorted(values[cursor : cursor + count])
+                cursor += count
                 rows = [row for row in range(ROWS) if row_masks[card_index][row] & (1 << column)]
                 if len(card_values) != count or len(rows) != count:
                     return None
