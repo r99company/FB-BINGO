@@ -72,6 +72,30 @@ class ProductionService:
         persisted = self._existing_serials_for_range(start_card, end_card)
         return bool(persisted) and persisted == self._expected_serials(start_card, end_card)
 
+    def _series_is_persisted(self, series_id: str, serial_start: int) -> bool:
+        """Return whether a canonical series already exists; reject mismatched numbering."""
+        key = f"{int(series_id):04d}" if str(series_id).strip().isdigit() else str(series_id).strip()
+        try:
+            series = self.repository.get(key)
+        except KeyError:
+            return False
+        expected = self._expected_serials(serial_start, serial_start + 5, key)
+        actual = [card.serial for card in series.cards]
+        if actual != expected:
+            raise DuplicateProductionError(
+                f"La serie {key} ya existe con seriales incompatibles; no se reutiliza silenciosamente"
+            )
+        if any(card.model is not self._current_model(series) for card in series.cards):
+            raise DuplicateProductionError(f"La serie {key} tiene un modelo inconsistente")
+        return True
+
+    @staticmethod
+    def _current_model(series):
+        models = {card.model for card in series.cards}
+        if len(models) != 1:
+            raise DuplicateProductionError(f"La serie {series.series_id} contiene modelos mezclados")
+        return next(iter(models))
+
     @staticmethod
     def _canonical_series_ranges(start_card: int, end_card: int):
         first_series = (start_card - 1) // 6 + 1
@@ -145,7 +169,6 @@ class ProductionService:
             db.execute("UPDATE production_lots SET status = ? WHERE lot_id = ?", (status, lot_id))
 
     def _generate_candidate(self, series_id: str, model: CardModel, serial_start: int, variant: int):
-        """Genera una alternativa reproducible sin cambiar el identificador físico de la serie."""
         return self.generator.generate(series_id, model, serial_start=serial_start, variant=variant)
 
     def generate_lot(self, lot_id: int, progress_callback: Callable[[int], None] | None = None) -> ProductionLot:
