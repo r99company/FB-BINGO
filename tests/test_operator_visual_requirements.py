@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from app.ui.main_window import BingoMainWindow
+from app.ui.main import BingoMainWindow
 
 
 def test_operator_board_uses_circular_ball_style_and_hidden_digitizer() -> None:
