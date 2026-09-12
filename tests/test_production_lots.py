@@ -112,7 +112,7 @@ def test_same_series_can_be_reprinted_repeatedly_with_identical_cards(tmp_path) 
     original = repository.get("0001")
 
     for _ in range(3):
-        reprint = service.create_lot(1, 6, CardModel.B, operator="reimpresion")
+        reprint = service.create_lot(1, 6, CardModel.A, operator="reimpresion")
         service.generate_lot(reprint.lot_id)
         assert repository.get("0001") == original
 
