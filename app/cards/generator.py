@@ -41,8 +41,6 @@ class SeriesGenerator:
         self._max_serial = max_serial
 
     def _series_rng(self, series_id: str) -> random.Random:
-        # La serie depende de su ID, no del momento de generación. Así,
-        # 0001 vuelve a producir los mismos números y 0002 produce otros.
         material = f"FB-BINGO|{self._seed}|{series_id}".encode("utf-8")
         seed = int.from_bytes(hashlib.sha256(material).digest()[:16], "big")
         return random.Random(seed)
@@ -154,7 +152,8 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(model)
         rng = rng or self._rng
         targets = [9] + [10] * 7 + [11]
-        max_extra = 1 if model is CardModel.A else 2
+        max_per_column = 3 if model is CardModel.A else 2
+        max_extra = max_per_column - 1
         remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
         result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
         columns = list(range(COLUMNS)); rng.shuffle(columns); cache = {}
