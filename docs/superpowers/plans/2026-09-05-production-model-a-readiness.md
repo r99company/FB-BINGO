@@ -4,7 +4,12 @@
 
 **Goal:** Close the FB-BINGO principal application around Modelo A as the production-grade product used for customer presentation, worker training, stock generation, printing, sales, games, and verification.
 
-**Architecture:** Keep the business core independent from PySide6 and keep SQLite as the source of truth. Modelo A is the only playable/verified model in the first production release; the future Modelo B remains isolated so it cannot affect A. QR support is part of the A card format from the start, while external QR services remain a later phase.
+**Architecture:** Keep the business core independent from PySide6 and keep SQLite as the source of truth. Modelo A is the principal production model. Modelo B is a secondary/special model and must never alter A's rules. QR support is part of the A card format from the start, while external QR services remain a later phase.
+
+**Official model rules:**
+- **Modelo A — PRINCIPAL:** every column has **1 to 2 numbers**.
+- **Modelo B — ESPECIAL:** every column has **0 to 3 numbers**.
+- These limits are model-specific and must never be swapped in validation, generation, printing, or verification.
 
 **Tech Stack:** Python 3.11, PySide6, SQLite, pytest, SVG rendering, PyInstaller/Inno Setup on Windows.
 
@@ -14,18 +19,19 @@
 
 - 90-ball Bingo.
 - Modelo A: 3×9 card, 15 numbers, exactly 5 numbers per row, 1–2 numbers per column.
+- Modelo B: 3×9 card, 15 numbers, exactly 5 numbers per row, 0–3 numbers per column.
 - A series contains exactly 6 cards and covers 1–90 exactly once.
 - Exact generated card matrices must be persisted.
 - Initial production capacity is 15,000 cards / 2,500 series, with architecture able to extend to 30,000.
 - Production is processed in resumable blocks; never require all 15,000 cards in memory.
 - The active game model controls verification; a card from another model must be rejected for that game.
-- The main product is the professional FB-BINGO application; the future Modelo B generator is secondary and must not delay A production readiness.
+- The main product is the professional FB-BINGO application; Modelo A is the primary production path and Modelo B is secondary.
 - QR zone is supported on Modelo A cards from the beginning; external QR verification remains future work.
 - Final installer is built only after functional tests and Windows smoke tests pass.
 
 ---
 
-### Task 1: Close Modelo A card invariants
+### Task 1: Close card model invariants
 
 **Files:**
 - Modify: `app/cards/card.py`
@@ -34,16 +40,14 @@
 - Test: `tests/test_cards_generator.py`
 
 **Interfaces:**
-- `BingoCard` must validate Modelo A using a model-aware distribution policy.
-- `BingoSeries` must generate six valid Modelo A cards and preserve exact matrices.
+- `BingoCard` must validate the exact model-aware distribution policy.
+- `BingoSeries` must generate six valid cards and preserve exact matrices.
 
-- [ ] Write tests proving Modelo A accepts only 1–2 numbers per column and rejects 3.
-- [ ] Write tests proving every generated Modelo A series has six valid cards, 15 numbers/card, five/row, correct ranges, sorted columns, and exact 1–90 coverage.
-- [ ] Add a test that generated masks are not a single repeated fixed pattern.
-- [ ] Run the focused card tests and confirm failures expose the remaining model-B hardcoding without weakening A.
-- [ ] Implement the smallest model-aware validation/generation change needed for A.
-- [ ] Run the focused card suite until green.
-- [ ] Commit the task with a focused message.
+- [x] Write tests proving Modelo A accepts only 1–2 numbers per column and rejects 3.
+- [x] Write tests proving Modelo B allows 0–3 numbers per column.
+- [x] Write tests proving every generated series has six valid cards, 15 numbers/card, five/row, correct ranges, sorted columns, and exact 1–90 coverage.
+- [x] Make validation and generation model-aware.
+- [ ] Run the focused card suite on the latest commit and confirm green.
 
 ### Task 2: Bind the active model to a game
 
@@ -63,7 +67,6 @@
 - [ ] Ensure line/bingo evaluation uses the rules for the active model only.
 - [ ] Add UI selection for the active model, initially exposing Modelo A as the production option.
 - [ ] Run game/verification tests.
-- [ ] Commit.
 
 ### Task 3: Finish production lots and inventory safety
 
@@ -84,9 +87,8 @@
 - [ ] Replace repeated capacity literals with one configuration source.
 - [ ] Implement missing inventory persistence/state transitions.
 - [ ] Run the production/inventory suite.
-- [ ] Commit.
 
-### Task 4: Consolidate professional Modelo A printing
+### Task 4: Consolidate professional printing
 
 **Files:**
 - Modify: `app/printing/layout.py`
@@ -100,11 +102,10 @@
 - Renderer output is reproducible from the persisted matrices.
 
 - [ ] Write tests for six cards, six serials, QR zones, branding, and exact matrix rendering.
-- [ ] Resolve final A4 geometry against the approved physical reference instead of assuming an incompatible exact 12×9 cm six-up layout.
+- [ ] Resolve final A4 geometry against the approved physical reference.
 - [ ] Consolidate renderer entry points behind one official path.
 - [ ] Ensure Modelo A includes QR reservation.
 - [ ] Run SVG/rendering tests.
-- [ ] Commit.
 
 ### Task 5: Complete operator, TV, verification, and worker workflow
 
@@ -123,7 +124,6 @@
 - [ ] Write verification tests for line and bingo using the persisted matrix.
 - [ ] Verify TV hides internal sales/production information.
 - [ ] Run the full functional test suite.
-- [ ] Commit.
 
 ### Task 6: Backup, audit, reports, and recovery
 
@@ -140,12 +140,11 @@
 - [ ] Write backup/restore round-trip tests.
 - [ ] Implement missing audit and backup services.
 - [ ] Add minimal operational reports needed for production.
-- [ ] Run tests and commit.
+- [ ] Run tests.
 
 ### Task 7: Windows packaging and release gate
 
 **Files:**
-- Modify: `.github/workflows/windows-build.yml`
 - Modify: `.github/workflows/windows-installer.yml`
 - Modify: `pyproject.toml` and packaging files as required
 - Test: CI workflow and Windows smoke tests
@@ -160,7 +159,6 @@
 - [ ] Smoke-test launch and exit.
 - [ ] Build installer.
 - [ ] Verify installation path and packaged runtime DLLs.
-- [ ] Commit release configuration.
 
 ### Task 8: Production acceptance test
 
@@ -174,4 +172,3 @@
 - [ ] Validate backup/restore.
 - [ ] Validate Windows installer on the supported test environments available.
 - [ ] Only after all gates pass, mark Modelo A production-ready and freeze the first stock batch.
-
