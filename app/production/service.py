@@ -144,16 +144,9 @@ class ProductionService:
         with self.repository._connect() as db:
             db.execute("UPDATE production_lots SET status = ? WHERE lot_id = ?", (status, lot_id))
 
-    def _series_is_persisted(self, series_id: str, expected_start: int) -> bool:
-        expected = self._expected_serials(expected_start, expected_start + 5, series_id)
-        with self.repository._connect() as db:
-            rows = db.execute("SELECT serial FROM cards WHERE series_id = ? ORDER BY card_index", (series_id,)).fetchall()
-        persisted = [str(row["serial"]) for row in rows]
-        if not persisted:
-            return False
-        if persisted != expected:
-            raise DuplicateProductionError(f"La serie {series_id} existe pero sus cartones no corresponden al rango esperado")
-        return True
+    def _generate_candidate(self, series_id: str, model: CardModel, serial_start: int, variant: int):
+        """Genera una alternativa reproducible sin cambiar el identificador físico de la serie."""
+        return self.generator.generate(series_id, model, serial_start=serial_start, variant=variant)
 
     def generate_lot(self, lot_id: int, progress_callback: Callable[[int], None] | None = None) -> ProductionLot:
         lot = self.get_lot(lot_id)
@@ -174,9 +167,11 @@ class ProductionService:
                     raise ValueError(f"La serie {series_id} supera la capacidad de {self.max_cards:,} cartones")
                 if not self._series_is_persisted(series_id, canonical_start):
                     series = None
+                    variant = 0
                     for min_distance in self.RELAXED_LAYOUT_DISTANCES:
                         for _ in range(self.MAX_LAYOUT_RETRIES):
-                            candidate = self.generator.generate(series_id, lot.model, serial_start=canonical_start)
+                            candidate = self._generate_candidate(series_id, lot.model, canonical_start, variant)
+                            variant += 1
                             if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, min_distance):
                                 series = candidate
                                 break
