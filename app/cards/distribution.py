@@ -26,37 +26,45 @@ class DistributionModel:
 
     def column_counts(self, rng: random.Random) -> list[list[int]]:
         targets = [9] + [10] * 7 + [11]
-        extras = [target - CARDS_PER_SERIES for target in targets]
-        remaining = [6] * CARDS_PER_SERIES
-        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
-        columns = sorted(range(COLUMNS), key=lambda c: (-extras[c], rng.random()))
-
         max_per_column = 3 if self.model is CardModel.A else 2
         max_extra = max_per_column - 1
+        remaining = [NUMBERS_PER_CARD - COLUMNS] * CARDS_PER_SERIES
+        result = [[1] * COLUMNS for _ in range(CARDS_PER_SERIES)]
+        columns = list(range(COLUMNS))
+        rng.shuffle(columns)
+        cache: dict[int, list[tuple[int, ...]]] = {}
+
+        def candidates(extra: int) -> list[tuple[int, ...]]:
+            if extra not in cache:
+                values = [
+                    allocation
+                    for allocation in itertools.product(range(max_extra + 1), repeat=CARDS_PER_SERIES)
+                    if sum(allocation) == extra
+                ]
+                rng.shuffle(values)
+                cache[extra] = values
+            return cache[extra]
 
         def assign(position: int) -> bool:
             if position == COLUMNS:
                 return remaining == [0] * CARDS_PER_SERIES
             column = columns[position]
-            need = extras[column]
+            extra = targets[column] - CARDS_PER_SERIES
             future = COLUMNS - position - 1
-            choices = [
-                selected
-                for selected in itertools.combinations(range(CARDS_PER_SERIES), need)
-                if need <= CARDS_PER_SERIES * max_extra
-            ]
-            rng.shuffle(choices)
-            for selected in choices:
-                if any(remaining[i] <= 0 for i in selected):
+            future_extra = sum(targets[c] - CARDS_PER_SERIES for c in columns[position + 1:])
+            for allocation in candidates(extra):
+                next_remaining = [remaining[i] - allocation[i] for i in range(CARDS_PER_SERIES)]
+                if min(next_remaining) < 0 or sum(next_remaining) != future_extra:
                     continue
-                for i in selected:
-                    remaining[i] -= 1
-                    result[i][column] += 1
-                if all(value <= future * max_extra for value in remaining) and assign(position + 1):
+                if any(value > future * max_extra for value in next_remaining):
+                    continue
+                for i, added in enumerate(allocation):
+                    result[i][column] = 1 + added
+                old_remaining = remaining[:]
+                remaining[:] = next_remaining
+                if assign(position + 1):
                     return True
-                for i in selected:
-                    remaining[i] += 1
-                    result[i][column] -= 1
+                remaining[:] = old_remaining
             return False
 
         if not assign(0):
