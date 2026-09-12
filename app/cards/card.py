@@ -10,14 +10,23 @@ NUMBERS_PER_CARD = 15
 
 
 class CardModel(StrEnum):
-    """Modelo visual/estructural usado al imprimir el cartón.
+    """Modelo de distribución del cartón de Bingo de 90 bolas.
 
-    Modelo A admite hasta 3 números por columna; Modelo B admite como
-    máximo 2. La distinción se conserva como metadato para verificación.
+    Modelo A (principal): cada columna tiene de 1 a 2 números.
+    Modelo B: cada columna puede tener de 0 a 3 números.
+    El modelo se conserva como metadato para impresión y verificación.
     """
 
     A = "A"
     B = "B"
+
+    @property
+    def min_numbers_per_column(self) -> int:
+        return 1 if self is CardModel.A else 0
+
+    @property
+    def max_numbers_per_column(self) -> int:
+        return 2 if self is CardModel.A else 3
 
 
 Grid = tuple[tuple[int | None, ...], ...]
@@ -35,7 +44,7 @@ def _column_range(column: int) -> range:
 
 @dataclass(frozen=True, slots=True)
 class BingoCard:
-    """Cartón de Bingo de 90 bolas con su matriz exacta y modelo de impresión."""
+    """Cartón de Bingo de 90 bolas con su matriz y modelo de impresión."""
 
     serial: str
     model: CardModel
@@ -50,7 +59,9 @@ class BingoCard:
             raise ValueError("El cartón debe tener una matriz de 3 x 9")
 
         numbers: list[int] = []
-        max_per_column = 3 if self.model is CardModel.A else 2
+        min_per_column = self.model.min_numbers_per_column
+        max_per_column = self.model.max_numbers_per_column
+
         for row in self.grid:
             if sum(value is not None for value in row) != 5:
                 raise ValueError("Cada fila debe contener exactamente 5 números")
@@ -58,17 +69,18 @@ class BingoCard:
         for column in range(COLUMNS):
             values = [self.grid[row][column] for row in range(ROWS)]
             count = sum(value is not None for value in values)
-            if not 1 <= count <= max_per_column:
+            if not min_per_column <= count <= max_per_column:
                 raise ValueError(
-                    f"El modelo {self.model.value} permite entre 1 y {max_per_column} números por columna"
+                    f"El modelo {self.model.value} permite entre "
+                    f"{min_per_column} y {max_per_column} números por columna"
                 )
-            previous = [value for value in values if value is not None]
-            if previous != sorted(previous):
+            present = [value for value in values if value is not None]
+            if present != sorted(present):
                 raise ValueError("Los números de cada columna deben estar ordenados")
             allowed = _column_range(column)
-            if any(value not in allowed for value in previous):
+            if any(value not in allowed for value in present):
                 raise ValueError("Hay un número fuera del rango de su columna")
-            numbers.extend(previous)
+            numbers.extend(present)
 
         if len(numbers) != NUMBERS_PER_CARD:
             raise ValueError("El cartón debe contener exactamente 15 números")
