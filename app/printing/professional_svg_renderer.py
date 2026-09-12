@@ -6,7 +6,7 @@ from app.printing.modern_svg_renderer import ModernA4SvgRenderer
 
 
 class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
-    """Renderizador físico alineado con la referencia visual aprobada de FB-BINGO."""
+    """Renderizador físico profesional alineado con la identidad visual de FB-BINGO."""
 
     def _card(self, card, x: float, y: float, width: float, height: float) -> str:
         style = self.style
@@ -23,12 +23,13 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
         serial = escape(card.serial)
         series = escape(card.serial.split('-')[0])
         card_number = escape(card.serial.split('-')[-1])
+        brand = escape(style.brand_title or "FB-BINGO")
         logo = self._logo_href()
         out = [
             f'<g class="bingo-card" transform="translate({x:.2f},{y:.2f})">',
-            f'<rect width="{width:.2f}" height="{height:.2f}" rx="5" fill="#FFFFFF" stroke="#D8E4EE" stroke-width="1.0"/>',
-            f'<path d="M0 0 H{width:.2f} V{header*.72:.2f} C{width*.76:.2f} {header*.54:.2f} {width*.64:.2f} {header*1.02:.2f} {width*.48:.2f} {header*.80:.2f} C{width*.30:.2f} {header*.54:.2f} {width*.17:.2f} {header*.96:.2f} 0 {header*.68:.2f} Z" fill="#F38FB5"/>',
-            f'<path d="M0 {header*.66:.2f} C{width*.20:.2f} {header*.88:.2f} {width*.37:.2f} {header*.56:.2f} {width*.53:.2f} {header*.76:.2f} C{width*.70:.2f} {header*.97:.2f} {width*.85:.2f} {header*.60:.2f} {width:.2f} {header*.70:.2f} V{header*.88:.2f} C{width*.80:.2f} {header*.77:.2f} {width*.63:.2f} {header*1.06:.2f} {width*.47:.2f} {header*.84:.2f} C{width*.30:.2f} {header*.62:.2f} {width*.14:.2f} {header*.96:.2f} 0 {header*.78:.2f} Z" fill="#A8DCF8" opacity="0.96"/>',
+            f'<rect width="{width:.2f}" height="{height:.2f}" rx="5" fill="{escape(style.background_color)}" stroke="#D8E4EE" stroke-width="1.0"/>',
+            f'<path d="M0 0 H{width:.2f} V{header*.72:.2f} C{width*.76:.2f} {header*.54:.2f} {width*.64:.2f} {header*1.02:.2f} {width*.48:.2f} {header*.80:.2f} C{width*.30:.2f} {header*.54:.2f} {width*.17:.2f} {header*.96:.2f} 0 {header*.68:.2f} Z" fill="{escape(style.accent_color)}"/>',
+            f'<path d="M0 {header*.66:.2f} C{width*.20:.2f} {header*.88:.2f} {width*.37:.2f} {header*.56:.2f} {width*.53:.2f} {header*.76:.2f} C{width*.70:.2f} {header*.97:.2f} {width*.85:.2f} {header*.60:.2f} {width:.2f} {header*.70:.2f} V{header*.88:.2f} C{width*.80:.2f} {header*.77:.2f} {width*.63:.2f} {header*1.06:.2f} {width*.47:.2f} {header*.84:.2f} C{width*.30:.2f} {header*.62:.2f} {width*.14:.2f} {header*.96:.2f} 0 {header*.78:.2f} Z" fill="{escape(style.secondary_accent_color)}" opacity="0.96"/>',
         ]
         if logo:
             out.append('<circle cx="18" cy="18" r="14.5" fill="#FFFFFF" opacity="0.98"/>')
@@ -37,7 +38,7 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
             out.append('<circle cx="18" cy="18" r="14.5" fill="#FFFFFF" opacity="0.98"/>')
             out.append('<text x="18" y="19.8" text-anchor="middle" font-family="Arial,sans-serif" font-size="9.5" font-weight="900" fill="#1971C2">FB</text>')
             out.append('<text x="18" y="27" text-anchor="middle" font-family="Arial,sans-serif" font-size="4.2" font-weight="900" fill="#EC4B91">BINGO</text>')
-        out.append(f'<text x="39" y="17" font-family="{font},Arial,sans-serif" font-size="10.5" font-weight="900" fill="#1971C2">FB-<tspan fill="#E94C91">BINGO</tspan></text>')
+        out.append(f'<text x="39" y="17" font-family="{font},Arial,sans-serif" font-size="10.5" font-weight="900" fill="#1971C2">{brand}</text>')
         if style.show_tagline:
             out.append(f'<text x="39" y="27" font-family="{font},Arial,sans-serif" font-size="5.6" font-weight="800" fill="#1971C2">{escape(style.brand_tagline)}</text>')
 
@@ -52,8 +53,8 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
             qr_y = 2.0
             out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.5" fill="#FFFFFF" stroke="#D7E5EF" stroke-width="0.8"/>')
             q = qr_x + 3.0
-            s = qr_size - 6.0
             finder = 9.0
+            s = qr_size - 6.0
             for fx, fy in ((q, qr_y+3), (q+s-finder, qr_y+3), (q, qr_y+s-finder+3)):
                 out.append(f'<rect x="{fx:.2f}" y="{fy:.2f}" width="{finder:.2f}" height="{finder:.2f}" fill="#101820"/>')
                 out.append(f'<rect x="{fx+2.1:.2f}" y="{fy+2.1:.2f}" width="4.8" height="4.8" fill="#FFFFFF"/>')
@@ -67,14 +68,14 @@ class ProfessionalA4SvgRenderer(ModernA4SvgRenderer):
                 cy = grid_top + row * (cell_h + gap_y)
                 value = card.grid[row][column]
                 if value is not None:
-                    fill = "#FFFFFF"
+                    fill = style.background_color
                 elif (row + column) % 2 == 0:
-                    fill = "#FCE7EF"
+                    fill = style.empty_cell_color
                 else:
-                    fill = "#EAF6FC"
-                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="2.0" fill="{fill}" stroke="#F08AB1" stroke-width="0.65"/>')
+                    fill = style.secondary_accent_color
+                out.append(f'<rect x="{cx:.2f}" y="{cy:.2f}" width="{cell_w:.2f}" height="{cell_h:.2f}" rx="2.0" fill="{escape(fill)}" stroke="{escape(style.accent_color)}" stroke-width="0.65"/>')
                 if value is not None:
-                    out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.69:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="{number_size:.1f}" font-weight="900" fill="#10264A">{value}</text>')
+                    out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.69:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="{number_size:.1f}" font-weight="900" fill="{escape(style.number_color)}">{value}</text>')
                 elif (row * 2 + column) % 4 == 1:
                     out.append(f'<text x="{cx+cell_w/2:.2f}" y="{cy+cell_h*.70:.2f}" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#EE8DB4">☆</text>')
 
