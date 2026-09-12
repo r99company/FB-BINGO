@@ -24,6 +24,7 @@ class GameSyncServer:
         self._stop = threading.Event()
         self._socket: socket.socket | None = None
         self._bound_socket: socket.socket | None = None
+        self._serve_thread: threading.Thread | None = None
         self.port = self._requested_port
         self._bind_socket()
 
@@ -44,6 +45,7 @@ class GameSyncServer:
         self._bound_socket = server
 
     def serve_forever(self) -> None:
+        self._serve_thread = threading.current_thread()
         server = self._bound_socket
         if server is None:
             self._bind_socket()
@@ -68,6 +70,7 @@ class GameSyncServer:
             except OSError:
                 pass
             self._bound_socket = None
+            self._serve_thread = None
 
     def shutdown(self) -> None:
         self._stop.set()
@@ -77,6 +80,9 @@ class GameSyncServer:
                 sock.close()
             except OSError:
                 pass
+        thread = self._serve_thread
+        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+            thread.join(timeout=1.0)
 
     def _handle(self, conn: socket.socket) -> None:
         with conn:
@@ -252,8 +258,6 @@ def wire_operational_controls(window: Any) -> None:
             pass
         signal.connect(slot)
 
-    # Primero definimos el rol. Así, si es administrador, las señales quedan
-    # conectadas a los bloqueos y no a los handlers locales originales.
     _install_admin_station_sync(window)
 
     for button in window.findChildren(QPushButton):
