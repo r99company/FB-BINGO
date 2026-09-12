@@ -1,6 +1,6 @@
 import pytest
 
-from app.cards import CardModel, SeriesGenerator
+from app.cards import BingoCard, CardModel, SeriesGenerator
 
 
 def test_generates_six_cards_with_fifteen_numbers_each() -> None:
@@ -21,42 +21,51 @@ def test_series_covers_each_number_1_to_90_once() -> None:
     assert set(numbers) == set(range(1, 91))
 
 
-def test_model_a_generated_cards_allow_one_to_three_numbers_per_column() -> None:
+def test_model_a_is_principal_and_allows_one_to_two_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-A", CardModel.A)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 3 for count in card.column_counts)
+        assert all(1 <= count <= 2 for count in card.column_counts)
         assert card.model is CardModel.A
 
 
-def test_model_b_generated_cards_allow_only_one_or_two_numbers_per_column() -> None:
+def test_model_b_allows_zero_to_three_numbers_per_column() -> None:
     series = SeriesGenerator(seed=789).generate("SER-B", CardModel.B)
     for card in series.cards:
         assert tuple(sum(value is not None for value in row) for row in card.grid) == (5, 5, 5)
-        assert all(1 <= count <= 2 for count in card.column_counts)
+        assert all(0 <= count <= 3 for count in card.column_counts)
         assert card.model is CardModel.B
 
 
-def test_model_a_accepts_three_numbers_in_a_column() -> None:
+def test_model_a_rejects_three_numbers_in_a_column() -> None:
     grid = (
         (1, 11, 21, 31, 41, None, None, None, None),
         (2, 12, 22, 32, 42, 51, 61, None, None),
         (3, 13, 23, 33, 43, 52, 62, 71, 81),
     )
-    from app.cards import BingoCard
-    card = BingoCard(serial="A-THREE", model=CardModel.A, grid=grid)
+    with pytest.raises(ValueError, match="Modelo A.*1 y 2"):
+        BingoCard(serial="A-THREE", model=CardModel.A, grid=grid)
+
+
+def test_model_b_accepts_three_numbers_in_a_column() -> None:
+    grid = (
+        (1, 11, 21, 31, 41, None, None, None, None),
+        (2, 12, 22, None, None, 51, 61, None, None),
+        (3, 13, 23, None, None, 52, 62, 71, 81),
+    )
+    card = BingoCard(serial="B-THREE", model=CardModel.B, grid=grid)
     assert card.column_counts[0] == 3
 
 
-def test_model_b_rejects_three_numbers_in_a_column() -> None:
+def test_model_b_allows_empty_columns() -> None:
     grid = (
-        (1, 11, 21, 31, 41, None, None, None, None),
-        (2, 12, 22, 32, 42, 51, 61, None, None),
-        (3, 13, 23, 33, 43, 52, 62, 71, 81),
+        (1, None, 21, None, 41, 51, None, 71, None),
+        (None, 12, None, 32, 42, None, 62, None, 82),
+        (9, None, 29, 39, None, 59, None, None, 89),
     )
-    from app.cards import BingoCard
-    with pytest.raises(ValueError, match="Modelo B"):
-        BingoCard(serial="B-THREE", model=CardModel.B, grid=grid)
+    card = BingoCard(serial="B-ZERO", model=CardModel.B, grid=grid)
+    assert card.column_counts[1] == 1
+    assert all(0 <= count <= 3 for count in card.column_counts)
 
 
 def test_generated_numbers_are_sorted_top_to_bottom_in_each_column() -> None:
@@ -98,10 +107,11 @@ def test_same_seed_does_not_reuse_card_layout_for_different_series() -> None:
     assert _layout_signature(first.cards[2]) != _layout_signature(later.cards[2])
 
 
-def test_model_a_allows_natural_row_runs() -> None:
+def test_model_a_has_no_zero_or_three_column_counts() -> None:
     for seed in range(10):
         series = SeriesGenerator(seed=seed).generate(f"SER-{seed:03d}", CardModel.A)
         for card in series.cards:
+            assert all(1 <= count <= 2 for count in card.column_counts)
             assert [sum(value is not None for value in row) for row in card.grid] == [5, 5, 5]
 
 
@@ -114,8 +124,9 @@ def test_representative_series_allow_repeats_but_not_three_identical_column_patt
             assert not (patterns[index] == patterns[index - 1] == patterns[index - 2])
 
 
-def test_model_a_does_not_require_first_columns_to_use_all_three_rows() -> None:
+def test_model_b_never_exceeds_three_numbers_per_column() -> None:
     for seed in range(10):
-        series = SeriesGenerator(seed=seed).generate(f"PREFIX-{seed:03d}", CardModel.A)
+        series = SeriesGenerator(seed=seed).generate(f"SER-B-{seed:03d}", CardModel.B)
         for card in series.cards:
+            assert all(0 <= count <= 3 for count in card.column_counts)
             assert len(card.numbers) == 15
