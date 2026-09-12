@@ -21,4 +21,4 @@ def test_professional_renderer_uses_same_visual_template_for_model_b():
     svg = A4SvgRenderer().render_card(_card(CardModel.B))
     assert "CARTÓN" in svg
     assert "BINGO DE 90 BOLAS" in svg
-    assert 'stroke="#F08AB1"' in svg
+    assert 'stroke="#FF4FA3"' in svg
