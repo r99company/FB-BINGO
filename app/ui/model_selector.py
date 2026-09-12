@@ -50,10 +50,13 @@ class GameModelSelector(QWidget):
         label = QLabel("MODELO")
         label.setStyleSheet("font-weight:900;color:#AFC7E8;")
         self.combo = QComboBox()
-        self.combo.addItem("A · PRINCIPAL", CardModel.A)
-        self.combo.addItem("B · ESPECIAL", CardModel.B)
+        self.combo.addItem("A · PRINCIPAL · 1–2 por columna", CardModel.A)
+        self.combo.addItem("B · ESPECIAL · 0–3 por columna", CardModel.B)
         self.combo.setCurrentIndex(0)
-        self.combo.setToolTip("Seleccione el modelo de cartón para la próxima partida")
+        self.combo.setToolTip(
+            "Modelo A (principal): 1–2 números por columna.\n"
+            "Modelo B (especial): 0–3 números por columna."
+        )
         self.combo.currentIndexChanged.connect(self._on_changed)
         layout.addWidget(label)
         layout.addWidget(self.combo)
@@ -108,8 +111,6 @@ def _install_clean_operator_ui() -> None:
 
     def _init_with_clean_operator_ui(self, *args, **kwargs):
         _original_bingo_main_window_init(self, *args, **kwargs)
-        # F4 queda protegido a nivel de aplicación, antes de que QShortcut
-        # pueda ejecutar su acción, incluso cuando el foco está en un campo.
         app = QApplication.instance()
         if app is not None:
             self._fb_f4_filter = _F4NewGameFilter(self)
