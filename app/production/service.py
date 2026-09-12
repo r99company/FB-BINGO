@@ -17,8 +17,7 @@ class ProductionService:
 
     RECENT_LAYOUT_WINDOW = 60
     MIN_RECENT_LAYOUT_DISTANCE = 6
-    RELAXED_LAYOUT_DISTANCES = (6, 4, 2, 0)
-    MAX_LAYOUT_RETRIES = 12
+    MAX_LAYOUT_RETRIES = 48
 
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
         if max_cards < 1:
@@ -109,16 +108,16 @@ class ProductionService:
     def _mask_distance(first, second) -> int:
         return sum(left != right for row_left, row_right in zip(first, second) for left, right in zip(row_left, row_right))
 
-    def _candidate_is_unique_and_dynamic(self, series, used_layouts: set[str], recent_masks: list, min_distance: int) -> bool:
+    def _candidate_is_unique_and_dynamic(self, series, used_layouts: set[str], recent_masks: list) -> bool:
         signatures = [self._layout_signature(card) for card in series.cards]
         if len(signatures) != len(set(signatures)) or any(signature in used_layouts for signature in signatures):
             return False
         masks = [self._layout_mask(card) for card in series.cards]
         for left in range(len(masks)):
             for right in range(left + 1, len(masks)):
-                if self._mask_distance(masks[left], masks[right]) < min_distance:
+                if self._mask_distance(masks[left], masks[right]) < self.MIN_RECENT_LAYOUT_DISTANCE:
                     return False
-        if min_distance and any(self._mask_distance(mask, previous) < min_distance for mask in masks for previous in recent_masks):
+        if any(self._mask_distance(mask, previous) < self.MIN_RECENT_LAYOUT_DISTANCE for mask in masks for previous in recent_masks):
             return False
         return True
 
@@ -189,14 +188,11 @@ class ProductionService:
                 if not self._series_is_persisted(series_id, canonical_start, lot.model):
                     series = None
                     variant = 0
-                    for min_distance in self.RELAXED_LAYOUT_DISTANCES:
-                        for _ in range(self.MAX_LAYOUT_RETRIES):
-                            candidate = self._generate_candidate(series_id, lot.model, canonical_start, variant)
-                            variant += 1
-                            if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks, min_distance):
-                                series = candidate
-                                break
-                        if series is not None:
+                    for _ in range(self.MAX_LAYOUT_RETRIES):
+                        candidate = self._generate_candidate(series_id, lot.model, canonical_start, variant)
+                        variant += 1
+                        if self._candidate_is_unique_and_dynamic(candidate, used_layouts, recent_masks):
+                            series = candidate
                             break
                     if series is None:
                         raise DuplicateProductionError(f"No se pudo encontrar una distribución nueva para la serie {series_id}")
