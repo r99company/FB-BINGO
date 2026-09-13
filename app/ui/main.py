@@ -4,7 +4,7 @@ import sys
 import threading
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
 from app.bingo import BingoGame
@@ -182,9 +182,19 @@ def _f4_action(self: BingoMainWindow) -> None:
 
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
     self._operator_shortcuts = []
-    shortcuts = (("F1", self.draw_number), ("Ctrl+1", self.draw_number), ("F2", self.toggle_pause), ("Ctrl+2", self.toggle_pause), ("F3", self.undo_number), ("Ctrl+3", self.undo_number), ("F4", lambda: _f4_action(self)), ("Ctrl+4", lambda: _f4_action(self)), ("Ctrl+5", self.verify_card))
+    shortcuts = (("F1", self.draw_number), ("Ctrl+1", self.draw_number), ("F2", self.toggle_pause), ("Ctrl+2", self.toggle_pause), ("F3", self.undo_number), ("Ctrl+3", self.undo_number), ("F4", lambda: _f4_action(self)))
     for sequence, callback in shortcuts:
         shortcut = QShortcut(QKeySequence(sequence), self); shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut); shortcut.setAutoRepeat(False); shortcut.activated.connect(callback); self._operator_shortcuts.append(shortcut)
+
+    # Ctrl+5 es una acción global del operador. QAction con ApplicationShortcut
+    # evita que un QLineEdit u otro control se quede con la combinación y garantiza
+    # que siempre abra el mismo verificador de la partida actual.
+    self._verify_action = QAction("Verificar cartón", self)
+    self._verify_action.setShortcut(QKeySequence("Ctrl+5"))
+    self._verify_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+    self._verify_action.setAutoRepeat(False)
+    self._verify_action.triggered.connect(self.verify_card)
+    self.addAction(self._verify_action)
 
 
 def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
@@ -250,8 +260,7 @@ def _run_self_test() -> int:
 def run_tv_mode() -> int:
     app = QApplication(sys.argv); settings = SettingsService(application_data_dir() / "settings.json"); window = TVWindow(); client = GameSyncClient(str(settings.get("tv_server_host", "127.0.0.1")), int(settings.get("tv_server_port", 8765))); timer = QTimer(window)
     def poll() -> None:
-        try:
-            state = client.get_state(); window.update_game(state.get("current"), tuple(state.get("history", []))[:5]); window.status.setText(f"FB-BINGO · {state.get('status', 'EN CURSO')} · {state.get('game', 'PARTIDA RÁPIDA')}")
+        try: state = client.get_state(); window.update_game(state.get("current"), tuple(state.get("history", []))[:5]); window.status.setText(f"FB-BINGO · {state.get('status', 'EN CURSO')} · {state.get('game', 'PARTIDA RÁPIDA')}")
         except (OSError, ValueError, TimeoutError): window.status.setText("FB-BINGO · ESPERANDO CONEXIÓN CON PC PRINCIPAL")
     timer.timeout.connect(poll); timer.start(500); window.showFullScreen(); poll(); return app.exec()
 
