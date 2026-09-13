@@ -83,8 +83,9 @@ class A4PrintLayout:
 
     page_width = A4_WIDTH_MM * MM_TO_PT
     page_height = A4_HEIGHT_MM * MM_TO_PT
-    DEFAULT_CARD_WIDTH_MM = 95.0
-    DEFAULT_CARD_HEIGHT_MM = 44.0
+    # Aprovecha mejor el A4 sin perder las seis filas ni el espacio de corte.
+    DEFAULT_CARD_WIDTH_MM = 97.0
+    DEFAULT_CARD_HEIGHT_MM = 45.5
     DEFAULT_HORIZONTAL_GAP_MM = 3.0
     DEFAULT_VERTICAL_GAP_MM = 2.5
 
