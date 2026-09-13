@@ -109,3 +109,13 @@ def test_operator_has_f1_to_f4_shortcuts():
     assert {"F1", "F2", "F3", "F4"}.issubset(sequences)
     window.close()
     app.quit()
+
+
+def test_operator_registers_ctrl5_verification_shortcut():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    shortcuts = window.findChildren(QShortcut)
+    sequences = {shortcut.key().toString() for shortcut in shortcuts}
+    assert "Ctrl+5" in sequences
+    window.close()
+    app.quit()
