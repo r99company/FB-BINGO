@@ -21,7 +21,7 @@ from app.settings.paths import database_path
 
 
 class GeneratorWidget(QWidget):
-    """Generador de series. El mismo rango siempre representa los mismos cartones."""
+    """Selecciona series existentes para impresión y genera solo rangos nuevos."""
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None, max_cards: int = 30_000) -> None:
         super().__init__()
@@ -70,14 +70,14 @@ class GeneratorWidget(QWidget):
         form.addRow("Cantidad de series", self.series_count)
         form.addRow("Modelo", self.model)
         form.addRow("Rango", self.range_label)
-        form.addRow("Cartones generados", self.cards_label)
+        form.addRow("Cartones seleccionados", self.cards_label)
         form.addRow("Hojas A4", self.pages_label)
 
         next_free = QPushButton("PRÓXIMA SERIE LIBRE")
         next_free.setObjectName("Secondary"); next_free.clicked.connect(self._select_next_free)
         form.addRow(next_free)
 
-        self.generate_button = QPushButton("GENERAR SERIES")
+        self.generate_button = QPushButton("CARGAR / GENERAR SERIES")
         self.generate_button.setObjectName("Primary"); self.generate_button.clicked.connect(self.generate_series)
         print_button = QPushButton("IMPRIMIR SERIES GENERADAS")
         print_button.setObjectName("Primary"); print_button.clicked.connect(self.print_a4)
@@ -105,11 +105,10 @@ class GeneratorWidget(QWidget):
         advanced.setVisible(False); advanced_toggle.toggled.connect(advanced.setVisible); form.addRow(advanced)
 
         info = QLabel(
-            "REGLAS DE MODELOS: Modelo A es el principal y usa de 1 a 2 números por columna. "
-            "Modelo B es el especial y permite de 0 a 3 números por columna. "
-            "El modelo queda guardado en cada cartón para que impresión y verificación respeten la misma regla. "
-            "Aquí no existe el concepto de reimpresión: si vuelves a generar el mismo rango, FB-BINGO recupera la misma serie y los mismos números. "
-            "Para crear cartones nuevos usa el siguiente rango libre. Ejemplo: 250 series desde el cartón 1 = cartones 1–1.500; después 250 series desde 1.501 = 1.501–3.000."
+            "REGLAS: los cartones ya existentes son permanentes y se reutilizan para impresión. "
+            "Si el rango solicitado ya está en la base de datos, se carga exactamente la misma serie y los mismos números, "
+            "sin crear una nueva semilla ni modificar cartones. Solo se generan rangos que todavía no existen. "
+            "Modelo A es el principal (1–2 por columna); Modelo B es el especial (0–3 por columna)."
         )
         info.setObjectName("Muted"); info.setWordWrap(True); form.addRow(info)
         layout.addWidget(controls)
@@ -119,7 +118,7 @@ class GeneratorWidget(QWidget):
         self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(650, 760)
         self.preview_widget.setStyleSheet("background:#FFFFFF;border:1px solid #34405B;border-radius:12px;")
         preview_layout.addWidget(self.preview_widget, 1)
-        self.preview_label = QLabel("Elige el inicio y cuántas series deseas generar.")
+        self.preview_label = QLabel("Elige el inicio y cuántas series deseas cargar para imprimir.")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.preview_label.setObjectName("Muted")
         preview_layout.addWidget(self.preview_label); layout.addWidget(preview_panel, 1)
         self._update_range_label()
@@ -170,26 +169,48 @@ class GeneratorWidget(QWidget):
     def _load_requested_cards(self, start_card: int, end_card: int) -> None:
         cards = self.repository.get_cards_range(start_card, end_card)
         if len(cards) != end_card - start_card + 1:
-            raise ValueError("La generación terminó sin guardar todos los cartones solicitados")
+            raise ValueError("No están disponibles todos los cartones solicitados en la base de datos")
         self._cards = tuple(cards); self._loaded_start_card = start_card; self._loaded_card_count = len(self._cards); self._svg = ""
+
+    def _range_is_persisted(self, start_card: int, end_card: int) -> bool:
+        try:
+            self._load_requested_cards(start_card, end_card)
+            return True
+        except ValueError:
+            return False
 
     def generate_series(self) -> None:
         try:
             start, end, count = self._requested_range(); model = CardModel(self.model.currentData())
-            self.generate_button.setEnabled(False); self.generate_button.setText("GENERANDO…")
+            self.generate_button.setEnabled(False); self.generate_button.setText("CARGANDO / GENERANDO…")
             self.preview_label.setText(f"Preparando {self.series_count.value():,} series · {count:,} cartones…"); QApplication.processEvents()
-            lot = self.production_service.create_lot(start, end, model=model, operator="generador-ui")
-            def progress(done: int) -> None:
-                self.preview_label.setText(f"Generando… {done:,} / {count:,} cartones"); QApplication.processEvents()
-            result = self.production_service.generate_lot(lot.lot_id, progress_callback=progress)
-            self._load_requested_cards(start, end); self._render_preview()
-            self.preview_label.setText(f"LISTO · {result.series_count:,} series · {result.card_count:,} cartones · {start:,}–{end:,}. Puedes imprimir.")
+
+            # Los rangos ya persistidos son la biblioteca maestra. Se cargan
+            # directamente y nunca pasan por una nueva semilla/generación.
+            try:
+                self._load_requested_cards(start, end)
+            except ValueError:
+                lot = self.production_service.create_lot(start, end, model=model, operator="generador-ui")
+                def progress(done: int) -> None:
+                    self.preview_label.setText(f"Generando… {done:,} / {count:,} cartones"); QApplication.processEvents()
+                result = self.production_service.generate_lot(lot.lot_id, progress_callback=progress)
+                self._load_requested_cards(start, end)
+                self._render_preview()
+                self.preview_label.setText(f"NUEVO BLOQUE GENERADO · {result.series_count:,} series · {result.card_count:,} cartones · {start:,}–{end:,}. Puedes imprimir.")
+                return
+
+            # Reimpresión: exactamente los mismos cartones, todas las veces que se necesite.
+            if any(card.model is not model for card in self._cards):
+                actual = sorted({card.model.value for card in self._cards})
+                raise ValueError(f"El rango ya existe con modelo {', '.join(actual)}; seleccione ese mismo modelo para imprimirlo")
+            self._render_preview()
+            self.preview_label.setText(f"SERIES CARGADAS · {self.series_count.value():,} series · {count:,} cartones · {start:,}–{end:,}. LISTAS PARA REIMPRESIÓN.")
         except DuplicateProductionError as exc: QMessageBox.warning(self, "Generación detenida", str(exc))
-        except (ValueError, RuntimeError, KeyError) as exc: QMessageBox.warning(self, "No se pudo generar", str(exc))
-        finally: self.generate_button.setEnabled(True); self.generate_button.setText("GENERAR SERIES")
+        except (ValueError, RuntimeError, KeyError) as exc: QMessageBox.warning(self, "No se pudo preparar", str(exc))
+        finally: self.generate_button.setEnabled(True); self.generate_button.setText("CARGAR / GENERAR SERIES")
 
     def _cards_for_page(self, offset: int) -> tuple[tuple[BingoCard, ...], tuple[BingoCard, ...] | None]:
-        if not self._cards: raise ValueError("Primero genera las series")
+        if not self._cards: raise ValueError("Primero carga o genera las series")
         left = self._cards[offset:offset + 6]
         if len(left) != 6: raise ValueError("Cada página debe comenzar con una serie completa de 6 cartones")
         if self.duplicate_column.isChecked(): return left, left
@@ -205,14 +226,14 @@ class GeneratorWidget(QWidget):
     def preview_a4(self) -> None:
         try:
             start, _, count = self._requested_range()
-            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero pulsa GENERAR SERIES para ese rango")
+            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero pulsa CARGAR / GENERAR SERIES para ese rango")
             self._render_preview(); self.preview_label.setText("Vista previa de la primera hoja A4.")
         except (ValueError, OSError) as exc: QMessageBox.warning(self, "Error de vista previa", str(exc))
 
     def print_a4(self) -> None:
         try:
             start, _, count = self._requested_range()
-            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero pulsa GENERAR SERIES para ese rango")
+            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero pulsa CARGAR / GENERAR SERIES para ese rango")
             printer = QPrinter(QPrinter.PrinterMode.HighResolution); printer.setPageSize(QPrinter.PageSize.A4)
             dialog = QPrintDialog(printer, self); dialog.setWindowTitle("Imprimir series FB-BINGO · A4")
             if dialog.exec() != QPrintDialog.DialogCode.Accepted: return
@@ -227,13 +248,13 @@ class GeneratorWidget(QWidget):
                     if pages and not printer.newPage(): raise RuntimeError("La impresora no pudo crear una nueva página A4")
                     svg_renderer.render(painter); pages += 1
             finally: painter.end()
-            self.preview_label.setText(f"IMPRESIÓN COMPLETADA · {pages:,} hojas A4 · {count:,} cartones. La próxima generación usa el siguiente rango libre.")
+            self.preview_label.setText(f"IMPRESIÓN COMPLETADA · {pages:,} hojas A4 · {count:,} cartones. Los cartones quedan disponibles para futuras reimpresiones.")
         except (ValueError, OSError, RuntimeError, KeyError) as exc: QMessageBox.warning(self, "Error de impresión", str(exc))
 
     def save_a4(self) -> None:
         try:
             start, _, count = self._requested_range()
-            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero genera las series")
+            if self._loaded_start_card != start or self._loaded_card_count != count: raise ValueError("Primero carga o genera las series")
             if not self._svg: self._render_preview()
             path, _ = QFileDialog.getSaveFileName(self, "Guardar primera hoja A4", f"fb_bingo_series_{start}-{start + 5}.svg", "SVG (*.svg)")
             if path: Path(path).write_text(self._svg, encoding="utf-8")
