@@ -111,11 +111,11 @@ def test_operator_has_f1_to_f4_shortcuts():
     app.quit()
 
 
-def test_operator_registers_ctrl5_verification_shortcut():
+def test_operator_has_global_ctrl5_verification_action():
     app = QApplication.instance() or QApplication([])
     window = OperationalBingoMainWindow()
-    shortcuts = window.findChildren(QShortcut)
-    sequences = {shortcut.key().toString() for shortcut in shortcuts}
-    assert "Ctrl+5" in sequences
+    actions = [action for action in window.actions() if action.shortcut().matches(QKeySequence("Ctrl+5")) == QKeySequence.SequenceMatch.ExactMatch]
+    assert actions
+    assert any(action.isEnabled() for action in actions)
     window.close()
     app.quit()
