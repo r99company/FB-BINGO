@@ -16,7 +16,11 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    MIN_RECENT_LAYOUT_DISTANCE = 6
+    # Una distancia de 6 entre máscaras no es matemáticamente compatible con
+    # seis cartones A de una misma serie: cada máscara A tiene tres columnas
+    # con un solo número y las seis máscaras no pueden ser todas disjuntas.
+    # Distancia 2 sigue evitando repetir exactamente la misma distribución.
+    MIN_RECENT_LAYOUT_DISTANCE = 2
     MAX_LAYOUT_RETRIES = 48
 
     def __init__(self, repository: SQLiteSeriesRepository, generator: SeriesGenerator | None = None, max_cards: int = DEFAULT_PRODUCTION_CAPACITY) -> None:
