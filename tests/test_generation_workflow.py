@@ -67,6 +67,13 @@ def test_a4_cards_are_larger_and_keep_six_rows():
     assert max(slot.y + slot.height for slot in layout.card_slots()) <= layout.page_height
 
 
+def test_first_five_cards_have_varied_column_masks():
+    generator = SeriesGenerator(seed=0)
+    series = generator.generate("0001", CardModel.A, 1)
+    masks = [card.column_counts for card in series.cards[:5]]
+    assert len(set(masks)) >= 4
+
+
 def test_next_block_has_different_matrices(tmp_path):
     repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
     service = ProductionService(repository)
