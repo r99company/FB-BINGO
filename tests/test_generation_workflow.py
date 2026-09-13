@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
-from app.printing import A4SvgRenderer, PrintStyle
+from app.printing import A4PrintLayout, A4SvgRenderer, PrintStyle
 from app.production import ProductionService
 from app.ui.generator_window import GeneratorWidget
 
@@ -56,6 +56,15 @@ def test_generator_window_loads_existing_range_without_creating_new_lot(tmp_path
     assert [card.serial for card in widget._cards] == [f"0001-{number:06d}" for number in range(1, 7)]
     widget.close()
     app.quit()
+
+
+def test_a4_cards_are_larger_and_keep_six_rows():
+    layout = A4PrintLayout()
+    assert layout.card_width_mm == 97.0
+    assert layout.card_height_mm == 45.5
+    assert len(layout.card_slots()) == 12
+    assert max(slot.x + slot.width for slot in layout.card_slots()) <= layout.page_width
+    assert max(slot.y + slot.height for slot in layout.card_slots()) <= layout.page_height
 
 
 def test_next_block_has_different_matrices(tmp_path):
