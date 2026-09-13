@@ -74,8 +74,6 @@ class ModernA4SvgRenderer:
         footer = min(12.0, height * 0.12) if self.style.show_footer else 2.0
         grid_top = header + 1.5
         grid_bottom = height - footer - 1.5
-        # La separación es intencional: evita que las tres filas parezcan una
-        # sola tabla compacta y mantiene cada número visualmente independiente.
         gap_x = min(1.45, max(1.0, width / 78.0))
         gap_y = min(1.65, max(1.15, height / 48.0))
         cell_w = (width - gap_x * 8) / 9
@@ -87,6 +85,11 @@ class ModernA4SvgRenderer:
         badge_w = min(29.0, width * 0.22)
         font = escape(self.style.font_family)
         number_size = max(7.0, min(12.0, float(self.style.number_font_size)))
+        qr_size = min(12.0, max(9.0, header - 6.0)) if self.style.show_qr_zone else 0.0
+        qr_x = width - qr_size - 4.0 if qr_size else width
+        # La placa CARTÓN queda a la izquierda de la zona QR. Nunca comparte
+        # su rectángulo con el QR ni con el número identificador.
+        badge_x = max(4.0, qr_x - badge_w - 3.0) if qr_size else width - badge_w - 5.0
         out = [
             f'<g class="bingo-card" transform="translate({x:.2f},{y:.2f})">',
             f'<rect width="{width:.2f}" height="{height:.2f}" rx="5" fill="{escape(self.style.background_color)}" stroke="{escape(self.style.border_color)}" stroke-width="1.2"/>',
@@ -104,15 +107,14 @@ class ModernA4SvgRenderer:
         if self.style.show_tagline:
             out.append(f'<text x="31" y="17" font-family="{font},Arial,sans-serif" font-size="4.2" font-weight="bold" fill="#1764B0">{escape(self.style.brand_tagline)}</text>')
 
-        if self.style.show_qr_zone:
-            qr_size = min(12.0, max(9.0, header - 6.0))
-            qr_x = width - qr_size - 4.0
-            qr_y = 3.0
-            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="{qr_y:.2f}" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.2" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
-            out.append(f'<path d="M{qr_x+1.6:.2f} {qr_y+1.6:.2f}h3.2v3.2h-3.2z M{qr_x+qr_size-4.8:.2f} {qr_y+1.6:.2f}h3.2v3.2h-3.2z M{qr_x+1.6:.2f} {qr_y+qr_size-4.8:.2f}h3.2v3.2h-3.2z M{qr_x+5.6:.2f} {qr_y+6:.2f}h2v2h-2z M{qr_x+8.5:.2f} {qr_y+4.8:.2f}h1.8v1.8h-1.8z M{qr_x+5.4:.2f} {qr_y+9:.2f}h1.8v1.8h-1.8z" fill="#111827"/>')
-        out.append(f'<rect x="{width-badge_w-5:.2f}" y="{header-8:.2f}" width="{badge_w:.2f}" height="7" rx="2.5" fill="{escape(self.style.accent_color)}"/>')
-        out.append(f'<text x="{width-badge_w/2-5:.2f}" y="{header-3.2:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="4.0" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
-        out.append(f'<text x="{width-5:.2f}" y="{header-0.8:.2f}" text-anchor="end" font-family="{font},Arial,sans-serif" font-size="11.5" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
+        if qr_size:
+            out.append(f'<rect class="qr-zone" x="{qr_x:.2f}" y="3.0" width="{qr_size:.2f}" height="{qr_size:.2f}" rx="1.2" fill="#FFFFFF" stroke="{escape(self.style.accent_color)}" stroke-width="0.8"/>')
+            out.append(f'<path d="M{qr_x+1.6:.2f} 4.6h3.2v3.2h-3.2z M{qr_x+qr_size-4.8:.2f} 4.6h3.2v3.2h-3.2z M{qr_x+1.6:.2f} {qr_size-1.8:.2f}h3.2v3.2h-3.2z M{qr_x+5.6:.2f} 9h2v2h-2z M{qr_x+8.5:.2f} 7.8h1.8v1.8h-1.8z M{qr_x+5.4:.2f} 12h1.8v1.8h-1.8z" fill="#111827"/>')
+            out.append(f'<text x="{qr_x+qr_size/2:.2f}" y="{qr_size+7.0:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="2.7" font-weight="bold" fill="{escape(self.style.accent_color)}">QR</text>')
+
+        out.append(f'<rect x="{badge_x:.2f}" y="{header-8:.2f}" width="{badge_w:.2f}" height="7" rx="2.5" fill="{escape(self.style.accent_color)}"/>')
+        out.append(f'<text x="{badge_x+badge_w/2:.2f}" y="{header-3.2:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="4.0" font-weight="900" fill="#FFFFFF">CARTÓN</text>')
+        out.append(f'<text x="{badge_x+badge_w/2:.2f}" y="{header-0.8:.2f}" text-anchor="middle" font-family="{font},Arial,sans-serif" font-size="9.8" font-weight="900" fill="{escape(self.style.number_color)}">{card_number}</text>')
 
         for row in range(3):
             for column in range(9):
