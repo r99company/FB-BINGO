@@ -142,14 +142,16 @@ class SeriesGenerator:
                 score -= max(0, longest - 2) * 10
         if column_counts is not None:
             column_signatures = [cls._column_signature(counts) for counts in column_counts]
-            score += len(set(column_signatures)) * 40
+            # La variedad de columnas es una preferencia visual fuerte pero
+            # nunca invalida una serie matemáticamente correcta.
+            score += len(set(column_signatures)) * 650
             for index in range(1, len(column_signatures)):
                 if column_signatures[index] == column_signatures[index - 1]:
-                    score -= 50
+                    score -= 600
             for left in range(len(column_signatures)):
                 for right in range(left + 1, len(column_signatures)):
                     if column_signatures[left] == column_signatures[right]:
-                        score -= 12
+                        score -= 90
         return score
 
     @staticmethod
