@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
 from app.printing import A4SvgRenderer, PrintStyle
 from app.production import ProductionService
+from app.ui.generator_window import GeneratorWidget
 
 
 def test_next_new_series_start_skips_existing_cards(tmp_path):
@@ -26,6 +32,30 @@ def test_same_range_generation_is_idempotent(tmp_path):
     repeated = [card.grid for card in repository.get_cards_range(1, 6)]
 
     assert original == repeated
+
+
+def test_generator_window_loads_existing_range_without_creating_new_lot(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    repository = SQLiteSeriesRepository(tmp_path / "bingo.sqlite3")
+    service = ProductionService(repository, max_cards=30)
+    lot = service.create_lot(1, 6, CardModel.A, operator="seed")
+    service.generate_lot(lot.lot_id)
+    original = [card.grid for card in repository.get_cards_range(1, 6)]
+
+    widget = GeneratorWidget(repository, max_cards=30)
+    widget.start_card.setValue(1)
+    widget.series_count.setValue(1)
+
+    def must_not_create(*args, **kwargs):
+        raise AssertionError("Un rango existente no debe crear otro lote ni regenerar cartones")
+
+    widget.production_service.create_lot = must_not_create
+    widget.generate_series()
+
+    assert [card.grid for card in widget._cards] == original
+    assert [card.serial for card in widget._cards] == [f"0001-{number:06d}" for number in range(1, 7)]
+    widget.close()
+    app.quit()
 
 
 def test_next_block_has_different_matrices(tmp_path):
