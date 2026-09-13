@@ -176,7 +176,7 @@ class GeneratorWidget(QWidget):
         try:
             self._load_requested_cards(start_card, end_card)
             return True
-        except ValueError:
+        except (ValueError, KeyError):
             return False
 
     def generate_series(self) -> None:
@@ -189,7 +189,7 @@ class GeneratorWidget(QWidget):
             # directamente y nunca pasan por una nueva semilla/generación.
             try:
                 self._load_requested_cards(start, end)
-            except ValueError:
+            except (ValueError, KeyError):
                 lot = self.production_service.create_lot(start, end, model=model, operator="generador-ui")
                 def progress(done: int) -> None:
                     self.preview_label.setText(f"Generando… {done:,} / {count:,} cartones"); QApplication.processEvents()
