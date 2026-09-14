@@ -137,3 +137,10 @@ def test_operator_visual_style_is_clean_and_brand_consistent():
     assert "QPushButton#Ball[current=\"true\"]" in PROFESSIONAL_QSS
     assert "QPushButton#Ball[called=\"true\"]" in PROFESSIONAL_QSS
     assert "QLineEdit#BallInput" in PROFESSIONAL_QSS
+
+
+def test_operator_visual_hierarchy_uses_roomier_cards_and_controls():
+    assert "QFrame#Panel { background:#0D2036; border-color:#245679; border-radius:16px; }" in PROFESSIONAL_QSS
+    assert "QPushButton#Secondary { min-height:42px;" in PROFESSIONAL_QSS
+    assert "QPushButton#Ball { min-width:46px; min-height:46px;" in PROFESSIONAL_QSS
+    assert "QLabel#CurrentBall { color:#FFFFFF; font-size:90px;" in PROFESSIONAL_QSS
