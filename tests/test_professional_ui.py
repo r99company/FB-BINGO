@@ -11,6 +11,7 @@ from app.printing import A4SvgRenderer, PrintStyle
 from app.production import ProductionService
 from app.ui.generator_window import GeneratorWidget
 from app.ui.main_window import BingoMainWindow
+from app.ui.main_window import PROFESSIONAL_QSS
 from app.ui.theme import APP_STYLESHEET
 from app.ui.main import BingoMainWindow as OperationalBingoMainWindow, _f4_action
 
@@ -126,3 +127,13 @@ def test_theme_contains_brand_palette():
     assert "#FF4FA3" in APP_STYLESHEET
     assert "#8FD9FF" in APP_STYLESHEET
     assert "#6C4DFF" in APP_STYLESHEET
+
+
+def test_operator_visual_style_is_clean_and_brand_consistent():
+    assert "font-family:'Segoe UI'" in PROFESSIONAL_QSS
+    assert "border-radius:14px" in PROFESSIONAL_QSS
+    assert "#8FD9FF" in PROFESSIONAL_QSS
+    assert "#F49ABD" in PROFESSIONAL_QSS
+    assert "QPushButton#Ball[current=\"true\"]" in PROFESSIONAL_QSS
+    assert "QPushButton#Ball[called=\"true\"]" in PROFESSIONAL_QSS
+    assert "QLineEdit#BallInput" in PROFESSIONAL_QSS
