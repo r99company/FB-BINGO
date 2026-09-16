@@ -19,43 +19,43 @@ from app.ui.public_display import format_ball_count
 from app.verification import CardVerifier, LivePrizeTracker
 
 PROFESSIONAL_QSS = """
-QWidget#Root { background:#07111F; color:#F6FAFF; font-family:'Segoe UI'; }
-QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar,QFrame#BottomBar { background:#0B1A2D; border:1px solid #1B4263; border-radius:14px; }
-QFrame#Panel { background:#0D2036; border-color:#245679; border-radius:16px; }
-QFrame#TopBar { background:#091728; border-color:#244967; }
-QFrame#BottomBar { background:#081522; border-color:#17374F; }
-QLabel#Brand { font-size:31px; font-weight:900; color:#8FD9FF; }
+QWidget#Root { background:#050D19; color:#F6FAFF; font-family:'Segoe UI'; }
+QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#091A2D; border:1px solid #1D5A80; border-radius:16px; }
+QFrame#Panel { background:#07182B; border-color:#17618B; }
+QFrame#TopBar { background:#061326; border-color:#164F78; }
+QLabel#Brand { font-size:31px; font-weight:900; color:#39D8FF; }
 QLabel#BrandAccent { font-size:31px; font-weight:900; color:#F49ABD; }
-QLabel#Tagline { color:#BFD7E8; font-size:10px; font-weight:700; letter-spacing:1px; }
-QLabel#HeaderTitle { font-size:13px; font-weight:900; color:#F7FBFF; }
-QLabel#HeaderValue { font-size:18px; font-weight:900; color:#8FD9FF; }
-QLabel#HeaderValuePink { font-size:18px; font-weight:900; color:#F49ABD; }
-QLabel#HeaderSmall { font-size:9px; color:#8BA9BF; font-weight:800; }
-QLabel#SectionTitle { font-size:14px; font-weight:900; color:#FFFFFF; }
-QLabel#CurrentCaption { background:#C95C83; color:#FFFFFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:6px; letter-spacing:.6px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:90px; font-weight:900; background:#102B45; border:3px solid #F49ABD; border-radius:88px; }
-QLabel#CurrentBall[empty="true"] { color:#668197; border-color:#39718F; }
-QLabel#CallState { color:#F49ABD; font-size:12px; font-weight:900; }
-QLabel#Called { color:#8FD9FF; font-size:28px; font-weight:900; }
+QLabel#Tagline { color:#B9D5E7; font-size:9px; font-weight:800; letter-spacing:1px; }
+QLabel#HeaderTitle { font-size:11px; font-weight:900; color:#F7FBFF; }
+QLabel#HeaderValue { font-size:17px; font-weight:900; color:#8FD9FF; }
+QLabel#HeaderValuePink { font-size:17px; font-weight:900; color:#F49ABD; }
+QLabel#HeaderSmall { font-size:8px; color:#7FA9C2; font-weight:900; }
+QLabel#ClockLabel { color:#A9D4E8; font-size:10px; font-weight:800; padding:4px 7px; }
+QLabel#SectionTitle { font-size:13px; font-weight:900; color:#FFFFFF; }
+QLabel#CurrentCaption { background:#B84E78; color:#FFFFFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:7px; letter-spacing:.6px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:112px; font-weight:900; background:#081B30; border:5px solid #F49ABD; border-radius:120px; }
+QLabel#CurrentBall[empty="true"] { color:#63859A; border-color:#2B7191; }
+QLabel#CallState { color:#F49ABD; font-size:13px; font-weight:900; }
+QLabel#Called { color:#39D8FF; font-size:29px; font-weight:900; }
 QLabel#Muted { color:#8FAABD; font-size:10px; }
-QLabel#StatusGood { color:#80E5B3; font-size:10px; font-weight:900; }
-QLabel#FooterText { color:#7F9BB0; font-size:9px; }
 QLabel#PublicHint { color:#8EA9BC; font-size:9px; }
-QLabel#HistoryBall { min-width:43px; max-width:43px; min-height:43px; max-height:43px; border-radius:21px; color:#FFFFFF; font-size:16px; font-weight:900; background:#153452; border:2px solid #8FD9FF; }
-QLabel#HistoryBall[tone="pink"] { background:#70405A; border-color:#F49ABD; }
-QLabel#HistoryBall[tone="blue"] { background:#153F61; border-color:#8FD9FF; }
-QPushButton#Secondary { min-height:42px; border-radius:9px; color:#FFFFFF; background:#173D5B; border:1px solid #2D6386; font-size:10px; font-weight:900; padding:0 14px; }
-QPushButton#Secondary:hover { background:#20506F; border-color:#8FD9FF; }
-QPushButton#Ball { min-width:46px; min-height:46px; color:#EAF4FA; background:#102A42; border:1px solid #2D607F; border-radius:9px; font-size:16px; font-weight:900; }
-QPushButton#Ball:hover { background:#183B59; border-color:#8FD9FF; }
-QPushButton#Ball[called="true"] { background:#8C4B6B; border:2px solid #F49ABD; color:#FFFFFF; }
-QPushButton#Ball[current="true"] { background:#E66D9C; border:3px solid #FFFFFF; color:#FFFFFF; }
-QMenu { background:#0B1A2D; color:#F7F9FF; border:1px solid #2D6386; padding:4px; }
+QLabel#HistoryBall { min-width:48px; max-width:48px; min-height:48px; max-height:48px; border-radius:24px; color:#FFFFFF; font-size:16px; font-weight:900; background:#123450; border:2px solid #39D8FF; }
+QLabel#HistoryBall[tone="pink"] { background:#713B59; border-color:#F49ABD; }
+QLabel#HistoryBall[tone="blue"] { background:#123C5C; border-color:#39D8FF; }
+QPushButton#Nav { min-height:46px; border-radius:11px; color:#FFFFFF; background:#0B2740; border:1px solid #216B91; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#Nav:hover { background:#123C5B; border-color:#39D8FF; }
+QPushButton#VerifyNav { min-height:46px; border-radius:11px; color:#FFFFFF; background:#17324A; border:1px solid #F49ABD; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#VerifyNav:hover { background:#2B4C61; border-color:#FFFFFF; }
+QPushButton#Ball { min-width:64px; min-height:64px; color:#EAF4FA; background:#081D32; border:2px solid #1875A5; border-radius:32px; font-size:18px; font-weight:900; }
+QPushButton#Ball:hover { background:#103754; border:2px solid #39D8FF; }
+QPushButton#Ball[called="true"] { background:#6E3155; border:3px solid #F49ABD; color:#FFFFFF; }
+QPushButton#Ball[current="true"] { background:#D75E92; border:4px solid #FFFFFF; color:#FFFFFF; }
+QMenu { background:#071A2C; color:#F7F9FF; border:1px solid #2D7195; padding:4px; }
 QMenu::item { padding:8px 16px; border-radius:5px; }
 QMenu::item:selected { background:#A95173; }
-QLineEdit { background:#0B1E32; border:1px solid #2B5D7D; border-radius:8px; color:#FFFFFF; padding:8px; font-size:12px; }
+QLineEdit { background:#081C30; border:1px solid #2B6685; border-radius:9px; color:#FFFFFF; padding:8px; font-size:12px; }
 QLineEdit:focus { border:2px solid #F49ABD; }
-QLineEdit#BallInput { font-size:26px; font-weight:900; min-height:52px; text-align:center; border:2px solid #8FD9FF; border-radius:9px; }
+QLineEdit#BallInput { font-size:26px; font-weight:900; min-height:52px; text-align:center; border:2px solid #39D8FF; border-radius:10px; }
 QLineEdit#BallInput:focus { border:2px solid #F49ABD; }
 """
 
@@ -72,16 +72,16 @@ class TVWindow(QMainWindow):
         header = QHBoxLayout(); brand = QLabel("FB-BINGO"); brand.setObjectName("Brand"); header.addWidget(brand); header.addStretch()
         self.game_title = QLabel("PARTIDA RÁPIDA"); self.game_title.setObjectName("HeaderTitle"); header.addWidget(self.game_title); layout.addLayout(header)
         content = QHBoxLayout(); content.setSpacing(10)
-        current_panel = QFrame(objectName="Panel"); current_panel.setFixedWidth(255); current_layout = QVBoxLayout(current_panel); current_layout.setSpacing(7)
+        current_panel = QFrame(objectName="Panel"); current_panel.setFixedWidth(275); current_layout = QVBoxLayout(current_panel); current_layout.setSpacing(7)
         caption = QLabel("NÚMERO ACTUAL"); caption.setObjectName("CurrentCaption"); caption.setAlignment(Qt.AlignmentFlag.AlignCenter); current_layout.addWidget(caption)
-        self.number = QLabel("—"); self.number.setAlignment(Qt.AlignmentFlag.AlignCenter); self.number.setObjectName("CurrentBall"); self.number.setFixedSize(190, 190); current_layout.addWidget(self.number, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.number = QLabel("—"); self.number.setAlignment(Qt.AlignmentFlag.AlignCenter); self.number.setObjectName("CurrentBall"); self.number.setFixedSize(230, 230); current_layout.addWidget(self.number, 0, Qt.AlignmentFlag.AlignHCenter)
         self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("CallState"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); current_layout.addWidget(self.call_state)
         history_caption = QLabel("ÚLTIMAS 5 BOLAS"); history_caption.setObjectName("CurrentCaption"); history_caption.setAlignment(Qt.AlignmentFlag.AlignCenter); current_layout.addWidget(history_caption)
         self.history = QLabel("—"); self.history.setAlignment(Qt.AlignmentFlag.AlignCenter); self.history.setObjectName("HeaderValue"); self.history.setWordWrap(True); current_layout.addWidget(self.history)
         count_caption = QLabel("BOLAS JUGADAS"); count_caption.setObjectName("CurrentCaption"); count_caption.setAlignment(Qt.AlignmentFlag.AlignCenter); current_layout.addWidget(count_caption)
         self.count = QLabel("0 / 90"); self.count.setAlignment(Qt.AlignmentFlag.AlignCenter); self.count.setObjectName("Called"); current_layout.addWidget(self.count); content.addWidget(current_panel)
         board_panel = QFrame(objectName="Panel"); board_layout = QVBoxLayout(board_panel); board_title = QLabel("TABLERO DE BINGO · 90 BOLAS"); board_title.setObjectName("SectionTitle"); board_layout.addWidget(board_title)
-        self.board_buttons = {}; board = QGridLayout(); board.setSpacing(5)
+        self.board_buttons = {}; board = QGridLayout(); board.setSpacing(6)
         for number in range(1, 91):
             button = QPushButton(str(number)); button.setObjectName("Ball"); button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); self.board_buttons[number] = button; board.addWidget(button, (number - 1) // 10, (number - 1) % 10)
         board_layout.addLayout(board, 1); content.addWidget(board_panel, 1); layout.addLayout(content, 1)
@@ -116,54 +116,55 @@ class BingoMainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="Root"); self.setCentralWidget(root); root.setStyleSheet(PROFESSIONAL_QSS)
-        outer = QVBoxLayout(root); outer.setContentsMargins(10, 10, 10, 10); outer.setSpacing(7)
+        outer = QVBoxLayout(root); outer.setContentsMargins(10, 8, 10, 8); outer.setSpacing(7)
 
-        header = QFrame(objectName="TopBar"); hr = QHBoxLayout(header); hr.setContentsMargins(12, 6, 12, 6); hr.setSpacing(7)
-        brand_box = QVBoxLayout(); brand_line = QHBoxLayout(); b1 = QLabel("FB-"); b1.setObjectName("Brand"); b2 = QLabel("BINGO"); b2.setObjectName("BrandAccent"); brand_line.addWidget(b1); brand_line.addWidget(b2); brand_line.addStretch(); brand_box.addLayout(brand_line); tagline = QLabel("SISTEMA PROFESIONAL · BINGO DE 90 BOLAS"); tagline.setObjectName("Tagline"); brand_box.addWidget(tagline); hr.addLayout(brand_box, 1)
+        header = QFrame(objectName="TopBar"); hr = QHBoxLayout(header); hr.setContentsMargins(12, 7, 12, 7); hr.setSpacing(6)
+        brand_box = QVBoxLayout(); brand_line = QHBoxLayout(); b1 = QLabel("FB-"); b1.setObjectName("Brand"); b2 = QLabel("BINGO"); b2.setObjectName("BrandAccent"); brand_line.addWidget(b1); brand_line.addWidget(b2); brand_box.addLayout(brand_line); tagline = QLabel("SISTEMA PROFESIONAL · BINGO DE 90 BOLAS"); tagline.setObjectName("Tagline"); brand_box.addWidget(tagline); hr.addLayout(brand_box, 2)
+
+        def add_menu(title: str, entries: list[tuple[str, object]], object_name: str = "Nav") -> QPushButton:
+            button = QPushButton(title + " ▾"); button.setObjectName(object_name); menu = QMenu(button)
+            for label, callback in entries:
+                action = menu.addAction(label); action.triggered.connect(callback)
+            button.setMenu(menu); return button
+
+        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
+        cards = add_menu("CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
+        verify = QPushButton("VERIFICAR CARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
+        help_menu = add_menu("AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self.new_game), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
+        hr.addWidget(controls); hr.addWidget(cards); hr.addWidget(verify); hr.addWidget(help_menu)
         self.header_values = []
-        for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True), ("FECHA Y HORA", "—", True)):
-            card = QFrame(objectName="HeaderCard"); lay = QVBoxLayout(card); lay.setContentsMargins(9, 5, 9, 5); small = QLabel(title); small.setObjectName("HeaderSmall"); val = QLabel(value); val.setObjectName("HeaderValuePink" if pink else "HeaderValue"); val.setAlignment(Qt.AlignmentFlag.AlignCenter); lay.addWidget(small); lay.addWidget(val); hr.addWidget(card, 1); self.header_values.append(val)
+        for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True)):
+            card = QFrame(objectName="HeaderCard"); lay = QVBoxLayout(card); lay.setContentsMargins(7, 4, 7, 4); small = QLabel(title); small.setObjectName("HeaderSmall"); val = QLabel(value); val.setObjectName("HeaderValuePink" if pink else "HeaderValue"); val.setAlignment(Qt.AlignmentFlag.AlignCenter); lay.addWidget(small); lay.addWidget(val); hr.addWidget(card); self.header_values.append(val)
+        clock = QLabel("—"); clock.setObjectName("ClockLabel"); clock.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter); hr.addWidget(clock); self.header_values.append(clock)
         outer.addWidget(header)
-        outer.addWidget(self._build_control_bar())
+
         outer.addLayout(self._build_center(), 1)
-        outer.addWidget(self._build_footer())
+
         self._operator_shortcuts = []
-        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self); verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); verify_shortcut.setAutoRepeat(False); verify_shortcut.activated.connect(lambda: getattr(self, "open_verification", lambda: None)()); self._operator_shortcuts.append(verify_shortcut)
+        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self); verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); verify_shortcut.setAutoRepeat(False); verify_shortcut.activated.connect(self.verify_card); self._operator_shortcuts.append(verify_shortcut)
         fullscreen_shortcut = QShortcut(QKeySequence("F11"), self); fullscreen_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); fullscreen_shortcut.setAutoRepeat(False); fullscreen_shortcut.activated.connect(self._toggle_fullscreen); self._operator_shortcuts.append(fullscreen_shortcut)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen(): self.showNormal()
         else: self.showFullScreen()
 
-    def _build_control_bar(self) -> QFrame:
-        bar = QFrame(objectName="TopBar"); layout = QHBoxLayout(bar); layout.setContentsMargins(7, 4, 7, 4); layout.setSpacing(5)
-        def add_menu(title: str, entries: list[tuple[str, object]]) -> QPushButton:
-            button = QPushButton(title + " ▾"); button.setObjectName("Secondary"); menu = QMenu(button)
-            for label, callback in entries:
-                action = menu.addAction(label); action.triggered.connect(callback)
-            button.setMenu(menu); return button
-        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
-        cards = add_menu("CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
-        help_menu = add_menu("AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self.new_game), ("Ctrl+5 · Verificador de cartón", lambda: getattr(self, "open_verification", lambda: None)()), ("F11 · Pantalla completa", self._toggle_fullscreen)])
-        layout.addWidget(controls); layout.addWidget(cards); layout.addStretch(1); layout.addWidget(help_menu); return bar
-
     def _build_center(self) -> QVBoxLayout:
-        content = QVBoxLayout(); content.setSpacing(6)
-        top = QFrame(objectName="TopBar"); row = QHBoxLayout(top); row.setContentsMargins(11, 4, 11, 4); t = QLabel("TABLERO DE BINGO · 90 BOLAS"); t.setObjectName("HeaderTitle"); row.addWidget(t); row.addStretch(); self.series_label = QLabel("SERIE —  ·  CARTÓN — / 6"); self.series_label.setObjectName("HeaderTitle"); row.addWidget(self.series_label); content.addWidget(top)
-        center = QHBoxLayout(); center.setSpacing(7)
+        content = QVBoxLayout(); content.setSpacing(5)
+        center = QHBoxLayout(); center.setSpacing(8)
 
-        board_panel = QFrame(objectName="Panel"); bl = QVBoxLayout(board_panel); bl.setContentsMargins(10, 8, 10, 8); bl.setSpacing(5); bt = QLabel("TABLERO"); bt.setObjectName("SectionTitle"); bl.addWidget(bt)
-        grid = QGridLayout(); grid.setContentsMargins(2, 2, 2, 2); grid.setHorizontalSpacing(5); grid.setVerticalSpacing(5)
+        board_panel = QFrame(objectName="Panel"); bl = QVBoxLayout(board_panel); bl.setContentsMargins(10, 8, 10, 8); bl.setSpacing(5)
+        title_row = QHBoxLayout(); bt = QLabel("TABLERO DE BINGO · 90 BOLAS"); bt.setObjectName("SectionTitle"); title_row.addWidget(bt); title_row.addStretch(); self.series_label = QLabel("SERIE —  ·  CARTÓN — / 6"); self.series_label.setObjectName("HeaderSmall"); title_row.addWidget(self.series_label); bl.addLayout(title_row)
+        grid = QGridLayout(); grid.setContentsMargins(3, 3, 3, 3); grid.setHorizontalSpacing(7); grid.setVerticalSpacing(7)
         for number in range(1, 91):
             btn = QPushButton(str(number)); btn.setObjectName("Ball"); btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); btn.clicked.connect(lambda checked=False, n=number: self.call_number(n)); self._buttons[number] = btn; grid.addWidget(btn, (number - 1) // 10, (number - 1) % 10)
         bl.addLayout(grid, 1); center.addWidget(board_panel, 1)
 
-        current = QFrame(objectName="Panel"); current.setFixedWidth(315); cl = QVBoxLayout(current); cl.setContentsMargins(10, 10, 10, 10); cl.setSpacing(7)
+        current = QFrame(objectName="Panel"); current.setFixedWidth(350); cl = QVBoxLayout(current); cl.setContentsMargins(10, 10, 10, 10); cl.setSpacing(7)
         cap = QLabel("NÚMERO ACTUAL"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
-        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setProperty("empty", True); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setFixedSize(185, 185); cl.addWidget(self.current_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setProperty("empty", True); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setFixedSize(245, 245); cl.addWidget(self.current_label, 0, Qt.AlignmentFlag.AlignHCenter)
         self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("CallState"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.call_state)
         cap = QLabel("ÚLTIMAS 5 BOLAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
-        history_row = QHBoxLayout(); history_row.setSpacing(4); self.history_balls = []
+        history_row = QHBoxLayout(); history_row.setSpacing(5); self.history_balls = []
         for index in range(5):
             ball = QLabel("—"); ball.setObjectName("HistoryBall"); ball.setProperty("history_index", index); ball.setProperty("tone", "pink" if index % 2 == 0 else "blue"); ball.setAlignment(Qt.AlignmentFlag.AlignCenter); history_row.addWidget(ball, 1); self.history_balls.append(ball)
         cl.addLayout(history_row)
@@ -176,9 +177,6 @@ class BingoMainWindow(QMainWindow):
         cl.addStretch(1); center.addWidget(current); content.addLayout(center, 1)
         self.pause_button = QPushButton(); self.pause_button.setVisible(False); self.pause_button.clicked.connect(self.toggle_pause)
         return content
-
-    def _build_footer(self) -> QFrame:
-        footer = QFrame(objectName="BottomBar"); row = QHBoxLayout(footer); row.setContentsMargins(10, 5, 10, 5); text = QLabel("FB-BINGO · TECLADO · F1/F2/F3/F4 · Ctrl+1/2/3/4 · Ctrl+5 VERIFICADOR"); text.setObjectName("FooterText"); row.addWidget(text); row.addStretch(); status = QLabel("● SISTEMA CONECTADO"); status.setObjectName("StatusGood"); row.addWidget(status); return footer
 
     def enter_ball(self) -> bool:
         raw = self.ball_input.text().strip()
