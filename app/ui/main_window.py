@@ -20,8 +20,8 @@ from app.verification import CardVerifier, LivePrizeTracker
 
 PROFESSIONAL_QSS = """
 QWidget#Root { background:#07111F; color:#F6FAFF; font-family:'Segoe UI'; }
-QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar,QFrame#BottomBar { background:#0B1A2D; border:1px solid #1B4263; border-radius:12px; }
-QFrame#Panel { background:#0D2036; border-color:#245679; }
+QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar,QFrame#BottomBar { background:#0B1A2D; border:1px solid #1B4263; border-radius:14px; }
+QFrame#Panel { background:#0D2036; border-color:#245679; border-radius:16px; }
 QFrame#TopBar { background:#091728; border-color:#244967; }
 QFrame#BottomBar { background:#081522; border-color:#17374F; }
 QLabel#Brand { font-size:31px; font-weight:900; color:#8FD9FF; }
@@ -33,7 +33,7 @@ QLabel#HeaderValuePink { font-size:18px; font-weight:900; color:#F49ABD; }
 QLabel#HeaderSmall { font-size:9px; color:#8BA9BF; font-weight:800; }
 QLabel#SectionTitle { font-size:14px; font-weight:900; color:#FFFFFF; }
 QLabel#CurrentCaption { background:#C95C83; color:#FFFFFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:6px; letter-spacing:.6px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:86px; font-weight:900; background:#102B45; border:3px solid #F49ABD; border-radius:88px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:90px; font-weight:900; background:#102B45; border:3px solid #F49ABD; border-radius:88px; }
 QLabel#CurrentBall[empty="true"] { color:#668197; border-color:#39718F; }
 QLabel#CallState { color:#F49ABD; font-size:12px; font-weight:900; }
 QLabel#Called { color:#8FD9FF; font-size:28px; font-weight:900; }
@@ -44,9 +44,9 @@ QLabel#PublicHint { color:#8EA9BC; font-size:9px; }
 QLabel#HistoryBall { min-width:43px; max-width:43px; min-height:43px; max-height:43px; border-radius:21px; color:#FFFFFF; font-size:16px; font-weight:900; background:#153452; border:2px solid #8FD9FF; }
 QLabel#HistoryBall[tone="pink"] { background:#70405A; border-color:#F49ABD; }
 QLabel#HistoryBall[tone="blue"] { background:#153F61; border-color:#8FD9FF; }
-QPushButton#Secondary { min-height:38px; border-radius:8px; color:#FFFFFF; background:#173D5B; border:1px solid #2D6386; font-size:10px; font-weight:900; padding:0 13px; }
+QPushButton#Secondary { min-height:42px; border-radius:9px; color:#FFFFFF; background:#173D5B; border:1px solid #2D6386; font-size:10px; font-weight:900; padding:0 14px; }
 QPushButton#Secondary:hover { background:#20506F; border-color:#8FD9FF; }
-QPushButton#Ball { min-width:44px; min-height:44px; color:#EAF4FA; background:#102A42; border:1px solid #2D607F; border-radius:9px; font-size:16px; font-weight:900; }
+QPushButton#Ball { min-width:46px; min-height:46px; color:#EAF4FA; background:#102A42; border:1px solid #2D607F; border-radius:9px; font-size:16px; font-weight:900; }
 QPushButton#Ball:hover { background:#183B59; border-color:#8FD9FF; }
 QPushButton#Ball[called="true"] { background:#8C4B6B; border:2px solid #F49ABD; color:#FFFFFF; }
 QPushButton#Ball[current="true"] { background:#E66D9C; border:3px solid #FFFFFF; color:#FFFFFF; }
