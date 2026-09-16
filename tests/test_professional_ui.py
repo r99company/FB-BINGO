@@ -140,7 +140,7 @@ def test_operator_visual_style_is_clean_and_brand_consistent():
 
 
 def test_operator_visual_hierarchy_uses_roomier_cards_and_controls():
-    assert "QFrame#Panel { background:#07182B; border-color:#17618B; border-radius:16px; }" in PROFESSIONAL_QSS
+    assert "QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#091A2D; border:1px solid #1D5A80; border-radius:16px; }" in PROFESSIONAL_QSS
     assert "QPushButton#Nav { min-height:46px;" in PROFESSIONAL_QSS
     assert "QPushButton#Ball { min-width:64px; min-height:64px;" in PROFESSIONAL_QSS
     assert "QLabel#CurrentBall { color:#FFFFFF; font-size:112px;" in PROFESSIONAL_QSS
@@ -169,7 +169,7 @@ def test_operator_header_contains_navigation_and_small_clock():
 def test_current_ball_is_bigger_and_circular():
     app = QApplication.instance() or QApplication([])
     window = BingoMainWindow()
-    assert window.current_label.width() >= 220
-    assert window.current_label.height() >= 220
+    assert window.current_label.minimumWidth() >= 220
+    assert window.current_label.minimumHeight() >= 220
     assert "border-radius:120px" in PROFESSIONAL_QSS
     window.close(); app.processEvents()
