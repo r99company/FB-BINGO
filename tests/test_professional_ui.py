@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
 
 from app.cards import CardModel, SeriesGenerator
 from app.database import SQLiteSeriesRepository
@@ -144,3 +144,32 @@ def test_operator_visual_hierarchy_uses_roomier_cards_and_controls():
     assert "QPushButton#Secondary { min-height:42px;" in PROFESSIONAL_QSS
     assert "QPushButton#Ball { min-width:46px; min-height:46px;" in PROFESSIONAL_QSS
     assert "QLabel#CurrentBall { color:#FFFFFF; font-size:90px;" in PROFESSIONAL_QSS
+
+
+def test_operator_screen_uses_circular_neon_balls_and_no_footer_controls():
+    assert "QPushButton#Ball { min-width:64px; min-height:64px;" in PROFESSIONAL_QSS
+    assert "border-radius:32px" in PROFESSIONAL_QSS
+    assert "QPushButton#Ball[called=\"true\"]" in PROFESSIONAL_QSS
+    assert "QPushButton#Ball[current=\"true\"]" in PROFESSIONAL_QSS
+    assert "QFrame#BottomBar" not in PROFESSIONAL_QSS
+
+
+def test_operator_header_contains_navigation_and_small_clock():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    top_buttons = [button.text() for button in window.findChildren(QPushButton)]
+    assert any("CONTROLES DE SALA" in text for text in top_buttons)
+    assert any("CARTONES" in text for text in top_buttons)
+    assert any("AYUDA" in text for text in top_buttons)
+    assert window.findChild(QLabel, "ClockLabel") is not None
+    assert window.findChild(QFrame, "BottomBar") is None
+    window.close(); app.processEvents()
+
+
+def test_current_ball_is_bigger_and_circular():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    assert window.current_label.width() >= 220
+    assert window.current_label.height() >= 220
+    assert "border-radius:120px" in PROFESSIONAL_QSS
+    window.close(); app.processEvents()
