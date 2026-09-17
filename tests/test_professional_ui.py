@@ -173,3 +173,12 @@ def test_current_ball_is_bigger_and_circular():
     assert window.current_label.minimumHeight() >= 220
     assert "border-radius:120px" in PROFESSIONAL_QSS
     window.close(); app.processEvents()
+
+
+def test_operational_window_preserves_neon_ball_geometry():
+    app = QApplication.instance() or QApplication([])
+    window = OperationalBingoMainWindow()
+    assert window.current_label.minimumWidth() >= 220
+    assert window.current_label.minimumHeight() >= 220
+    assert all(button.maximumHeight() >= 64 for button in window._buttons.values())
+    window.close(); app.processEvents()
