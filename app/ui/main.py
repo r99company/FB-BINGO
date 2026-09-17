@@ -186,9 +186,6 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
     for sequence, callback in shortcuts:
         shortcut = QShortcut(QKeySequence(sequence), self); shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut); shortcut.setAutoRepeat(False); shortcut.activated.connect(callback); self._operator_shortcuts.append(shortcut)
 
-    # Ctrl+5 es una acción global del operador. QAction con ApplicationShortcut
-    # evita que un QLineEdit u otro control se quede con la combinación y garantiza
-    # que siempre abra el mismo verificador de la partida actual.
     self._verify_action = QAction("Verificar cartón", self)
     self._verify_action.setShortcut(QKeySequence("Ctrl+5"))
     self._verify_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -198,28 +195,10 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
 
 
 def _apply_operator_visual_refresh(self: BingoMainWindow) -> None:
-    self.setMinimumSize(1200, 760); self.resize(1480, 860)
-    root = self.centralWidget()
-    if root is not None:
-        root.setStyleSheet(root.styleSheet() + """
-            QPushButton#Ball { min-width:0; min-height:0; max-height:52px; border-radius:7px; font-size:14px; }
-            QPushButton#Ball:hover { border-width:1px; }
-            QLabel#CurrentBall { font-size:72px; border-radius:78px; }
-            QLabel#CallState { min-height:22px; max-height:22px; background:#17324A; border:1px solid #365E78; border-radius:6px; padding:2px 8px; }
-            QLabel#CurrentCaption { padding:5px 8px; }
-            QLabel#HistoryBall { min-width:40px; max-width:40px; min-height:40px; max-height:40px; border-radius:20px; font-size:14px; }
-            QLabel#Called { font-size:24px; }
-        """)
-    current = getattr(self, "current_label", None)
-    if current is not None: current.setFixedSize(156, 156)
-    state = getattr(self, "call_state", None)
-    if state is not None: state.setText("BOLA CANTADA" if self.game.current_number is not None else "LISTO PARA JUGAR")
-    for button in getattr(self, "_buttons", {}).values(): button.setMinimumSize(0, 0); button.setMaximumHeight(52)
-    for panel in self.findChildren(type(self)):
-        if panel.objectName() == "Panel":
-            layout = panel.layout()
-            if layout is not None and hasattr(layout, "setSpacing"):
-                layout.setSpacing(4)
+    # Kept for compatibility with older callers. The current operator UI is
+    # already the neon/circular design built by main_window.py. Do not append
+    # overrides here: they would shrink the approved balls and current number.
+    return
 
 
 def _install_model_selector(self: BingoMainWindow) -> None:
@@ -228,7 +207,9 @@ def _install_model_selector(self: BingoMainWindow) -> None:
 
 
 def _init_with_operational_modules(self: BingoMainWindow) -> None:
-    _original_init(self); _apply_operator_visual_refresh(self); self._finalized = False
+    _original_init(self)
+    _apply_operator_visual_refresh(self)
+    self._finalized = False
     self.cartons_window = None; self.generator_window = None; self.sales_window = None; self.verification_window = None; self.reports_window = None; self.settings_window = None
     self.history_repository = SQLiteGameHistoryRepository(database_path()); self.history_service = GameHistoryService(self.history_repository); self.history_game_id = None
     _install_model_selector(self)
