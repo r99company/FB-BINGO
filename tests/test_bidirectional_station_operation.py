@@ -19,13 +19,14 @@ def test_administrador_keeps_all_local_game_controls(monkeypatch, tmp_path: Path
             return {"station_role": "administrador", "tv_server_host": "127.0.0.1", "tv_server_port": 9}.get(key, default)
 
     monkeypatch.setattr(settings_module, "SettingsService", FakeSettings)
-    monkeypatch.setattr(settings_module, "application_data_dir", lambda: tmp_path)
+    monkeypatch.setattr(sync_module, "SettingsService", FakeSettings, raising=False)
+    monkeypatch.setattr(sync_module, "application_data_dir", lambda: tmp_path, raising=False)
 
     window = QWidget()
     window.ball_input = QLineEdit(window)
     window.ball_message = type("Message", (), {"setText": lambda self, _text: None})()
     window.game = type("Game", (), {"history": (), "state": type("State", (), {"paused": False})()})()
-    window.header_values = [type("Label", (), {"setText": lambda self, _text: None})(), type("Label", (), {"setText": lambda self, _text: None})(), type("Label", (), {"setText": lambda self, _text: None})()]
+    window.header_values = [type("Label", (), {"setText": lambda self, _text: None})() for _ in range(3)]
     window._buttons = {}
     window._sync_ui = lambda: None
     original_enter = lambda: True
