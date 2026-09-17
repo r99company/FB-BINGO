@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 import socket
 import threading
+import time
+import uuid
 from typing import Any
+
+
+VALID_STATUS = {"EN ESPERA", "EN CURSO", "PAUSADA", "FINALIZADA"}
 
 
 class GameSyncServer:
@@ -13,6 +18,9 @@ class GameSyncServer:
         self.host = host
         self._requested_port = int(port)
         self._state: dict[str, Any] = {
+            "session_id": "",
+            "started_at": 0.0,
+            "revision": 0,
             "current": None,
             "history": [],
             "game": "PARTIDA RÁPIDA",
@@ -123,8 +131,17 @@ class GameSyncServer:
         if current is not None and history and history[-1] != current:
             raise ValueError("La bola actual debe coincidir con la última bola del historial")
         status = str(state.get("status", "EN ESPERA"))
-        if status not in {"EN ESPERA", "EN CURSO", "PAUSADA", "FINALIZADA"}:
+        if status not in VALID_STATUS:
             raise ValueError("Estado de partida inválido")
+        session_id = state.get("session_id", "")
+        if not isinstance(session_id, str):
+            raise ValueError("La sesión de partida es inválida")
+        started_at = state.get("started_at", 0.0)
+        revision = state.get("revision", 0)
+        if not isinstance(started_at, (int, float)) or started_at < 0:
+            raise ValueError("La fecha de inicio de partida es inválida")
+        if not isinstance(revision, int) or revision < 0:
+            raise ValueError("La revisión de partida es inválida")
 
 
 class GameSyncClient:
@@ -151,8 +168,39 @@ class GameSyncClient:
         return self._request({"action": "get"})["state"]
 
 
+def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, Any]:
+    """Resuelve estados entre estaciones sin dejar que una partida vieja sobrescriba una nueva."""
+    local_session = str(local.get("session_id", ""))
+    remote_session = str(remote.get("session_id", ""))
+    if local_session != remote_session:
+        local_started = float(local.get("started_at", 0.0) or 0.0)
+        remote_started = float(remote.get("started_at", 0.0) or 0.0)
+        if remote_started > local_started:
+            return dict(remote)
+        return dict(local)
+
+    local_revision = int(local.get("revision", 0) or 0)
+    remote_revision = int(remote.get("revision", 0) or 0)
+    if remote_revision > local_revision:
+        return dict(remote)
+    if local_revision > remote_revision:
+        return dict(local)
+
+    local_history = tuple(int(n) for n in local.get("history", []))
+    remote_history = tuple(int(n) for n in remote.get("history", []))
+    merged = _merge_history(local_history, remote_history)
+    result = dict(local)
+    result["history"] = list(merged)
+    result["current"] = merged[-1] if merged else None
+    result["status"] = "FINALIZADA" if "FINALIZADA" in {local.get("status"), remote.get("status")} else (
+        "PAUSADA" if "PAUSADA" in {local.get("status"), remote.get("status")} else "EN CURSO"
+    )
+    result["revision"] = local_revision
+    return result
+
+
 def _merge_history(local: tuple[int, ...], remote: tuple[int, ...]) -> tuple[int, ...]:
-    """Une historiales sin borrar bolas cuando las dos estaciones avanzaron offline."""
+    """Une historiales concurrentes sin duplicar bolas."""
     if local == remote:
         return local
     if local == remote[: len(local)]:
@@ -164,6 +212,30 @@ def _merge_history(local: tuple[int, ...], remote: tuple[int, ...]) -> tuple[int
         if number not in merged:
             merged.append(number)
     return tuple(merged)
+
+
+def ensure_sync_metadata(window: Any, new_session: bool = False) -> None:
+    """Inicializa o avanza la versión local de la partida para sincronización segura."""
+    if new_session or not getattr(window, "station_sync_session_id", None):
+        window.station_sync_session_id = uuid.uuid4().hex
+        window.station_sync_started_at = time.time()
+        window.station_sync_revision = 0
+    else:
+        window.station_sync_revision = int(getattr(window, "station_sync_revision", 0)) + 1
+
+
+def _local_sync_state(window: Any) -> dict[str, Any]:
+    return {
+        "session_id": getattr(window, "station_sync_session_id", ""),
+        "started_at": float(getattr(window, "station_sync_started_at", 0.0)),
+        "revision": int(getattr(window, "station_sync_revision", 0)),
+        "current": window.game.current_number,
+        "history": list(window.game.history),
+        "game": window.header_values[0].text() or "PARTIDA RÁPIDA",
+        "series": window.header_values[2].text() or "—",
+        "model": window.model_selector.current_model.value,
+        "status": "FINALIZADA" if getattr(window, "_finalized", False) else ("PAUSADA" if window.game.state.paused else ("EN CURSO" if window.game.history else "EN ESPERA")),
+    }
 
 
 def _install_station_sync(window: Any) -> None:
@@ -178,6 +250,7 @@ def _install_station_sync(window: Any) -> None:
     if role not in {"locutora", "administrador"}:
         role = "locutora"
     window.station_sync_role = role
+    ensure_sync_metadata(window)
     window.station_sync_client = GameSyncClient(
         str(settings.get("tv_server_host", "127.0.0.1")),
         int(settings.get("tv_server_port", 8765)),
@@ -188,24 +261,38 @@ def _install_station_sync(window: Any) -> None:
 
     def poll() -> None:
         try:
-            state = window.station_sync_client.get_state()
-            remote = tuple(int(n) for n in state.get("history", []))
-            if len(remote) > 90 or len(remote) != len(set(remote)) or any(not 1 <= n <= 90 for n in remote):
-                raise ValueError("Historial remoto inválido")
-            local = tuple(window.game.history)
-            status = str(state.get("status", "EN ESPERA"))
-            if status == "EN ESPERA" and not remote and local:
-                return
-            merged = _merge_history(local, remote)
-            if merged != local or (status == "PAUSADA") != bool(window.game.state.paused):
-                current = merged[-1] if merged else None
-                remaining = tuple(n for n in range(1, 91) if n not in merged)
-                window.game.restore(GameState(drawn_numbers=merged, remaining_numbers=remaining, paused=status == "PAUSADA"))
+            remote_state = window.station_sync_client.get_state()
+            GameSyncServer._validate(remote_state)
+            local_state = _local_sync_state(window)
+            merged_state = merge_sync_states(local_state, remote_state)
+            if merged_state.get("session_id") != local_state.get("session_id"):
+                window.station_sync_session_id = str(merged_state.get("session_id", window.station_sync_session_id))
+                window.station_sync_started_at = float(merged_state.get("started_at", time.time()))
+                window.station_sync_revision = int(merged_state.get("revision", 0))
+            elif int(merged_state.get("revision", 0)) > int(local_state.get("revision", 0)):
+                window.station_sync_revision = int(merged_state.get("revision", 0))
+
+            remote_history = tuple(int(n) for n in merged_state.get("history", []))
+            local_history = tuple(window.game.history)
+            remote_status = str(merged_state.get("status", "EN ESPERA"))
+            if remote_history != local_history or (remote_status == "PAUSADA") != bool(window.game.state.paused) or (remote_status == "FINALIZADA") != bool(getattr(window, "_finalized", False)):
+                remaining = tuple(n for n in range(1, 91) if n not in remote_history)
+                window.game.restore(GameState(drawn_numbers=remote_history, remaining_numbers=remaining, paused=remote_status == "PAUSADA"))
+                if remote_status == "FINALIZADA":
+                    window._finalized = True
+                    window.ball_input.setEnabled(False)
+                elif getattr(window, "_finalized", False) and remote_status != "FINALIZADA":
+                    window._finalized = False
+                    window.ball_input.setEnabled(True)
                 window._sync_ui()
-            if merged:
-                window.ball_message.setText(f"✓ SINCRONIZADO · ÚLTIMA BOLA {merged[-1]} · {len(merged)} BOLAS")
+            if remote_history:
+                window.ball_message.setText(f"✓ SINCRONIZADO · ÚLTIMA BOLA {remote_history[-1]} · {len(remote_history)} BOLAS")
+            if merged_state != remote_state:
+                try:
+                    window.station_sync_client.publish(merged_state)
+                except (OSError, ValueError, TimeoutError):
+                    pass
         except (OSError, ValueError, TimeoutError, TypeError):
-            # La partida local continúa funcionando aunque la otra PC esté apagada.
             window.ball_message.setText("● SIN CONEXIÓN · OPERACIÓN LOCAL ACTIVA")
 
     window.station_sync_timer = timer
@@ -244,5 +331,4 @@ def wire_operational_controls(window: Any) -> None:
     replace(window.ball_input.returnPressed, window.enter_ball)
 
 
-# Compatibilidad con código existente que todavía importe el nombre anterior.
 _install_admin_station_sync = _install_station_sync
