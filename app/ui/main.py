@@ -198,6 +198,18 @@ def _f4_action(self: BingoMainWindow) -> None:
         self.finalize_game()
 
 
+def _wire_help_f4(self: BingoMainWindow) -> None:
+    """Make AYUDA > F4 use the protected F4 flow instead of a raw reset."""
+    for top_action in self.menuBar().actions():
+        menu = top_action.menu()
+        if menu is None:
+            continue
+        for action in menu.actions():
+            if action.text().startswith("F4 / Ctrl+4"):
+                _replace_signal_connection(action.triggered, lambda checked=False, window=self: _f4_action(window))
+                return
+
+
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
     self._operator_shortcuts = []
     shortcuts = (("F1", self.draw_number), ("Ctrl+1", self.draw_number), ("F2", self.toggle_pause), ("Ctrl+2", self.toggle_pause), ("F3", self.undo_number), ("Ctrl+3", self.undo_number), ("F4", lambda: _f4_action(self)))
@@ -247,6 +259,7 @@ def _init_with_operational_modules(self: BingoMainWindow) -> None:
         elif button.text().startswith(("▣  PANTALLA TV", "▣ PANTALLA TV")): _replace_signal_connection(button.clicked, self.open_tv)
     if getattr(self, "finish_button", None) is not None: self.finish_button.setProperty("fb_bingo_finish_button", True); _replace_signal_connection(self.finish_button.clicked, self.finalize_game)
     _install_operator_shortcuts(self)
+    _wire_help_f4(self)
 
 
 BingoMainWindow.__init__ = _init_with_operational_modules
