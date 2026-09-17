@@ -245,6 +245,9 @@ def _install_station_sync(window: Any) -> None:
     from app.settings.paths import application_data_dir
     from app.settings.service import SettingsService
 
+    if getattr(window, "_station_sync_installed", False):
+        return
+    window._station_sync_installed = True
     settings = SettingsService(application_data_dir() / "settings.json")
     role = str(settings.get("station_role", "locutora")).lower().strip()
     if role not in {"locutora", "administrador"}:
@@ -256,6 +259,37 @@ def _install_station_sync(window: Any) -> None:
         int(settings.get("tv_server_port", 8765)),
         timeout=0.75,
     )
+
+    original_publish = window.station_sync_client.publish
+    def publish_local(_state: dict[str, Any]) -> bool:
+        return original_publish(_local_sync_state(window))
+    window.station_sync_client.publish = publish_local
+
+    def wrap_local(name: str, new_session: bool = False) -> None:
+        original = getattr(window, name, None)
+        if original is None or getattr(original, "_station_sync_wrapped", False):
+            return
+        def wrapped(*args: Any, **kwargs: Any):
+            result = original(*args, **kwargs)
+            if new_session:
+                ensure_sync_metadata(window, new_session=True)
+            else:
+                ensure_sync_metadata(window)
+            try:
+                window.station_sync_client.publish(_local_sync_state(window))
+            except (OSError, ValueError, TimeoutError):
+                pass
+            return result
+        wrapped._station_sync_wrapped = True
+        setattr(window, name, wrapped)
+
+    wrap_local("enter_ball")
+    wrap_local("draw_number")
+    wrap_local("call_number")
+    wrap_local("undo_number")
+    wrap_local("toggle_pause")
+    wrap_local("finalize_game")
+    wrap_local("new_game", new_session=True)
 
     timer = QTimer(window)
 
