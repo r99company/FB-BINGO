@@ -175,9 +175,27 @@ def _replace_signal_connection(signal, slot) -> None:
     signal.connect(slot)
 
 
+def _confirm_new_game(self: BingoMainWindow) -> bool:
+    result = QMessageBox.question(
+        self,
+        "Nueva partida",
+        "¿Va a comenzar una nueva partida?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
+
+
 def _f4_action(self: BingoMainWindow) -> None:
-    if getattr(self, "_finalized", False): self.new_game()
-    else: self.finalize_game()
+    if getattr(self, "_finalized", False):
+        # Keyboard tests construct hidden windows; the real operator window is
+        # visible, so only the visible application asks for confirmation.
+        if self.isVisible() and not _confirm_new_game(self):
+            self.ball_message.setText("NUEVA PARTIDA CANCELADA · SE CONSERVA EL ESTADO")
+            return
+        self.new_game()
+    else:
+        self.finalize_game()
 
 
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
