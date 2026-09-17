@@ -25,3 +25,28 @@ def test_f4_new_game_can_be_cancelled_without_erasing_state(monkeypatch):
     assert window.ball_message.text() == "NUEVA PARTIDA CANCELADA · SE CONSERVA EL ESTADO"
     window.close()
     app.processEvents()
+
+
+def test_help_menu_f4_uses_same_confirmation_guard(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    window.draw_number()
+    _f4_action(window)
+    assert window._finalized is True
+    history_before = window.game.history
+
+    monkeypatch.setattr(operational_main, "_confirm_new_game", lambda _window: False)
+    window.show()
+    help_menu = next(
+        action.menu()
+        for action in window.menuBar().actions()
+        if action.text() == "AYUDA" and action.menu() is not None
+    )
+    f4_action = next(action for action in help_menu.actions() if action.text().startswith("F4 / Ctrl+4"))
+    f4_action.trigger()
+
+    assert window._finalized is True
+    assert window.game.history == history_before
+    assert window.ball_message.text() == "NUEVA PARTIDA CANCELADA · SE CONSERVA EL ESTADO"
+    window.close()
+    app.processEvents()
