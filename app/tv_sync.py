@@ -7,7 +7,7 @@ from typing import Any
 
 
 class GameSyncServer:
-    """Servidor ligero para compartir el estado de la partida con otras PCs."""
+    """Servidor ligero para compartir el estado de una partida entre dos PCs."""
 
     def __init__(self, host: str = "0.0.0.0", port: int = 8765) -> None:
         self.host = host
@@ -122,10 +122,13 @@ class GameSyncServer:
             raise ValueError("El historial no puede contener bolas repetidas")
         if current is not None and history and history[-1] != current:
             raise ValueError("La bola actual debe coincidir con la última bola del historial")
+        status = str(state.get("status", "EN ESPERA"))
+        if status not in {"EN ESPERA", "EN CURSO", "PAUSADA", "FINALIZADA"}:
+            raise ValueError("Estado de partida inválido")
 
 
 class GameSyncClient:
-    """Cliente usado por las PCs secundarias para leer/publicar estado."""
+    """Cliente para enviar y recibir el estado de la otra estación."""
 
     def __init__(self, host: str, port: int = 8765, timeout: float = 2.0) -> None:
         self.host, self.port, self.timeout = host, int(port), timeout
@@ -148,8 +151,23 @@ class GameSyncClient:
         return self._request({"action": "get"})["state"]
 
 
-def _install_admin_station_sync(window: Any) -> None:
-    """Convierte esta instancia en cliente: la PC locutora manda la partida."""
+def _merge_history(local: tuple[int, ...], remote: tuple[int, ...]) -> tuple[int, ...]:
+    """Une historiales sin borrar bolas cuando las dos estaciones avanzaron offline."""
+    if local == remote:
+        return local
+    if local == remote[: len(local)]:
+        return remote
+    if remote == local[: len(remote)]:
+        return local
+    merged = list(local)
+    for number in remote:
+        if number not in merged:
+            merged.append(number)
+    return tuple(merged)
+
+
+def _install_station_sync(window: Any) -> None:
+    """Mantiene ambas PCs como estaciones completas y sincroniza en ambos sentidos."""
     from PySide6.QtCore import QTimer
     from app.bingo.models import GameState
     from app.settings.paths import application_data_dir
@@ -157,85 +175,47 @@ def _install_admin_station_sync(window: Any) -> None:
 
     settings = SettingsService(application_data_dir() / "settings.json")
     role = str(settings.get("station_role", "locutora")).lower().strip()
-    if role != "administrador":
-        window.station_sync_role = "locutora"
-        return
-
-    local_server = getattr(window, "tv_sync_server", None)
-    if local_server is not None:
-        local_server.shutdown()
-
-    client = GameSyncClient(
+    if role not in {"locutora", "administrador"}:
+        role = "locutora"
+    window.station_sync_role = role
+    window.station_sync_client = GameSyncClient(
         str(settings.get("tv_server_host", "127.0.0.1")),
         int(settings.get("tv_server_port", 8765)),
         timeout=0.75,
     )
-    window.station_sync_role = "administrador"
-    window.station_sync_client = client
-
-    def blocked(*_args: Any, **_kwargs: Any) -> Any:
-        window.ball_message.setText("CONTROL REMOTO · LA BOLA SE DIGITA EN LA PC LOCUTORA")
-        return False
-
-    window.enter_ball = blocked
-    window.draw_number = blocked
-    window.call_number = blocked
-    window.undo_number = blocked
-    window.toggle_pause = blocked
-    window.finalize_game = blocked
-    window.new_game = blocked
-    window.ball_input.setEnabled(False)
-    window.ball_input.setPlaceholderText("CONTROLADO POR LOCUTORA")
-    window.ball_message.setText("● CONECTANDO CON PC LOCUTORA…")
-    for button in getattr(window, "_buttons", {}).values():
-        button.setEnabled(False)
 
     timer = QTimer(window)
 
     def poll() -> None:
         try:
-            state = client.get_state()
-            history = tuple(int(n) for n in state.get("history", []))
-            current = state.get("current")
-            if current is not None:
-                current = int(current)
-            if not 0 <= len(history) <= 90:
-                raise ValueError("Estado remoto inválido")
-            if current is not None and (not 1 <= current <= 90 or not history or history[-1] != current):
-                raise ValueError("Bola remota inválida")
-            if any(not 1 <= n <= 90 for n in history) or len(history) != len(set(history)):
+            state = window.station_sync_client.get_state()
+            remote = tuple(int(n) for n in state.get("history", []))
+            if len(remote) > 90 or len(remote) != len(set(remote)) or any(not 1 <= n <= 90 for n in remote):
                 raise ValueError("Historial remoto inválido")
-            if history != window.game.history or bool(state.get("status") == "PAUSADA") != bool(window.game.state.paused):
-                remaining = tuple(n for n in range(1, 91) if n not in history)
-                window.game.restore(
-                    GameState(
-                        drawn_numbers=history,
-                        remaining_numbers=remaining,
-                        paused=state.get("status") == "PAUSADA",
-                    )
-                )
+            local = tuple(window.game.history)
+            status = str(state.get("status", "EN ESPERA"))
+            if status == "EN ESPERA" and not remote and local:
+                return
+            merged = _merge_history(local, remote)
+            if merged != local or (status == "PAUSADA") != bool(window.game.state.paused):
+                current = merged[-1] if merged else None
+                remaining = tuple(n for n in range(1, 91) if n not in merged)
+                window.game.restore(GameState(drawn_numbers=merged, remaining_numbers=remaining, paused=status == "PAUSADA"))
                 window._sync_ui()
-            if history:
-                window.ball_message.setText(
-                    f"✓ SINCRONIZADO · ÚLTIMA BOLA {history[-1]} · {len(history)} BOLAS"
-                )
-            else:
-                window.ball_message.setText("✓ SINCRONIZADO · ESPERANDO PRIMERA BOLA")
-            if state.get("game"):
-                window.header_values[0].setText(str(state["game"]))
-            if state.get("series") is not None:
-                window.header_values[2].setText(str(state.get("series") or "—"))
+            if merged:
+                window.ball_message.setText(f"✓ SINCRONIZADO · ÚLTIMA BOLA {merged[-1]} · {len(merged)} BOLAS")
         except (OSError, ValueError, TimeoutError, TypeError):
-            window.ball_message.setText("● SIN CONEXIÓN · ESPERANDO PC LOCUTORA…")
+            # La partida local continúa funcionando aunque la otra PC esté apagada.
+            window.ball_message.setText("● SIN CONEXIÓN · OPERACIÓN LOCAL ACTIVA")
 
     window.station_sync_timer = timer
     timer.timeout.connect(poll)
-    timer.start(200)
+    timer.start(300)
     poll()
 
 
 def wire_operational_controls(window: Any) -> None:
-    """Conecta controles y, cuando corresponde, activa el modo administrador en red."""
+    """Conecta los controles locales y deja la sincronización como apoyo, no como bloqueo."""
     from PySide6.QtWidgets import QPushButton
 
     def replace(signal: Any, slot: Any) -> None:
@@ -245,9 +225,7 @@ def wire_operational_controls(window: Any) -> None:
             pass
         signal.connect(slot)
 
-    # Primero definimos el rol. Así, si es administrador, las señales quedan
-    # conectadas a los bloqueos y no a los handlers locales originales.
-    _install_admin_station_sync(window)
+    _install_station_sync(window)
 
     for button in window.findChildren(QPushButton):
         text = button.text()
@@ -260,7 +238,11 @@ def wire_operational_controls(window: Any) -> None:
         elif text.startswith("◀ DESHACER"):
             replace(button.clicked, window.undo_number)
         elif text.startswith("■ FINALIZAR"):
-            replace(button.clicked, window.new_game)
+            replace(button.clicked, window.finalize_game)
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
     replace(window.ball_input.returnPressed, window.enter_ball)
+
+
+# Compatibilidad con código existente que todavía importe el nombre anterior.
+_install_admin_station_sync = _install_station_sync

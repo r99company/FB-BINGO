@@ -12,7 +12,7 @@ from app.settings.service import SettingsService
 
 
 class SettingsWindow(QMainWindow):
-    """Configuración operativa, premios, TV y conexión entre PCs de FB-BINGO."""
+    """Configuración operativa, premios y conexión entre las dos estaciones."""
 
     def __init__(self, settings_path: str | Path) -> None:
         super().__init__()
@@ -38,16 +38,16 @@ class SettingsWindow(QMainWindow):
         layout.addWidget(station_title)
         station_form = QFormLayout()
         self.station_role = QComboBox()
-        self.station_role.addItem("LOCUTORA · EQUIPO QUE DIGITA LAS BOLAS", "locutora")
-        self.station_role.addItem("ADMINISTRADOR · RECIBE LAS BOLAS AUTOMÁTICAMENTE", "administrador")
+        self.station_role.addItem("LOCUTORA · ESTACIÓN COMPLETA", "locutora")
+        self.station_role.addItem("ADMINISTRADOR · ESTACIÓN COMPLETA", "administrador")
         current_role = str(self.service.get("station_role", "locutora")).lower()
         index = self.station_role.findData(current_role)
         self.station_role.setCurrentIndex(index if index >= 0 else 0)
-        station_form.addRow("Función de esta PC:", self.station_role)
+        station_form.addRow("Identidad de esta PC:", self.station_role)
         layout.addLayout(station_form)
         station_hint = QLabel(
-            "La PC LOCUTORA es la autoridad de la partida: cuando digita 26, la PC ADMINISTRADOR "
-            "recibe y marca el 26 automáticamente. Ambas deben estar en la misma red local."
+            "Las dos computadoras pueden operar completamente la partida. La sincronización comparte las bolas, "
+            "estado, pausa, deshacer y finalización; si una PC se desconecta, la otra puede continuar trabajando."
         )
         station_hint.setWordWrap(True)
         station_hint.setStyleSheet("color:#555;font-size:11px;")
@@ -67,7 +67,7 @@ class SettingsWindow(QMainWindow):
         prize_form.addRow("Serie · Bingo (%):", self.series_bingo_prize)
         layout.addLayout(prize_form)
 
-        tv_title = QLabel("CONEXIÓN · IP Y PUERTO")
+        tv_title = QLabel("CONEXIÓN · PC COMPAÑERA")
         tv_title.setStyleSheet("font-size:16px;font-weight:900;margin-top:10px;")
         layout.addWidget(tv_title)
         tv_form = QFormLayout()
@@ -75,13 +75,13 @@ class SettingsWindow(QMainWindow):
         self.tv_port = QSpinBox()
         self.tv_port.setRange(1, 65535)
         self.tv_port.setValue(int(self.service.get("tv_server_port", 8765)))
-        self.tv_host.setPlaceholderText("IP de la PC locutora, por ejemplo 192.168.1.10")
-        tv_form.addRow("IP / nombre de la PC locutora:", self.tv_host)
+        self.tv_host.setPlaceholderText("IP de la otra computadora, por ejemplo 192.168.1.25")
+        tv_form.addRow("IP / nombre de la PC compañera:", self.tv_host)
         tv_form.addRow("Puerto de sincronización:", self.tv_port)
         layout.addLayout(tv_form)
         tv_hint = QLabel(
-            "En la PC LOCUTORA puede dejar la IP en blanco/127.0.0.1. En la PC ADMINISTRADOR "
-            "coloque la IP de la PC LOCUTORA. El puerto debe ser igual en ambas."
+            "Cada computadora debe indicar aquí la IP de la otra computadora y usar el mismo puerto. "
+            "La conexión se usa para sincronizar la partida; la operación local no se bloquea si la otra PC está apagada."
         )
         tv_hint.setWordWrap(True)
         tv_hint.setStyleSheet("color:#555;font-size:11px;")
@@ -129,8 +129,8 @@ class SettingsWindow(QMainWindow):
             return
         role = self.station_role.currentData() or "locutora"
         host = self.tv_host.text().strip()
-        if role == "administrador" and not host:
-            QMessageBox.warning(self, "FB-BINGO", "En la PC ADMINISTRADOR debe indicar la IP de la PC LOCUTORA.")
+        if not host:
+            QMessageBox.warning(self, "FB-BINGO", "Indique la IP o nombre de la PC compañera.")
             return
         self.service.set("business_name", self.business_name.text().strip() or "FB-BINGO")
         self.service.set("operator_name", self.operator_name.text().strip())
@@ -142,13 +142,13 @@ class SettingsWindow(QMainWindow):
         self.service.set("bingo_prize_percent", self.bingo_prize.value())
         self.service.set("series_line_prize_percent", self.series_line_prize.value())
         self.service.set("series_bingo_prize_percent", self.series_bingo_prize.value())
-        self.service.set("tv_server_host", host or "127.0.0.1")
+        self.service.set("tv_server_host", host)
         self.service.set("tv_server_port", self.tv_port.value())
         self.service.save()
         QMessageBox.information(
             self,
             "FB-BINGO",
-            "Configuración guardada. Reinicie FB-BINGO en ambas computadoras para aplicar el rol de red.",
+            "Configuración guardada. Reinicie FB-BINGO en ambas computadoras para aplicar la configuración de red.",
         )
 
     def backup(self) -> None:
