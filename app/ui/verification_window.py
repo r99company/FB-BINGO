@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from xml.etree import ElementTree as ET
+
 from app.cards import BingoCard, CardModel
 from app.printing import A4SvgRenderer, PrintStyle
 from app.verification import CardCheckService, VerificationRecord, VerificationService
@@ -14,7 +16,7 @@ except ImportError:  # pragma: no cover
 
 
 class VerificationWindow(QWidget):
-    """Ventana compacta de verificación que muestra el cartón con el mismo estilo de impresión."""
+    """Verificación operativa por número, mostrando el cartón exacto y las bolas jugadas."""
 
     def __init__(self, card_lookup=None, called_numbers=None, verification_service: VerificationService | None = None, expected_model: CardModel | str | None = None):
         super().__init__()
@@ -65,7 +67,45 @@ class VerificationWindow(QWidget):
     def _render_card(self, card: BingoCard, called_numbers: set[int] | frozenset[int]) -> None:
         renderer = A4SvgRenderer(style=PrintStyle(show_qr_zone=True, show_serial=True, show_model=False))
         svg = renderer.render_card(card, width=180.0, height=82.0)
+        svg = self._add_called_marks(svg, called_numbers)
         self.card_preview.load(QByteArray(svg.encode("utf-8"))); self.card_preview.setProperty("svg_content", svg); self.card_preview.update()
+
+    @staticmethod
+    def _add_called_marks(svg: str, called_numbers: set[int] | frozenset[int]) -> str:
+        """Añade un halo visual solo a números 1–90 que ya fueron cantados, sin alterar impresión."""
+        called = {int(number) for number in called_numbers if isinstance(number, int) and 1 <= number <= 90}
+        if not called:
+            return svg
+        root = ET.fromstring(svg)
+        for parent in root.iter():
+            children = list(parent)
+            for index, element in enumerate(children):
+                if not element.tag.endswith("text") or element.text is None:
+                    continue
+                try:
+                    value = int(element.text.strip())
+                except ValueError:
+                    continue
+                if value not in called or "x" not in element.attrib or "y" not in element.attrib:
+                    continue
+                try:
+                    x = float(element.attrib["x"])
+                    y = float(element.attrib["y"])
+                except ValueError:
+                    continue
+                circle = ET.Element("{http://www.w3.org/2000/svg}circle", {
+                    "class": "called-number",
+                    "cx": f"{x:.2f}",
+                    "cy": f"{y - 2.3:.2f}",
+                    "r": "6.2",
+                    "fill": "#FF4FA3",
+                    "fill-opacity": "0.32",
+                    "stroke": "#FF4FA3",
+                    "stroke-width": "0.8",
+                })
+                parent.insert(index, circle)
+                element.attrib["fill"] = "#FFFFFF"
+        return ET.tostring(root, encoding="unicode")
 
     def verify(self) -> VerificationRecord | None:
         serial = self.serial_input.text().strip()
