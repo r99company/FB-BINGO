@@ -199,15 +199,17 @@ def _f4_action(self: BingoMainWindow) -> None:
 
 
 def _wire_help_f4(self: BingoMainWindow) -> None:
-    """Make AYUDA > F4 use the protected F4 flow instead of a raw reset."""
-    for top_action in self.menuBar().actions():
-        menu = top_action.menu()
-        if menu is None:
-            continue
-        for action in menu.actions():
-            if action.text().startswith("F4 / Ctrl+4"):
-                _replace_signal_connection(action.triggered, lambda checked=False, window=self: _f4_action(window))
-                return
+    """Make the visible AYUDA menu use the protected F4 flow."""
+    # AYUDA is a header QPushButton with an attached QMenu, not a menuBar action.
+    for button in self.findChildren(QPushButton):
+        if button.text().strip().startswith("AYUDA") and button.menu() is not None:
+            for action in button.menu().actions():
+                if action.text().startswith("F4 / Ctrl+4"):
+                    _replace_signal_connection(
+                        action.triggered,
+                        lambda checked=False, window=self: _f4_action(window),
+                    )
+                    return
 
 
 def _install_operator_shortcuts(self: BingoMainWindow) -> None:
