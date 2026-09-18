@@ -254,21 +254,26 @@ def _install_station_sync(window: Any) -> None:
         role = "locutora"
     window.station_sync_role = role
     ensure_sync_metadata(window)
-    window.station_sync_client = GameSyncClient(
-        str(settings.get("tv_server_host", "127.0.0.1")),
-        int(settings.get("tv_server_port", 8765)),
-        timeout=0.75,
-    )
+    peer_host = settings.get("peer_host")
+    if not peer_host:
+        peer_host = settings.get("tv_server_host", "127.0.0.1")
+    peer_port = settings.get("peer_port")
+    if peer_port is None:
+        peer_port = settings.get("tv_server_port", 8765)
+    window.station_sync_client = GameSyncClient(str(peer_host), int(peer_port), timeout=0.75)
 
     original_publish = window.station_sync_client.publish
+
     def publish_local(_state: dict[str, Any]) -> bool:
         return original_publish(_local_sync_state(window))
+
     window.station_sync_client.publish = publish_local
 
     def wrap_local(name: str, new_session: bool = False) -> None:
         original = getattr(window, name, None)
         if original is None or getattr(original, "_station_sync_wrapped", False):
             return
+
         def wrapped(*args: Any, **kwargs: Any):
             result = original(*args, **kwargs)
             if new_session:
@@ -280,6 +285,7 @@ def _install_station_sync(window: Any) -> None:
             except (OSError, ValueError, TimeoutError):
                 pass
             return result
+
         wrapped._station_sync_wrapped = True
         setattr(window, name, wrapped)
 
@@ -362,6 +368,8 @@ def wire_operational_controls(window: Any) -> None:
             replace(button.clicked, window.finalize_game)
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
+
+
     replace(window.ball_input.returnPressed, window.enter_ball)
 
 
