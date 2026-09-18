@@ -7,7 +7,6 @@ import time
 import uuid
 from typing import Any
 
-
 VALID_STATUS = {"EN ESPERA", "EN CURSO", "PAUSADA", "FINALIZADA"}
 
 
@@ -18,15 +17,9 @@ class GameSyncServer:
         self.host = host
         self._requested_port = int(port)
         self._state: dict[str, Any] = {
-            "session_id": "",
-            "started_at": 0.0,
-            "revision": 0,
-            "current": None,
-            "history": [],
-            "game": "PARTIDA RÁPIDA",
-            "series": "—",
-            "model": "A",
-            "status": "EN ESPERA",
+            "session_id": "", "started_at": 0.0, "revision": 0,
+            "current": None, "history": [], "game": "PARTIDA RÁPIDA",
+            "series": "—", "model": "A", "status": "EN ESPERA",
         }
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -145,8 +138,6 @@ class GameSyncServer:
 
 
 class GameSyncClient:
-    """Cliente para enviar y recibir el estado de la otra estación."""
-
     def __init__(self, host: str, port: int = 8765, timeout: float = 2.0) -> None:
         self.host, self.port, self.timeout = host, int(port), timeout
 
@@ -169,43 +160,37 @@ class GameSyncClient:
 
 
 def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, Any]:
-    """Resuelve estados entre estaciones sin dejar que una partida vieja sobrescriba una nueva."""
     local_session = str(local.get("session_id", ""))
     remote_session = str(remote.get("session_id", ""))
     if local_session != remote_session:
         local_started = float(local.get("started_at", 0.0) or 0.0)
         remote_started = float(remote.get("started_at", 0.0) or 0.0)
-        if remote_started > local_started:
-            return dict(remote)
-        return dict(local)
-
+        return dict(remote) if remote_started > local_started else dict(local)
     local_revision = int(local.get("revision", 0) or 0)
     remote_revision = int(remote.get("revision", 0) or 0)
     if remote_revision > local_revision:
         return dict(remote)
     if local_revision > remote_revision:
         return dict(local)
-
-    local_history = tuple(int(n) for n in local.get("history", []))
-    remote_history = tuple(int(n) for n in remote.get("history", []))
-    merged = _merge_history(local_history, remote_history)
+    merged = _merge_history(
+        tuple(int(n) for n in local.get("history", [])),
+        tuple(int(n) for n in remote.get("history", [])),
+    )
     result = dict(local)
     result["history"] = list(merged)
     result["current"] = merged[-1] if merged else None
-    result["status"] = "FINALIZADA" if "FINALIZADA" in {local.get("status"), remote.get("status")} else (
-        "PAUSADA" if "PAUSADA" in {local.get("status"), remote.get("status")} else "EN CURSO"
-    )
+    statuses = {local.get("status"), remote.get("status")}
+    result["status"] = "FINALIZADA" if "FINALIZADA" in statuses else ("PAUSADA" if "PAUSADA" in statuses else ("EN CURSO" if merged else "EN ESPERA"))
     result["revision"] = local_revision
     return result
 
 
 def _merge_history(local: tuple[int, ...], remote: tuple[int, ...]) -> tuple[int, ...]:
-    """Une historiales concurrentes sin duplicar bolas."""
     if local == remote:
         return local
-    if local == remote[: len(local)]:
+    if local == remote[:len(local)]:
         return remote
-    if remote == local[: len(remote)]:
+    if remote == local[:len(remote)]:
         return local
     merged = list(local)
     for number in remote:
@@ -215,7 +200,6 @@ def _merge_history(local: tuple[int, ...], remote: tuple[int, ...]) -> tuple[int
 
 
 def ensure_sync_metadata(window: Any, new_session: bool = False) -> None:
-    """Inicializa o avanza la versión local de la partida para sincronización segura."""
     if new_session or not getattr(window, "station_sync_session_id", None):
         window.station_sync_session_id = uuid.uuid4().hex
         window.station_sync_started_at = time.time()
@@ -239,7 +223,6 @@ def _local_sync_state(window: Any) -> dict[str, Any]:
 
 
 def _install_station_sync(window: Any) -> None:
-    """Mantiene ambas PCs como estaciones completas y sincroniza en ambos sentidos."""
     from PySide6.QtCore import QTimer
     from app.bingo.models import GameState
     from app.settings.paths import application_data_dir
@@ -254,9 +237,7 @@ def _install_station_sync(window: Any) -> None:
         role = "locutora"
     window.station_sync_role = role
     ensure_sync_metadata(window)
-    peer_host = settings.get("peer_host")
-    if not peer_host:
-        peer_host = settings.get("tv_server_host", "127.0.0.1")
+    peer_host = settings.get("peer_host") or settings.get("tv_server_host", "127.0.0.1")
     peer_port = settings.get("peer_port")
     if peer_port is None:
         peer_port = settings.get("tv_server_port", 8765)
@@ -273,31 +254,46 @@ def _install_station_sync(window: Any) -> None:
         original = getattr(window, name, None)
         if original is None or getattr(original, "_station_sync_wrapped", False):
             return
-
         def wrapped(*args: Any, **kwargs: Any):
             result = original(*args, **kwargs)
-            if new_session:
-                ensure_sync_metadata(window, new_session=True)
-            else:
-                ensure_sync_metadata(window)
+            ensure_sync_metadata(window, new_session=new_session)
             try:
                 window.station_sync_client.publish(_local_sync_state(window))
             except (OSError, ValueError, TimeoutError):
                 pass
             return result
-
         wrapped._station_sync_wrapped = True
         setattr(window, name, wrapped)
 
-    wrap_local("enter_ball")
-    wrap_local("draw_number")
-    wrap_local("call_number")
-    wrap_local("undo_number")
-    wrap_local("toggle_pause")
-    wrap_local("finalize_game")
+    for name in ("enter_ball", "draw_number", "call_number", "undo_number", "toggle_pause", "finalize_game"):
+        wrap_local(name)
     wrap_local("new_game", new_session=True)
 
     timer = QTimer(window)
+
+    def apply_remote_state(state: dict[str, Any]) -> None:
+        remote_history = tuple(int(n) for n in state.get("history", []))
+        remote_status = str(state.get("status", "EN ESPERA"))
+        remaining = tuple(n for n in range(1, 91) if n not in remote_history)
+        window.game.restore(GameState(
+            drawn_numbers=remote_history,
+            remaining_numbers=remaining,
+            paused=remote_status == "PAUSADA",
+        ))
+        window._finalized = remote_status == "FINALIZADA"
+        window.ball_input.setEnabled(not window._finalized)
+        window._sync_ui()
+        window.header_values[1].setText(
+            "FINALIZADA" if window._finalized else
+            ("PAUSADO" if remote_status == "PAUSADA" else ("EN JUEGO" if remote_history else "EN ESPERA"))
+        )
+        window.ball_message.setText(
+            "✓ ESTADO SINCRONIZADO · ÚLTIMA BOLA "
+            + (str(remote_history[-1]) if remote_history else "—")
+            + f" · {len(remote_history)} BOLAS"
+        )
+        if hasattr(window, "_set_finish_button_mode"):
+            window._set_finish_button_mode(window._finalized)
 
     def poll() -> None:
         try:
@@ -305,6 +301,7 @@ def _install_station_sync(window: Any) -> None:
             GameSyncServer._validate(remote_state)
             local_state = _local_sync_state(window)
             merged_state = merge_sync_states(local_state, remote_state)
+
             if merged_state.get("session_id") != local_state.get("session_id"):
                 window.station_sync_session_id = str(merged_state.get("session_id", window.station_sync_session_id))
                 window.station_sync_started_at = float(merged_state.get("started_at", time.time()))
@@ -313,20 +310,12 @@ def _install_station_sync(window: Any) -> None:
                 window.station_sync_revision = int(merged_state.get("revision", 0))
 
             remote_history = tuple(int(n) for n in merged_state.get("history", []))
-            local_history = tuple(window.game.history)
             remote_status = str(merged_state.get("status", "EN ESPERA"))
-            if remote_history != local_history or (remote_status == "PAUSADA") != bool(window.game.state.paused) or (remote_status == "FINALIZADA") != bool(getattr(window, "_finalized", False)):
-                remaining = tuple(n for n in range(1, 91) if n not in remote_history)
-                window.game.restore(GameState(drawn_numbers=remote_history, remaining_numbers=remaining, paused=remote_status == "PAUSADA"))
-                if remote_status == "FINALIZADA":
-                    window._finalized = True
-                    window.ball_input.setEnabled(False)
-                elif getattr(window, "_finalized", False) and remote_status != "FINALIZADA":
-                    window._finalized = False
-                    window.ball_input.setEnabled(True)
-                window._sync_ui()
-            if remote_history:
-                window.ball_message.setText(f"✓ SINCRONIZADO · ÚLTIMA BOLA {remote_history[-1]} · {len(remote_history)} BOLAS")
+            local_history = tuple(window.game.history)
+            local_status = "FINALIZADA" if getattr(window, "_finalized", False) else ("PAUSADA" if window.game.state.paused else ("EN CURSO" if local_history else "EN ESPERA"))
+            if remote_history != local_history or remote_status != local_status:
+                apply_remote_state(merged_state)
+
             if merged_state != remote_state:
                 try:
                     window.station_sync_client.publish(merged_state)
@@ -342,18 +331,14 @@ def _install_station_sync(window: Any) -> None:
 
 
 def wire_operational_controls(window: Any) -> None:
-    """Conecta los controles locales y deja la sincronización como apoyo, no como bloqueo."""
     from PySide6.QtWidgets import QPushButton
-
     def replace(signal: Any, slot: Any) -> None:
         try:
             signal.disconnect()
         except (RuntimeError, TypeError):
             pass
         signal.connect(slot)
-
     _install_station_sync(window)
-
     for button in window.findChildren(QPushButton):
         text = button.text()
         if text == "ENTER":
@@ -368,8 +353,6 @@ def wire_operational_controls(window: Any) -> None:
             replace(button.clicked, window.finalize_game)
         elif text.isdigit() and 1 <= int(text) <= 90:
             replace(button.clicked, lambda checked=False, n=int(text): window.call_number(n))
-
-
     replace(window.ball_input.returnPressed, window.enter_ball)
 
 
