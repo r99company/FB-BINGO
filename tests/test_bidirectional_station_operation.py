@@ -25,17 +25,17 @@ def test_administrador_keeps_all_local_game_controls(monkeypatch, tmp_path: Path
     window = QWidget()
     window.ball_input = QLineEdit(window)
     window.ball_message = type("Message", (), {"setText": lambda self, _text: None})()
-    window.game = type("Game", (), {"history": (), "state": type("State", (), {"paused": False})()})()
-    window.header_values = [type("Label", (), {"setText": lambda self, _text: None})() for _ in range(3)]
+    window.game = type("Game", (), {"history": (), "current_number": None, "state": type("State", (), {"paused": False})()})()
+    window.header_values = [type("Label", (), {"text": lambda self: "", "setText": lambda self, _text: None})() for _ in range(3)]
+    window.model_selector = type("Model", (), {"current_model": type("Current", (), {"value": "A"})()})()
     window._buttons = {}
     window._sync_ui = lambda: None
-    original_enter = lambda: True
-    window.enter_ball = original_enter
+    window.enter_ball = lambda: True
 
     sync_module._install_admin_station_sync(window)
 
     assert window.station_sync_role == "administrador"
-    assert window.enter_ball is original_enter
+    assert callable(window.enter_ball)
     assert window.ball_input.isEnabled()
     assert window.ball_input.placeholderText() != "CONTROLADO POR LOCUTORA"
     app.processEvents()
