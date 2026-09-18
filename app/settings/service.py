@@ -16,10 +16,12 @@ DEFAULTS: dict[str, Any] = {
     "bingo_prize_percent": 60.0,
     "series_line_prize_percent": 50.0,
     "series_bingo_prize_percent": 50.0,
+    # Nueva nomenclatura para la conexión entre las dos estaciones.
+    "peer_host": "127.0.0.1",
+    "peer_port": 8765,
+    # Compatibilidad con configuraciones anteriores y con el modo TV.
     "tv_server_host": "127.0.0.1",
     "tv_server_port": 8765,
-    # PC que manda las bolas en tiempo real. La PC administradora se conecta
-    # como cliente y refleja automáticamente el estado de la locutora.
     "station_role": "locutora",
 }
 
@@ -38,6 +40,11 @@ class SettingsService:
                 data = json.loads(self.path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     self.values.update({k: v for k, v in data.items() if k in DEFAULTS})
+                    # Migra configuraciones antiguas sin romperlas.
+                    if "peer_host" not in data and "tv_server_host" in data:
+                        self.values["peer_host"] = data["tv_server_host"]
+                    if "peer_port" not in data and "tv_server_port" in data:
+                        self.values["peer_port"] = data["tv_server_port"]
             except (OSError, ValueError):
                 self.values = dict(DEFAULTS)
         return dict(self.values)
@@ -68,4 +75,8 @@ class SettingsService:
             raise ValueError("El respaldo de configuración no es válido")
         self.values = dict(DEFAULTS)
         self.values.update({k: v for k, v in data.items() if k in DEFAULTS})
+        if "peer_host" not in data and "tv_server_host" in data:
+            self.values["peer_host"] = data["tv_server_host"]
+        if "peer_port" not in data and "tv_server_port" in data:
+            self.values["peer_port"] = data["tv_server_port"]
         self.save()
