@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 import app.ui.main as operational_main
 from app.ui.main import BingoMainWindow, _f4_action
@@ -37,12 +37,12 @@ def test_help_menu_f4_uses_same_confirmation_guard(monkeypatch):
 
     monkeypatch.setattr(operational_main, "_confirm_new_game", lambda _window: False)
     window.show()
-    help_menu = next(
-        action.menu()
-        for action in window.menuBar().actions()
-        if action.text() == "AYUDA" and action.menu() is not None
+    help_button = next(
+        button
+        for button in window.findChildren(QPushButton)
+        if button.text().strip().startswith("AYUDA") and button.menu() is not None
     )
-    f4_action = next(action for action in help_menu.actions() if action.text().startswith("F4 / Ctrl+4"))
+    f4_action = next(action for action in help_button.menu().actions() if action.text().startswith("F4 / Ctrl+4"))
     f4_action.trigger()
 
     assert window._finalized is True
