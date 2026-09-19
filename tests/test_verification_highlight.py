@@ -73,3 +73,23 @@ def test_verification_reports_no_prize_when_no_row_is_complete(tmp_path):
     assert "NO HAY BINGO" in window.prize_detail_label.text()
     window.close()
     app.processEvents()
+
+def test_verification_highlights_completed_line_row(tmp_path):
+    app, _, card, window = _window(tmp_path)
+    called = {value for value in card.grid[0] if value is not None}
+    window.called_numbers = called
+    window.serial_input.setText(card.serial)
+
+    result = window.verify()
+
+    assert result is not None
+    assert result.bingo is False
+    assert result.line_rows == (0,)
+    svg = window.card_preview.property("svg_content")
+    assert isinstance(svg, str)
+    assert svg.count('class="called-number"') == len(called)
+    assert svg.count('class="line-row-highlight"') == 1
+    assert "LÍNEA" in window.result_label.text()
+    assert "FILA(S): 1" in window.result_label.text()
+    window.close()
+    app.processEvents()
