@@ -101,7 +101,7 @@ class VerificationWindow(QWidget):
                     value = int(element.text.strip())
                 except ValueError:
                     continue
-                if value not in called or "x" not in element.attrib or "y" not in element.attrib:
+                if "x" not in element.attrib or "y" not in element.attrib:
                     continue
                 try:
                     x = float(element.attrib["x"])
@@ -109,6 +109,8 @@ class VerificationWindow(QWidget):
                 except ValueError:
                     continue
                 row_points.setdefault(round(y, 2), []).append((x, y))
+                if value not in called:
+                    continue
                 circle = ET.Element("{http://www.w3.org/2000/svg}circle", {
                     "class": "called-number",
                     "cx": f"{x:.2f}",
