@@ -94,8 +94,9 @@ class GameSyncServer:
                 if action == "publish":
                     self._validate(state)
                     with self._lock:
-                        self._state = dict(state)
-                    response = {"ok": True, "state": dict(self._state)}
+                        self._state = merge_sync_states(self._state, dict(state))
+                        self._validate(self._state)
+                        response = {"ok": True, "state": dict(self._state)}
                 elif action == "get":
                     with self._lock:
                         response = {"ok": True, "state": dict(self._state)}
@@ -242,13 +243,6 @@ def _install_station_sync(window: Any) -> None:
     if peer_port is None:
         peer_port = settings.get("tv_server_port", 8765)
     window.station_sync_client = GameSyncClient(str(peer_host), int(peer_port), timeout=0.75)
-
-    original_publish = window.station_sync_client.publish
-
-    def publish_local(_state: dict[str, Any]) -> bool:
-        return original_publish(_local_sync_state(window))
-
-    window.station_sync_client.publish = publish_local
 
     def wrap_local(name: str, new_session: bool = False) -> None:
         original = getattr(window, name, None)
