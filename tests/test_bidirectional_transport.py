@@ -95,3 +95,56 @@ def test_peer_can_reconnect_after_temporary_outage() -> None:
         if thread.is_alive():
             server.shutdown()
             thread.join(timeout=1.0)
+
+def test_server_rejects_stale_revision_and_preserves_newer_state() -> None:
+    server, thread = _start_server()
+    try:
+        client = GameSyncClient("127.0.0.1", server.port, timeout=1.0)
+        newer = {
+            "session_id": "same",
+            "started_at": 300.0,
+            "revision": 5,
+            "current": 55,
+            "history": [11, 55],
+            "game": "PARTIDA RÁPIDA",
+            "series": "0003",
+            "model": "A",
+            "status": "EN CURSO",
+        }
+        stale = dict(newer, revision=2, current=11, history=[11])
+        client.publish(newer)
+        client.publish(stale)
+        result = client.get_state()
+        assert result["revision"] == 5
+        assert result["history"] == [11, 55]
+        assert result["current"] == 55
+    finally:
+        server.shutdown()
+        thread.join(timeout=1.0)
+
+
+def test_server_merges_equal_revision_concurrent_balls() -> None:
+    server, thread = _start_server()
+    try:
+        client = GameSyncClient("127.0.0.1", server.port, timeout=1.0)
+        base = {
+            "session_id": "same",
+            "started_at": 400.0,
+            "revision": 1,
+            "current": 12,
+            "history": [12],
+            "game": "PARTIDA RÁPIDA",
+            "series": "0004",
+            "model": "A",
+            "status": "EN CURSO",
+        }
+        concurrent = dict(base, current=27, history=[27])
+        client.publish(base)
+        client.publish(concurrent)
+        result = client.get_state()
+        assert result["history"] == [12, 27]
+        assert result["current"] == 27
+    finally:
+        server.shutdown()
+        thread.join(timeout=1.0)
+
