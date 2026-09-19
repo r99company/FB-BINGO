@@ -180,6 +180,12 @@ def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str
     result = dict(local)
     result["history"] = list(merged)
     result["current"] = merged[-1] if merged else None
+    # Compatibilidad con clientes/TV antiguos que todavía no envían metadatos.
+    for key in ("game", "series", "model", "status"):
+        local_value = result.get(key)
+        remote_value = remote.get(key)
+        if (local_value in (None, "", "—")) and remote_value not in (None, ""):
+            result[key] = remote_value
     statuses = {local.get("status"), remote.get("status")}
     result["status"] = "FINALIZADA" if "FINALIZADA" in statuses else ("PAUSADA" if "PAUSADA" in statuses else ("EN CURSO" if merged else "EN ESPERA"))
     result["revision"] = local_revision
