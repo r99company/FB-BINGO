@@ -49,3 +49,31 @@ def test_equal_revision_merges_concurrent_balls() -> None:
     merged = merge_sync_states(local, remote)
     assert merged["history"] == [10, 20]
     assert merged["current"] == 20
+
+def test_pause_state_propagates_without_losing_history() -> None:
+    local = {"session_id": "same", "started_at": 100.0, "revision": 5, "history": [10, 20], "current": 20, "status": "EN CURSO"}
+    remote = dict(local, revision=6, status="PAUSADA")
+    merged = merge_sync_states(local, remote)
+    assert merged["history"] == [10, 20]
+    assert merged["current"] == 20
+    assert merged["status"] == "PAUSADA"
+
+
+def test_finalization_propagates_and_keeps_called_balls() -> None:
+    local = {"session_id": "same", "started_at": 100.0, "revision": 8, "history": [10, 20, 30], "current": 30, "status": "EN CURSO"}
+    remote = dict(local, revision=9, status="FINALIZADA")
+    merged = merge_sync_states(local, remote)
+    assert merged["history"] == [10, 20, 30]
+    assert merged["current"] == 30
+    assert merged["status"] == "FINALIZADA"
+
+
+def test_new_session_clears_previous_game_even_when_old_revision_is_higher() -> None:
+    local = {"session_id": "old", "started_at": 100.0, "revision": 90, "history": [10, 20], "current": 20, "status": "FINALIZADA"}
+    remote = {"session_id": "new", "started_at": 200.0, "revision": 0, "history": [], "current": None, "status": "EN ESPERA"}
+    merged = merge_sync_states(local, remote)
+    assert merged["session_id"] == "new"
+    assert merged["history"] == []
+    assert merged["current"] is None
+    assert merged["status"] == "EN ESPERA"
+
