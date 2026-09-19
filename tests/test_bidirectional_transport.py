@@ -38,8 +38,8 @@ def test_two_stations_exchange_states_in_both_directions() -> None:
 
         received_a = client_b.get_state()
         received_b = client_a.get_state()
-        assert received_a["history"] == [12]
-        assert received_b["history"] == [27]
+        assert received_a["history"] == [27]
+        assert received_b["history"] == [12]
 
         merged = merge_sync_states(received_a, received_b)
         assert merged["history"] == [12, 27]
