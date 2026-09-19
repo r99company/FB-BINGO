@@ -67,11 +67,25 @@ class VerificationWindow(QWidget):
     def _render_card(self, card: BingoCard, called_numbers: set[int] | frozenset[int]) -> None:
         renderer = A4SvgRenderer(style=PrintStyle(show_qr_zone=True, show_serial=True, show_model=False))
         svg = renderer.render_card(card, width=180.0, height=82.0)
-        svg = self._add_called_marks(svg, called_numbers)
+        line_rows = self._line_rows_for_card(card, called_numbers)
+        svg = self._add_called_marks(svg, called_numbers, line_rows)
         self.card_preview.load(QByteArray(svg.encode("utf-8"))); self.card_preview.setProperty("svg_content", svg); self.card_preview.update()
 
     @staticmethod
-    def _add_called_marks(svg: str, called_numbers: set[int] | frozenset[int]) -> str:
+    def _line_rows_for_card(card: BingoCard, called_numbers: set[int] | frozenset[int]) -> tuple[int, ...]:
+        called = {int(number) for number in called_numbers if isinstance(number, int) and 1 <= number <= 90}
+        return tuple(
+            row for row in range(3)
+            if any(value is not None for value in card.grid[row])
+            and all(value is None or value in called for value in card.grid[row])
+        )
+
+    @staticmethod
+    def _add_called_marks(
+        svg: str,
+        called_numbers: set[int] | frozenset[int],
+        line_rows: tuple[int, ...] = (),
+    ) -> str:
         """Añade un halo visual solo a números 1–90 que ya fueron cantados, sin alterar impresión."""
         called = {int(number) for number in called_numbers if isinstance(number, int) and 1 <= number <= 90}
         if not called:
@@ -79,6 +93,7 @@ class VerificationWindow(QWidget):
         root = ET.fromstring(svg)
         for parent in root.iter():
             children = list(parent)
+            row_points: dict[float, list[tuple[float, float]]] = {}
             for index, element in enumerate(children):
                 if not element.tag.endswith("text") or element.text is None:
                     continue
@@ -93,6 +108,7 @@ class VerificationWindow(QWidget):
                     y = float(element.attrib["y"])
                 except ValueError:
                     continue
+                row_points.setdefault(round(y, 2), []).append((x, y))
                 circle = ET.Element("{http://www.w3.org/2000/svg}circle", {
                     "class": "called-number",
                     "cx": f"{x:.2f}",
@@ -105,6 +121,28 @@ class VerificationWindow(QWidget):
                 })
                 parent.insert(index, circle)
                 element.attrib["fill"] = "#FFFFFF"
+            if row_points and line_rows:
+                row_ys = sorted(row_points)
+                for row_index in line_rows:
+                    if row_index >= len(row_ys):
+                        continue
+                    row_y = row_ys[row_index]
+                    points = row_points[row_y]
+                    min_x = min(x for x, _ in points)
+                    max_x = max(x for x, _ in points)
+                    highlight = ET.Element("{http://www.w3.org/2000/svg}rect", {
+                        "class": "line-row-highlight",
+                        "x": f"{max(2.0, min_x - 9.0):.2f}",
+                        "y": f"{row_y - 10.5:.2f}",
+                        "width": f"{min(176.0, max_x - min_x + 18.0):.2f}",
+                        "height": "15.0",
+                        "rx": "3.5",
+                        "fill": "#FF4FA3",
+                        "fill-opacity": "0.14",
+                        "stroke": "#FF4FA3",
+                        "stroke-width": "0.7",
+                    })
+                    parent.insert(0, highlight)
         return ET.tostring(root, encoding="unicode")
 
     def verify(self) -> VerificationRecord | None:
