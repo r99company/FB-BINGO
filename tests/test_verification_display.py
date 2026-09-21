@@ -75,3 +75,19 @@ def test_tv_marks_all_played_numbers_and_keeps_current_distinct(qapp):
     assert window.board_buttons[46].property("current") is True
     assert window.count.text() == "5 / 90"
     window.close()
+
+
+def test_verification_uses_latest_called_balls_in_open_window(qapp, repository):
+    window = VerificationWindow(
+        verification_service=VerificationService(repository),
+        called_numbers=set(),
+        expected_model=CardModel.A,
+    )
+    window.serial_input.setText("12500")
+    card = repository.get_card("12500")
+    window.called_numbers = set(card.numbers)
+    result = window.verify()
+    assert result is not None
+    assert result.bingo is True
+    assert "BINGO" in window.result_label.text()
+    window.close()
