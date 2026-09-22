@@ -103,17 +103,22 @@ def _publish_tv(self: BingoMainWindow) -> None:
     if client is None:
         return
     try:
-        if getattr(self, "station_sync_client", None) is not None:
-            client.publish({})  # publish_local reemplaza el payload por el estado operativo completo.
-        else:
-            client.publish({
-                "current": self.game.current_number,
-                "history": list(self.game.history),
-                "game": self.header_values[0].text() or "PARTIDA RÁPIDA",
-                "series": self.header_values[2].text() or "—",
-                "model": self.model_selector.current_model.value,
-                "status": "FINALIZADA" if getattr(self, "_finalized", False) else ("PAUSADA" if self.game.state.paused else ("EN CURSO" if self.game.history else "EN ESPERA")),
-            })
+        status = "FINALIZADA" if getattr(self, "_finalized", False) else (
+            "PAUSADA" if self.game.state.paused else
+            ("EN CURSO" if self.game.history else "EN ESPERA")
+        )
+        state = {
+            "session_id": getattr(self, "station_sync_session_id", ""),
+            "started_at": float(getattr(self, "station_sync_started_at", 0.0)),
+            "revision": int(getattr(self, "station_sync_revision", 0)),
+            "current": self.game.current_number,
+            "history": list(self.game.history),
+            "game": self.header_values[0].text() or "PARTIDA RÁPIDA",
+            "series": self.header_values[2].text() or "—",
+            "model": self.model_selector.current_model.value,
+            "status": status,
+        }
+        client.publish(state)
     except (OSError, ValueError, TimeoutError):
         pass
 
