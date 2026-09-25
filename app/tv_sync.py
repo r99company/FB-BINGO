@@ -242,12 +242,36 @@ def _install_station_sync(window: Any) -> None:
     if role not in {"locutora", "administrador"}:
         role = "locutora"
     window.station_sync_role = role
-    ensure_sync_metadata(window)
     peer_host = settings.get("peer_host") or settings.get("tv_server_host", "127.0.0.1")
     peer_port = settings.get("peer_port")
     if peer_port is None:
         peer_port = settings.get("tv_server_port", 8765)
     window.station_sync_client = GameSyncClient(str(peer_host), int(peer_port), timeout=0.75)
+
+    # Al arrancar, si la PC compañera ya tiene una partida activa, adoptamos
+    # esa sesión antes de crear una sesión local vacía. Así una estación que
+    # se reinicia no borra accidentalmente la partida que sigue en la otra PC.
+    try:
+        peer_state = window.station_sync_client.get_state()
+        GameSyncServer._validate(peer_state)
+        if peer_state.get("history") and not getattr(window, "game", None).history:
+            window.station_sync_session_id = str(peer_state.get("session_id", ""))
+            window.station_sync_started_at = float(peer_state.get("started_at", time.time()))
+            window.station_sync_revision = int(peer_state.get("revision", 0))
+            remote_history = tuple(int(n) for n in peer_state.get("history", []))
+            remaining = tuple(n for n in range(1, 91) if n not in remote_history)
+            window.game.restore(GameState(
+                drawn_numbers=remote_history,
+                remaining_numbers=remaining,
+                paused=str(peer_state.get("status", "")) == "PAUSADA",
+            ))
+            window._finalized = str(peer_state.get("status", "")) == "FINALIZADA"
+            window._sync_ui()
+    except (OSError, ValueError, TimeoutError, TypeError):
+        ensure_sync_metadata(window)
+
+    if not getattr(window, "station_sync_session_id", None):
+        ensure_sync_metadata(window)
 
     def wrap_local(name: str, new_session: bool = False) -> None:
         original = getattr(window, name, None)
