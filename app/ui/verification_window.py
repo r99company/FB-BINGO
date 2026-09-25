@@ -18,13 +18,14 @@ except ImportError:  # pragma: no cover
 class VerificationWindow(QWidget):
     """Verificación operativa por número, mostrando el cartón exacto y las bolas jugadas."""
 
-    def __init__(self, card_lookup=None, called_numbers=None, verification_service: VerificationService | None = None, expected_model: CardModel | str | None = None):
+    def __init__(self, card_lookup=None, called_numbers=None, verification_service: VerificationService | None = None, expected_model: CardModel | str | None = None, called_numbers_provider=None):
         super().__init__()
         self.setWindowTitle("FB-BINGO — Verificación de cartón")
         self.resize(720, 760)
         self.setMinimumSize(620, 680)
         self.card_lookup = card_lookup
         self.called_numbers = called_numbers if called_numbers is not None else set()
+        self.called_numbers_provider = called_numbers_provider
         self.verification_service = verification_service
         self.expected_model = expected_model
         self.result: VerificationRecord | None = None
@@ -148,6 +149,11 @@ class VerificationWindow(QWidget):
         return ET.tostring(root, encoding="unicode")
 
     def verify(self) -> VerificationRecord | None:
+        if self.called_numbers_provider is not None:
+            try:
+                self.called_numbers = self.called_numbers_provider()
+            except Exception:
+                pass
         serial = self.serial_input.text().strip()
         if not serial:
             self.result_label.setText("INGRESE EL NÚMERO DEL CARTÓN"); self.prize_detail_label.setText(""); self.detail_label.setText(""); self._clear_card(); return None
