@@ -77,6 +77,20 @@ def test_tv_marks_all_played_numbers_and_keeps_current_distinct(qapp):
     window.close()
 
 
+def test_verification_refreshes_live_called_balls_before_verify(qapp, repository):
+    latest = {12, 27, 42}
+    window = VerificationWindow(
+        verification_service=VerificationService(repository),
+        called_numbers=set(),
+        called_numbers_provider=lambda: latest,
+        expected_model=CardModel.A,
+    )
+    window.serial_input.setText("12500")
+    window.verify()
+    assert window.called_numbers == latest
+    window.close()
+
+
 def test_verification_uses_latest_called_balls_in_open_window(qapp, repository):
     window = VerificationWindow(
         verification_service=VerificationService(repository),
