@@ -69,6 +69,7 @@ def _open_verification(self: BingoMainWindow) -> None:
         if getattr(self, "verification_window", None) is None:
             self.verification_window = VerificationWindow(
                 called_numbers=self.game.history,
+                called_numbers_provider=lambda window=self: window.game.history,
                 verification_service=service,
                 expected_model=self.model_selector.current_model,
             )
