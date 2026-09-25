@@ -1,10 +1,3 @@
-def test_active_peer_session_is_preferred_when_local_station_starts_empty():
-    local = {"session_id":"local","started_at":200.0,"revision":0,"history":[],"current":None,"status":"EN ESPERA"}
-    remote = {"session_id":"remote","started_at":100.0,"revision":8,"history":[12,27],"current":27,"status":"EN CURSO"}
-    merged = merge_sync_states(local, remote)
-    assert merged["session_id"] == "local" or merged["session_id"] == "remote"
-
-
 from __future__ import annotations
 
 from app.tv_sync import merge_sync_states
