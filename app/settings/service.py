@@ -17,7 +17,7 @@ DEFAULTS: dict[str, Any] = {
     "series_line_prize_percent": 50.0,
     "series_bingo_prize_percent": 50.0,
     # Nueva nomenclatura para la conexión entre las dos estaciones.
-    "peer_host": "127.0.0.1",
+    "peer_host": "",
     "peer_port": 8765,
     # Compatibilidad con configuraciones anteriores y con el modo TV.
     "tv_server_host": "127.0.0.1",
