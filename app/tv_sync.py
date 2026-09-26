@@ -242,7 +242,13 @@ def _install_station_sync(window: Any) -> None:
     if role not in {"locutora", "administrador"}:
         role = "locutora"
     window.station_sync_role = role
-    peer_host = settings.get("peer_host") or settings.get("tv_server_host", "127.0.0.1")
+    peer_host = settings.get("peer_host")
+    if not peer_host:
+        # La sincronización entre estaciones debe activarse explícitamente.
+        # No usamos por defecto el host del modo TV: hacerlo puede conectar
+        # accidentalmente dos ventanas locales o el TV de espera.
+        window.station_sync_client = None
+        return
     peer_port = settings.get("peer_port")
     if peer_port is None:
         peer_port = settings.get("tv_server_port", 8765)
