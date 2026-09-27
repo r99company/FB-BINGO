@@ -19,6 +19,7 @@ DEFAULTS: dict[str, Any] = {
     # Nueva nomenclatura para la conexión entre las dos estaciones.
     "peer_host": "",
     "peer_port": 8765,
+    "station_sync_enabled": False,
     # Compatibilidad con configuraciones anteriores y con el modo TV.
     "tv_server_host": "127.0.0.1",
     "tv_server_port": 8765,
@@ -41,8 +42,8 @@ class SettingsService:
                 if isinstance(data, dict):
                     self.values.update({k: v for k, v in data.items() if k in DEFAULTS})
                     # Migra configuraciones antiguas sin romperlas.
-                    if "peer_host" not in data and "tv_server_host" in data:
-                        self.values["peer_host"] = data["tv_server_host"]
+                    # El host del TV es independiente de la red entre estaciones.
+                    # No migramos tv_server_host a peer_host para evitar conexiones accidentales.
                     if "peer_port" not in data and "tv_server_port" in data:
                         self.values["peer_port"] = data["tv_server_port"]
             except (OSError, ValueError):
@@ -75,8 +76,7 @@ class SettingsService:
             raise ValueError("El respaldo de configuración no es válido")
         self.values = dict(DEFAULTS)
         self.values.update({k: v for k, v in data.items() if k in DEFAULTS})
-        if "peer_host" not in data and "tv_server_host" in data:
-            self.values["peer_host"] = data["tv_server_host"]
+        # El host del TV es independiente de la red entre estaciones.
         if "peer_port" not in data and "tv_server_port" in data:
             self.values["peer_port"] = data["tv_server_port"]
         self.save()
