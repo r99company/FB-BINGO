@@ -105,6 +105,7 @@ class BingoMainWindow(QMainWindow):
         self.resize(1540, 930)
         self.setMinimumSize(1200, 760)
         self.game = BingoGame()
+        self._finalized = False
         self.repository = SQLiteSeriesRepository(database_path())
         self._buttons = {}
         self.tv_window = None
