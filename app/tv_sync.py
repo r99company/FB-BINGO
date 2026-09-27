@@ -243,7 +243,7 @@ def _install_station_sync(window: Any) -> None:
         role = "locutora"
     window.station_sync_role = role
     peer_host = settings.get("peer_host")
-    if not peer_host:
+    if not bool(settings.get("station_sync_enabled", False)) or not peer_host:
         # La sincronización entre estaciones debe activarse explícitamente.
         # No usamos por defecto el host del modo TV: hacerlo puede conectar
         # accidentalmente dos ventanas locales o el TV de espera.
