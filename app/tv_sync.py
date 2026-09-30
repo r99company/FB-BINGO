@@ -169,26 +169,38 @@ def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str
         return dict(remote) if remote_started > local_started else dict(local)
     local_revision = int(local.get("revision", 0) or 0)
     remote_revision = int(remote.get("revision", 0) or 0)
-    if remote_revision > local_revision:
+    local_history = tuple(int(n) for n in local.get("history", []))
+    remote_history = tuple(int(n) for n in remote.get("history", []))
+
+    # Si el historial no cambió, la revisión más alta manda para propagar
+    # pausa, finalización y deshacer sin volver a introducir bolas eliminadas.
+    if local_history == remote_history:
+        result = dict(remote if remote_revision > local_revision else local)
+        result["revision"] = max(local_revision, remote_revision)
+        return result
+
+    # Si un historial es prefijo del otro, una revisión más alta en el
+    # historial corto indica un deshacer intencional; en caso contrario,
+    # conservamos el más largo (incluye bolas registradas mientras no había red).
+    if local_history == remote_history[:len(local_history)]:
+        if local_revision > remote_revision:
+            return dict(local)
         return dict(remote)
-    if local_revision > remote_revision:
+    if remote_history == local_history[:len(remote_history)]:
+        if remote_revision > local_revision:
+            return dict(remote)
         return dict(local)
-    merged = _merge_history(
-        tuple(int(n) for n in local.get("history", [])),
-        tuple(int(n) for n in remote.get("history", [])),
-    )
-    result = dict(local)
+
+    # Las dos estaciones trabajaron sin conexión con historiales divergentes.
+    # No hay orden causal fiable: conservar todas las bolas únicas garantiza
+    # que ninguna digitación offline se pierda y ambas estaciones converjan.
+    merged = _merge_history(local_history, remote_history)
+    result = dict(local if local_revision >= remote_revision else remote)
     result["history"] = list(merged)
     result["current"] = merged[-1] if merged else None
-    # Compatibilidad con clientes/TV antiguos que todavía no envían metadatos.
-    for key in ("game", "series", "model", "status"):
-        local_value = result.get(key)
-        remote_value = remote.get(key)
-        if (local_value in (None, "", "—")) and remote_value not in (None, ""):
-            result[key] = remote_value
     statuses = {local.get("status"), remote.get("status")}
     result["status"] = "FINALIZADA" if "FINALIZADA" in statuses else ("PAUSADA" if "PAUSADA" in statuses else ("EN CURSO" if merged else "EN ESPERA"))
-    result["revision"] = local_revision
+    result["revision"] = max(local_revision, remote_revision) + 1
     return result
 
 
@@ -324,10 +336,14 @@ def _install_station_sync(window: Any) -> None:
         if hasattr(window, "_set_finish_button_mode"):
             window._set_finish_button_mode(window._finalized)
 
+    window.station_sync_connected = False
+
     def poll() -> None:
         try:
             remote_state = window.station_sync_client.get_state()
             GameSyncServer._validate(remote_state)
+            was_connected = bool(getattr(window, "station_sync_connected", False))
+            window.station_sync_connected = True
             local_state = _local_sync_state(window)
             merged_state = merge_sync_states(local_state, remote_state)
 
@@ -350,8 +366,20 @@ def _install_station_sync(window: Any) -> None:
                     window.station_sync_client.publish(merged_state)
                 except (OSError, ValueError, TimeoutError):
                     pass
+            if not was_connected:
+                window.station_sync_disconnected_notice = False
+                window.ball_message.setText(
+                    "✓ CONEXIÓN RESTABLECIDA · ESTADO SINCRONIZADO"
+                    if getattr(window, "station_sync_reconnected_once", False)
+                    else "✓ PC COMPAÑERA CONECTADA"
+                )
+                window.station_sync_reconnected_once = True
         except (OSError, ValueError, TimeoutError, TypeError):
-            window.ball_message.setText("● SIN CONEXIÓN · OPERACIÓN LOCAL ACTIVA")
+            was_connected = bool(getattr(window, "station_sync_connected", False))
+            window.station_sync_connected = False
+            if was_connected or not getattr(window, "station_sync_disconnected_notice", False):
+                window.ball_message.setText("● SIN CONEXIÓN · OPERACIÓN LOCAL ACTIVA")
+                window.station_sync_disconnected_notice = True
 
     window.station_sync_timer = timer
     timer.timeout.connect(poll)
