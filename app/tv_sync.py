@@ -184,12 +184,12 @@ def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str
     # conservamos el más largo (incluye bolas registradas mientras no había red).
     if local_history == remote_history[:len(local_history)]:
         removed_count = len(remote_history) - len(local_history)
-        if local_revision > remote_revision and local_revision - remote_revision >= removed_count:
+        if local_revision > remote_revision and local_revision - remote_revision == removed_count:
             return dict(local)
         return dict(remote)
     if remote_history == local_history[:len(remote_history)]:
         removed_count = len(local_history) - len(remote_history)
-        if remote_revision > local_revision and remote_revision - local_revision >= removed_count:
+        if remote_revision > local_revision and remote_revision - local_revision == removed_count:
             return dict(remote)
         return dict(local)
 
