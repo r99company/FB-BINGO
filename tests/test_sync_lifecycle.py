@@ -36,8 +36,8 @@ def test_newer_game_session_replaces_old_local_session() -> None:
 
 
 def test_higher_revision_propagates_undo_without_readding_removed_ball() -> None:
-    local = {"session_id": "same", "started_at": 100.0, "revision": 3, "history": [10, 20], "current": 20, "status": "EN CURSO"}
-    remote = {"session_id": "same", "started_at": 100.0, "revision": 4, "history": [10], "current": 10, "status": "EN CURSO"}
+    local = {"session_id": "same", "started_at": 100.0, "revision": 3, "history": [10, 20], "current": 20, "status": "EN CURSO", "last_action": "call_number"}
+    remote = {"session_id": "same", "started_at": 100.0, "revision": 4, "history": [10], "current": 10, "status": "EN CURSO", "last_action": "undo_number"}
     merged = merge_sync_states(local, remote)
     assert merged["history"] == [10]
     assert merged["current"] == 10
@@ -80,11 +80,11 @@ def test_new_session_clears_previous_game_even_when_old_revision_is_higher() -> 
 def test_offline_local_ball_is_preserved_when_peer_revision_is_higher() -> None:
     local = {
         "session_id": "same", "started_at": 100.0, "revision": 4,
-        "history": [10, 20, 30], "current": 30, "status": "EN CURSO",
+        "history": [10, 20, 30], "current": 30, "status": "EN CURSO", "last_action": "call_number",
     }
     remote = {
         "session_id": "same", "started_at": 100.0, "revision": 8,
-        "history": [10, 20], "current": 20, "status": "EN CURSO",
+        "history": [10, 20], "current": 20, "status": "EN CURSO", "last_action": "call_number",
     }
     merged = merge_sync_states(local, remote)
     assert merged["history"] == [10, 20, 30]
