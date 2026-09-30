@@ -20,6 +20,7 @@ class GameSyncServer:
             "session_id": "", "started_at": 0.0, "revision": 0,
             "current": None, "history": [], "game": "PARTIDA RÁPIDA",
             "series": "—", "model": "A", "status": "EN ESPERA",
+            "last_action": "startup",
         }
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -184,12 +185,18 @@ def merge_sync_states(local: dict[str, Any], remote: dict[str, Any]) -> dict[str
     # conservamos el más largo (incluye bolas registradas mientras no había red).
     if local_history == remote_history[:len(local_history)]:
         removed_count = len(remote_history) - len(local_history)
-        if local_revision > remote_revision and local_revision - remote_revision == removed_count:
+        local_undo = local.get("last_action") == "undo_number"
+        if local_revision > remote_revision and (
+            local_undo or (not remote.get("last_action") and local_revision - remote_revision == removed_count)
+        ):
             return dict(local)
         return dict(remote)
     if remote_history == local_history[:len(remote_history)]:
         removed_count = len(local_history) - len(remote_history)
-        if remote_revision > local_revision and remote_revision - local_revision == removed_count:
+        remote_undo = remote.get("last_action") == "undo_number"
+        if remote_revision > local_revision and (
+            remote_undo or (not local.get("last_action") and remote_revision - local_revision == removed_count)
+        ):
             return dict(remote)
         return dict(local)
 
@@ -233,6 +240,7 @@ def _local_sync_state(window: Any) -> dict[str, Any]:
         "session_id": getattr(window, "station_sync_session_id", ""),
         "started_at": float(getattr(window, "station_sync_started_at", 0.0)),
         "revision": int(getattr(window, "station_sync_revision", 0)),
+        "last_action": str(getattr(window, "station_sync_last_action", "startup")),
         "current": window.game.current_number,
         "history": list(window.game.history),
         "game": window.header_values[0].text() or "PARTIDA RÁPIDA",
@@ -278,6 +286,7 @@ def _install_station_sync(window: Any) -> None:
             window.station_sync_session_id = str(peer_state.get("session_id", ""))
             window.station_sync_started_at = float(peer_state.get("started_at", time.time()))
             window.station_sync_revision = int(peer_state.get("revision", 0))
+            window.station_sync_last_action = str(peer_state.get("last_action", "startup"))
             remote_history = tuple(int(n) for n in peer_state.get("history", []))
             remaining = tuple(n for n in range(1, 91) if n not in remote_history)
             window.game.restore(GameState(
@@ -299,6 +308,7 @@ def _install_station_sync(window: Any) -> None:
             return
         def wrapped(*args: Any, **kwargs: Any):
             result = original(*args, **kwargs)
+            window.station_sync_last_action = name
             ensure_sync_metadata(window, new_session=new_session)
             try:
                 window.station_sync_client.publish(_local_sync_state(window))
@@ -324,6 +334,7 @@ def _install_station_sync(window: Any) -> None:
             paused=remote_status == "PAUSADA",
         ))
         window._finalized = remote_status == "FINALIZADA"
+        window.station_sync_last_action = str(state.get("last_action", "remote_sync"))
         window.ball_input.setEnabled(not window._finalized)
         window._sync_ui()
         window.header_values[1].setText(
