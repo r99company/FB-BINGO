@@ -77,3 +77,33 @@ def test_new_session_clears_previous_game_even_when_old_revision_is_higher() -> 
     assert merged["current"] is None
     assert merged["status"] == "EN ESPERA"
 
+def test_offline_local_ball_is_preserved_when_peer_revision_is_higher() -> None:
+    local = {
+        "session_id": "same", "started_at": 100.0, "revision": 4,
+        "history": [10, 20, 30], "current": 30, "status": "EN CURSO",
+    }
+    remote = {
+        "session_id": "same", "started_at": 100.0, "revision": 8,
+        "history": [10, 20], "current": 20, "status": "EN CURSO",
+    }
+    merged = merge_sync_states(local, remote)
+    assert merged["history"] == [10, 20, 30]
+    assert merged["current"] == 30
+
+
+def test_divergent_offline_histories_converge_without_losing_balls() -> None:
+    local = {
+        "session_id": "same", "started_at": 100.0, "revision": 4,
+        "history": [10, 20, 30], "current": 30, "status": "EN CURSO",
+    }
+    remote = {
+        "session_id": "same", "started_at": 100.0, "revision": 8,
+        "history": [10, 25, 40], "current": 40, "status": "EN CURSO",
+    }
+    merged_lr = merge_sync_states(local, remote)
+    merged_rl = merge_sync_states(remote, local)
+    assert merged_lr["history"] == [10, 20, 25, 30, 40]
+    assert merged_lr["history"] == merged_rl["history"]
+    assert merged_lr["current"] == 40
+    assert merged_lr["revision"] == 9
+
