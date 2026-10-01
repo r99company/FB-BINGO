@@ -316,6 +316,9 @@ def _install_operator_shortcuts(self: BingoMainWindow) -> None:
         ("F3", self.undo_number),
         ("Ctrl+3", self.undo_number),
         ("F4", lambda: _f4_action(self)),
+        # Ctrl+4 funciona también en laptops donde F4 está reservado
+        # por una función de hardware del teclado.
+        ("Ctrl+4", lambda: _f4_action(self)),
     )
     for sequence, callback in shortcuts:
         shortcut = QShortcut(QKeySequence(sequence), self)
