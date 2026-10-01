@@ -29,6 +29,8 @@ class VerificationWindow(QWidget):
         self.verification_service = verification_service
         self.expected_model = expected_model
         self.result: VerificationRecord | None = None
+        self._line_confirmed_serials: set[str] = set()
+        self._last_called_numbers: frozenset[int] = frozenset()
         self.card_preview = QSvgWidget()
         self.card_preview.setMinimumHeight(390)
         self.card_preview.setProperty("svg_content", "")
@@ -154,6 +156,12 @@ class VerificationWindow(QWidget):
                 self.called_numbers = self.called_numbers_provider()
             except Exception:
                 pass
+        current_called = frozenset(self.called_numbers)
+        # Si el historial retrocede (nueva partida o deshacer), la confirmación
+        # de línea de la partida anterior deja de ser válida.
+        if not self._last_called_numbers.issubset(current_called):
+            self._line_confirmed_serials.clear()
+        self._last_called_numbers = current_called
         serial = self.serial_input.text().strip()
         if not serial:
             self.result_label.setText("INGRESE EL NÚMERO DEL CARTÓN"); self.prize_detail_label.setText(""); self.detail_label.setText(""); self._clear_card(); return None
@@ -169,7 +177,18 @@ class VerificationWindow(QWidget):
         checked = CardCheckService.check(card, set(self.called_numbers)); self.result_label.setText(self._prize_message(checked.bingo, checked.line_rows, checked.serial)); self.prize_detail_label.setText(self._prize_detail(checked.bingo, checked.line_rows)); self.detail_label.setText(f"Modelo: {checked.model}"); self._render_card(card, set(self.called_numbers)); return None
 
     def _show_operational_result(self, result: VerificationRecord) -> None:
-        self.result_label.setText(self._prize_message(result.bingo, result.line_rows, result.serial)); self.prize_detail_label.setText(self._prize_detail(result.bingo, result.line_rows))
+        if result.bingo:
+            message = self._prize_message(True, result.line_rows, result.serial)
+            detail = self._prize_detail(True, result.line_rows)
+        elif result.line_rows and result.serial in self._line_confirmed_serials:
+            message = f"⏳ LÍNEA CONFIRMADA · ESPERANDO BINGO · CARTÓN {result.serial}"
+            detail = "La línea ya fue verificada. La siguiente comprobación es para BINGO."
+        else:
+            message = self._prize_message(False, result.line_rows, result.serial)
+            detail = self._prize_detail(False, result.line_rows)
+            if result.line_rows:
+                self._line_confirmed_serials.add(result.serial)
+        self.result_label.setText(message); self.prize_detail_label.setText(detail)
         sale = "NO VENDIDO" if not result.sold else f"VENDIDO · {result.seller or 'SIN VENDEDOR'}"
         if result.sale_type == "serie": sale += " · SERIE COMPLETA"
         self.detail_label.setText(f"Serie: {result.series_id} · Cartón: {result.card_index}/6\nModelo: {result.model.value} · Estado de venta: {sale}")
