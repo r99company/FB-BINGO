@@ -16,10 +16,11 @@ class ProductionService:
     """Generación persistente de series; el mismo rango siempre conserva sus cartones."""
 
     RECENT_LAYOUT_WINDOW = 60
-    # Una distancia de 6 entre máscaras no es matemáticamente compatible con
-    # seis cartones A de una misma serie: cada máscara A tiene tres columnas
-    # con un solo número y las seis máscaras no pueden ser todas disjuntas.
-    # Distancia 2 sigue evitando repetir exactamente la misma distribución.
+    # Entre los seis cartones de una misma serie exigimos una diferencia
+    # visual clara en las casillas ocupadas, no solo números distintos.
+    # Entre series recientes mantenemos una regla menos estricta para evitar
+    # bloqueos al producir lotes grandes.
+    MIN_SERIES_LAYOUT_DISTANCE = 6
     MIN_RECENT_LAYOUT_DISTANCE = 2
     MAX_LAYOUT_RETRIES = 48
 
@@ -119,7 +120,7 @@ class ProductionService:
         masks = [self._layout_mask(card) for card in series.cards]
         for left in range(len(masks)):
             for right in range(left + 1, len(masks)):
-                if self._mask_distance(masks[left], masks[right]) < self.MIN_RECENT_LAYOUT_DISTANCE:
+                if self._mask_distance(masks[left], masks[right]) < self.MIN_SERIES_LAYOUT_DISTANCE:
                     return False
         if any(self._mask_distance(mask, previous) < self.MIN_RECENT_LAYOUT_DISTANCE for mask in masks for previous in recent_masks):
             return False
