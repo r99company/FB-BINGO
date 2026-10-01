@@ -142,8 +142,23 @@ class BingoMainWindow(QMainWindow):
         outer.addLayout(self._build_center(), 1)
 
         self._operator_shortcuts = []
-        verify_shortcut = QShortcut(QKeySequence("Ctrl+5"), self); verify_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); verify_shortcut.setAutoRepeat(False); verify_shortcut.activated.connect(self.verify_card); self._operator_shortcuts.append(verify_shortcut)
-        fullscreen_shortcut = QShortcut(QKeySequence("F11"), self); fullscreen_shortcut.setContext(Qt.ShortcutContext.WindowShortcut); fullscreen_shortcut.setAutoRepeat(False); fullscreen_shortcut.activated.connect(self._toggle_fullscreen); self._operator_shortcuts.append(fullscreen_shortcut)
+
+        # Registrar explícitamente los atajos que aparecen en el menú de ayuda.
+        # Ctrl+F4 queda disponible en portátiles donde F4 está reservado por el sistema.
+        shortcuts = [
+            ("F1", self.draw_number), ("Ctrl+1", self.draw_number),
+            ("F2", self.toggle_pause), ("Ctrl+2", self.toggle_pause),
+            ("F3", self.undo_number), ("Ctrl+3", self.undo_number),
+            ("F4", self._f4_action), ("Ctrl+4", self._f4_action),
+            ("Ctrl+F4", self._f4_action),
+            ("Ctrl+5", self.verify_card), ("F11", self._toggle_fullscreen),
+        ]
+        for sequence, callback in shortcuts:
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+            shortcut.setAutoRepeat(False)
+            shortcut.activated.connect(callback)
+            self._operator_shortcuts.append(shortcut)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen(): self.showNormal()
