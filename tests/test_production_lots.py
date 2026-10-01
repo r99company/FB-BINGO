@@ -53,10 +53,17 @@ def test_production_keeps_new_card_layouts_unique_and_non_repetitive(tmp_path) -
     signatures = {service._layout_signature(card) for card in cards}
     assert len(signatures) == 600
 
-    # La regla de negocio es que cada cartón tenga una distribución distinta.
-    # No exigimos una distancia artificialmente alta entre máscaras: con 3x9
-    # y 15 números, esa condición puede ser imposible dentro de una serie de 6.
+    # Dentro de cada serie los seis cartones deben tener distribuciones
+    # visuales claramente distintas, no solo matrices numéricas distintas.
     masks = [service._layout_mask(card) for card in cards]
+    for start in range(0, len(masks), 6):
+        series_masks = masks[start:start + 6]
+        for left in range(len(series_masks)):
+            for right in range(left + 1, len(series_masks)):
+                assert service._mask_distance(series_masks[left], series_masks[right]) >= service.MIN_SERIES_LAYOUT_DISTANCE
+
+    # También se evita repetir una distribución idéntica o casi idéntica
+    # respecto de los cartones recientes de series vecinas.
     for index in range(1, len(masks)):
         previous_window = masks[max(0, index - service.RECENT_LAYOUT_WINDOW):index]
         assert all(
