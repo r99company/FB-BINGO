@@ -104,13 +104,6 @@ class GeneratorWidget(QWidget):
         advanced_form.addRow("A4", self.duplicate_column); advanced_form.addRow(self.logo, logo_button)
         advanced.setVisible(False); advanced_toggle.toggled.connect(advanced.setVisible); form.addRow(advanced)
 
-        info = QLabel(
-            "REGLAS: los cartones ya existentes son permanentes y se reutilizan para impresión. "
-            "Si el rango solicitado ya está en la base de datos, se carga exactamente la misma serie y los mismos números, "
-            "sin crear una nueva semilla ni modificar cartones. Solo se generan rangos que todavía no existen. "
-            "Modelo A es el principal (1–2 por columna); Modelo B es el especial (0–3 por columna)."
-        )
-        info.setObjectName("Muted"); info.setWordWrap(True); form.addRow(info)
         layout.addWidget(controls)
 
         preview_panel = QGroupBox("VISTA PREVIA — SERIE DE 6 / A4")
