@@ -20,11 +20,37 @@ from app.production import DuplicateProductionError, ProductionService
 from app.settings.paths import database_path
 
 
+GENERATOR_QSS = """
+QWidget { background:#050D19; color:#F4F8FC; font-family:'Segoe UI'; font-size:11px; }
+QGroupBox { background:#07182B; border:1px solid #1D5A80; border-radius:14px; margin-top:14px; padding:14px 10px 10px 10px; font-weight:800; color:#F4F8FC; }
+QGroupBox::title { subcontrol-origin:margin; left:14px; padding:0 7px; color:#8FD9FF; font-size:11px; font-weight:900; }
+QLabel { color:#D9E8F2; background:transparent; }
+QLabel#Muted { color:#91B0C4; font-size:10px; }
+QLineEdit, QSpinBox, QComboBox { background:#081C30; color:#F6FAFF; border:1px solid #2B6685; border-radius:8px; padding:7px 9px; min-height:24px; selection-background-color:#B84E78; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border:2px solid #F49ABD; }
+QComboBox::drop-down { border:0; width:24px; }
+QComboBox QAbstractItemView { background:#091B2D; color:#F6FAFF; selection-background-color:#B84E78; border:1px solid #2B6685; }
+QPushButton { background:#0B2740; color:#F6FAFF; border:1px solid #216B91; border-radius:9px; padding:9px 12px; min-height:24px; font-weight:800; }
+QPushButton:hover { background:#123C5B; border-color:#39D8FF; }
+QPushButton:disabled { background:#142536; color:#6F8B9D; border-color:#20394A; }
+QPushButton#Primary { background:#B84E78; border:1px solid #F49ABD; color:#FFFFFF; font-weight:900; }
+QPushButton#Primary:hover { background:#D45D8B; border-color:#FFFFFF; }
+QPushButton#Secondary { background:#0B2E49; border:1px solid #39BFE8; color:#DFF8FF; }
+QPushButton#Secondary:hover { background:#124362; }
+QToolButton { background:#0B2740; color:#8FD9FF; border:1px solid #216B91; border-radius:8px; padding:8px 10px; font-weight:900; text-align:left; }
+QToolButton:hover { background:#123C5B; }
+QSvgWidget { background:#FFFFFF; border:1px solid #2B6685; border-radius:10px; }
+"""
+
+
 class GeneratorWidget(QWidget):
     """Selecciona series existentes para impresión y genera solo rangos nuevos."""
 
     def __init__(self, repository: SQLiteSeriesRepository | None = None, max_cards: int = 30_000) -> None:
         super().__init__()
+        self.setWindowTitle("FB-BINGO — Generador e impresión")
+        self.setMinimumSize(1100, 780)
+        self.setStyleSheet(GENERATOR_QSS)
         self.repository = repository or SQLiteSeriesRepository(database_path())
         self.production_service = ProductionService(self.repository, max_cards=max_cards)
         self._cards: tuple[BingoCard, ...] = ()
@@ -40,7 +66,7 @@ class GeneratorWidget(QWidget):
         layout.setSpacing(16)
 
         controls = QGroupBox("GENERACIÓN DE SERIES")
-        controls.setMinimumWidth(420)
+        controls.setMinimumWidth(390)
         form = QFormLayout(controls)
 
         self.model = QComboBox()
@@ -108,8 +134,7 @@ class GeneratorWidget(QWidget):
 
         preview_panel = QGroupBox("VISTA PREVIA — SERIE DE 6 / A4")
         preview_layout = QVBoxLayout(preview_panel)
-        self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(650, 760)
-        self.preview_widget.setStyleSheet("background:#FFFFFF;border:1px solid #34405B;border-radius:12px;")
+        self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(620, 700)
         preview_layout.addWidget(self.preview_widget, 1)
         self.preview_label = QLabel("Elige el inicio y cuántas series deseas cargar para imprimir.")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.preview_label.setObjectName("Muted")
