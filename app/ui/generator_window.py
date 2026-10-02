@@ -21,25 +21,30 @@ from app.settings.paths import database_path
 
 
 GENERATOR_QSS = """
-QWidget { background:#050D19; color:#F4F8FC; font-family:'Segoe UI'; font-size:11px; }
-QGroupBox { background:#07182B; border:1px solid #1D5A80; border-radius:14px; margin-top:14px; padding:14px 10px 10px 10px; font-weight:800; color:#F4F8FC; }
-QGroupBox::title { subcontrol-origin:margin; left:14px; padding:0 7px; color:#8FD9FF; font-size:11px; font-weight:900; }
-QLabel { color:#D9E8F2; background:transparent; }
-QLabel#Muted { color:#91B0C4; font-size:10px; }
-QLineEdit, QSpinBox, QComboBox { background:#081C30; color:#F6FAFF; border:1px solid #2B6685; border-radius:8px; padding:7px 9px; min-height:24px; selection-background-color:#B84E78; }
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border:2px solid #F49ABD; }
+QWidget { background:#F4F7FC; color:#172B4D; font-family:'Segoe UI'; font-size:11px; }
+QGroupBox { background:#FFFFFF; border:1px solid #D7E2F0; border-radius:12px; margin-top:24px; padding:18px 10px 10px 10px; font-weight:700; color:#14294C; }
+QGroupBox::title { subcontrol-origin:margin; left:0px; top:0px; padding:7px 12px; color:#FFFFFF; background:#0878E8; border-top-left-radius:10px; border-top-right-radius:10px; font-size:11px; font-weight:900; }
+QGroupBox#GeneratorControls::title { background:#E83F91; }
+QLabel { color:#233A5D; background:transparent; }
+QLabel#Muted { color:#71819A; font-size:10px; }
+QLineEdit, QSpinBox, QComboBox { background:#FFFFFF; color:#172B4D; border:1px solid #CBD8E8; border-radius:6px; padding:7px 9px; min-height:24px; selection-background-color:#0878E8; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border:2px solid #E83F91; }
 QComboBox::drop-down { border:0; width:24px; }
-QComboBox QAbstractItemView { background:#091B2D; color:#F6FAFF; selection-background-color:#B84E78; border:1px solid #2B6685; }
-QPushButton { background:#0B2740; color:#F6FAFF; border:1px solid #216B91; border-radius:9px; padding:9px 12px; min-height:24px; font-weight:800; }
-QPushButton:hover { background:#123C5B; border-color:#39D8FF; }
-QPushButton:disabled { background:#142536; color:#6F8B9D; border-color:#20394A; }
-QPushButton#Primary { background:#B84E78; border:1px solid #F49ABD; color:#FFFFFF; font-weight:900; }
-QPushButton#Primary:hover { background:#D45D8B; border-color:#FFFFFF; }
-QPushButton#Secondary { background:#0B2E49; border:1px solid #39BFE8; color:#DFF8FF; }
-QPushButton#Secondary:hover { background:#124362; }
-QToolButton { background:#0B2740; color:#8FD9FF; border:1px solid #216B91; border-radius:8px; padding:8px 10px; font-weight:900; text-align:left; }
-QToolButton:hover { background:#123C5B; }
-QSvgWidget { background:#FFFFFF; border:1px solid #2B6685; border-radius:10px; }
+QComboBox QAbstractItemView { background:#FFFFFF; color:#172B4D; selection-background-color:#DDEEFF; border:1px solid #CBD8E8; }
+QPushButton { background:#FFFFFF; color:#0878E8; border:1px solid #B8CBE3; border-radius:7px; padding:9px 12px; min-height:24px; font-weight:800; }
+QPushButton:hover { background:#EFF7FF; border-color:#0878E8; }
+QPushButton:disabled { background:#EEF1F6; color:#9AA8BB; border-color:#D8E0EA; }
+QPushButton#Primary { background:#0878E8; border:1px solid #0878E8; color:#FFFFFF; font-weight:900; }
+QPushButton#Primary:hover { background:#0565C8; border-color:#0565C8; }
+QPushButton#Secondary { background:#FFFFFF; border:1px solid #E83F91; color:#D92F7C; }
+QPushButton#Secondary:hover { background:#FFF0F7; border-color:#D92F7C; }
+QToolButton { background:#F5F8FD; color:#0878E8; border:1px solid #D7E2F0; border-radius:6px; padding:8px 10px; font-weight:900; text-align:left; }
+QToolButton:hover { background:#EAF3FF; border-color:#0878E8; }
+QSvgWidget { background:#FFFFFF; border:1px solid #D7E2F0; border-radius:8px; }
+QCheckBox { color:#233A5D; spacing:8px; }
+QCheckBox::indicator { width:16px; height:16px; }
+QCheckBox::indicator:unchecked { border:1px solid #A9BBD1; border-radius:4px; background:#FFFFFF; }
+QCheckBox::indicator:checked { border:1px solid #0878E8; border-radius:4px; background:#0878E8; }
 """
 
 
@@ -66,6 +71,7 @@ class GeneratorWidget(QWidget):
         layout.setSpacing(16)
 
         controls = QGroupBox("GENERACIÓN DE SERIES")
+        controls.setObjectName("GeneratorControls")
         controls.setMinimumWidth(390)
         form = QFormLayout(controls)
 
@@ -133,6 +139,7 @@ class GeneratorWidget(QWidget):
         layout.addWidget(controls)
 
         preview_panel = QGroupBox("VISTA PREVIA — SERIE DE 6 / A4")
+        preview_panel.setObjectName("PreviewPanel")
         preview_layout = QVBoxLayout(preview_panel)
         self.preview_widget = QSvgWidget(); self.preview_widget.setMinimumSize(620, 700)
         preview_layout.addWidget(self.preview_widget, 1)
