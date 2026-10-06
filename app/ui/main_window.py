@@ -26,9 +26,11 @@ QFrame#TopBar { background:#020A18; border-color:#0B5B91; }
 QLabel#Brand { font-size:31px; font-weight:900; color:#00D9FF; }
 QLabel#BrandAccent { font-size:31px; font-weight:900; color:#FF58B7; }
 QLabel#Tagline { color:#C5D9EA; font-size:9px; font-weight:800; letter-spacing:1px; }
+QLabel#LogoBadge { min-width:62px; max-width:62px; min-height:62px; max-height:62px; border-radius:31px; color:#FFFFFF; background:#071B38; border:3px solid #00D9FF; font-size:15px; font-weight:900; }
+QLabel#LogoBadgeAccent { color:#FF58B7; font-size:8px; font-weight:900; }
 QLabel#HeaderTitle { font-size:10px; font-weight:900; color:#FFFFFF; }
-QLabel#HeaderValue { font-size:16px; font-weight:900; color:#14D8FF; }
-QLabel#HeaderValuePink { font-size:16px; font-weight:900; color:#FF58B7; }
+QLabel#HeaderValue { font-size:13px; font-weight:900; color:#14D8FF; }
+QLabel#HeaderValuePink { font-size:13px; font-weight:900; color:#FF58B7; }
 QLabel#HeaderSmall { font-size:8px; color:#76A9C9; font-weight:900; }
 QLabel#ClockLabel { color:#C4D9E8; font-size:10px; font-weight:800; padding:4px 7px; }
 QLabel#SectionTitle { font-size:13px; font-weight:900; color:#FFFFFF; }
@@ -41,9 +43,9 @@ QLabel#Muted { color:#9BB7C9; font-size:10px; }
 QLabel#HistoryBall { min-width:48px; max-width:48px; min-height:48px; max-height:48px; border-radius:24px; color:#FFFFFF; font-size:16px; font-weight:900; background:#06152D; border:2px solid #08CFFF; }
 QLabel#HistoryBall[tone="pink"] { background:#32102C; border-color:#FF38B0; }
 QLabel#HistoryBall[tone="blue"] { background:#061A35; border-color:#09CFFF; }
-QPushButton#Nav { min-height:46px; border-radius:8px; color:#FFFFFF; background:#06152B; border:1px solid #0878BE; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#Nav { min-height:58px; min-width:118px; border-radius:9px; color:#FFFFFF; background:#06152B; border:1px solid #0878BE; font-size:10px; font-weight:900; padding:0 14px; }
 QPushButton#Nav:hover { background:#0A2845; border-color:#13D8FF; }
-QPushButton#VerifyNav { min-height:46px; border-radius:8px; color:#FFFFFF; background:#071C35; border:1px solid #FF49B5; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#VerifyNav { min-height:58px; min-width:132px; border-radius:9px; color:#FFFFFF; background:#071C35; border:1px solid #FF49B5; font-size:10px; font-weight:900; padding:0 12px; }
 QPushButton#VerifyNav:hover { background:#241331; border-color:#FFFFFF; }
 QPushButton#Ball { min-width:70px; min-height:70px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:35px; font-size:19px; font-weight:900; }
 QPushButton#Ball:hover { background:#0A3158; border:3px solid #54E6FF; }
@@ -116,10 +118,10 @@ class BingoMainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="Root"); self.setCentralWidget(root); root.setStyleSheet(PROFESSIONAL_QSS)
-        outer = QVBoxLayout(root); outer.setContentsMargins(10, 8, 10, 8); outer.setSpacing(7)
+        outer = QVBoxLayout(root); outer.setContentsMargins(10, 8, 10, 10); outer.setSpacing(8)
 
         header = QFrame(objectName="TopBar"); hr = QHBoxLayout(header); hr.setContentsMargins(12, 7, 12, 7); hr.setSpacing(6)
-        brand_box = QVBoxLayout(); brand_line = QHBoxLayout(); b1 = QLabel("FB-"); b1.setObjectName("Brand"); b2 = QLabel("BINGO"); b2.setObjectName("BrandAccent"); brand_line.addWidget(b1); brand_line.addWidget(b2); brand_box.addLayout(brand_line); tagline = QLabel("SISTEMA PROFESIONAL · BINGO DE 90 BOLAS"); tagline.setObjectName("Tagline"); brand_box.addWidget(tagline); hr.addLayout(brand_box, 2)
+        brand_box = QVBoxLayout(); brand_box.setSpacing(1); brand_line = QHBoxLayout(); brand_line.setSpacing(5); b1 = QLabel("FB-"); b1.setObjectName("Brand"); b2 = QLabel("BINGO"); b2.setObjectName("BrandAccent"); brand_line.addWidget(b1); brand_line.addWidget(b2); badge = QLabel("FB\nBINGO"); badge.setObjectName("LogoBadge"); badge.setAlignment(Qt.AlignmentFlag.AlignCenter); brand_line.addWidget(badge); brand_box.addLayout(brand_line); tagline = QLabel("SISTEMA PROFESIONAL · BINGO DE 90 BOLAS"); tagline.setObjectName("Tagline"); brand_box.addWidget(tagline); hr.addLayout(brand_box, 3)
 
         def add_menu(title: str, entries: list[tuple[str, object]], object_name: str = "Nav") -> QPushButton:
             button = QPushButton(title + " ▾"); button.setObjectName(object_name); menu = QMenu(button)
@@ -127,10 +129,10 @@ class BingoMainWindow(QMainWindow):
                 action = menu.addAction(label); action.triggered.connect(callback)
             button.setMenu(menu); return button
 
-        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
-        cards = add_menu("CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
-        verify = QPushButton("VERIFICAR CARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
-        help_menu = add_menu("AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self._f4_action), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
+        controls = add_menu("▣  CONTROLES\nDE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
+        cards = add_menu("▤  CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
+        verify = QPushButton("✓  VERIFICAR\nCARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
+        help_menu = add_menu("?  AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self._f4_action), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
         hr.addWidget(controls); hr.addWidget(cards); hr.addWidget(verify); hr.addWidget(help_menu)
         self.header_values = []
         for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True)):
