@@ -19,44 +19,43 @@ from app.ui.public_display import format_ball_count
 from app.verification import CardVerifier, LivePrizeTracker
 
 PROFESSIONAL_QSS = """
-QWidget#Root { background:#050D19; color:#F6FAFF; font-family:'Segoe UI'; }
-QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#091A2D; border:1px solid #1D5A80; border-radius:16px; }
-QFrame#Panel { background:#07182B; border-color:#17618B; }
-QFrame#TopBar { background:#061326; border-color:#164F78; }
-QLabel#Brand { font-size:31px; font-weight:900; color:#39D8FF; }
-QLabel#BrandAccent { font-size:31px; font-weight:900; color:#F49ABD; }
-QLabel#Tagline { color:#B9D5E7; font-size:9px; font-weight:800; letter-spacing:1px; }
-QLabel#HeaderTitle { font-size:11px; font-weight:900; color:#F7FBFF; }
-QLabel#HeaderValue { font-size:17px; font-weight:900; color:#8FD9FF; }
-QLabel#HeaderValuePink { font-size:17px; font-weight:900; color:#F49ABD; }
-QLabel#HeaderSmall { font-size:8px; color:#7FA9C2; font-weight:900; }
-QLabel#ClockLabel { color:#A9D4E8; font-size:10px; font-weight:800; padding:4px 7px; }
+QWidget#Root { background:#030814; color:#F7FAFF; font-family:'Segoe UI'; }
+QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#06142A; border:1px solid #1268A0; border-radius:12px; }
+QFrame#Panel { background:#041127; border-color:#0876BE; }
+QFrame#TopBar { background:#020A18; border-color:#0B5B91; }
+QLabel#Brand { font-size:31px; font-weight:900; color:#00D9FF; }
+QLabel#BrandAccent { font-size:31px; font-weight:900; color:#FF58B7; }
+QLabel#Tagline { color:#C5D9EA; font-size:9px; font-weight:800; letter-spacing:1px; }
+QLabel#HeaderTitle { font-size:10px; font-weight:900; color:#FFFFFF; }
+QLabel#HeaderValue { font-size:16px; font-weight:900; color:#14D8FF; }
+QLabel#HeaderValuePink { font-size:16px; font-weight:900; color:#FF58B7; }
+QLabel#HeaderSmall { font-size:8px; color:#76A9C9; font-weight:900; }
+QLabel#ClockLabel { color:#C4D9E8; font-size:10px; font-weight:800; padding:4px 7px; }
 QLabel#SectionTitle { font-size:13px; font-weight:900; color:#FFFFFF; }
-QLabel#CurrentCaption { background:#B84E78; color:#FFFFFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:7px; letter-spacing:.6px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:112px; font-weight:900; background:#081B30; border:5px solid #F49ABD; border-radius:120px; }
-QLabel#CurrentBall[empty="true"] { color:#63859A; border-color:#2B7191; }
-QLabel#CallState { color:#F49ABD; font-size:13px; font-weight:900; }
-QLabel#Called { color:#39D8FF; font-size:29px; font-weight:900; }
-QLabel#Muted { color:#8FAABD; font-size:10px; }
-QLabel#PublicHint { color:#8EA9BC; font-size:9px; }
-QLabel#HistoryBall { min-width:48px; max-width:48px; min-height:48px; max-height:48px; border-radius:24px; color:#FFFFFF; font-size:16px; font-weight:900; background:#123450; border:2px solid #39D8FF; }
-QLabel#HistoryBall[tone="pink"] { background:#713B59; border-color:#F49ABD; }
-QLabel#HistoryBall[tone="blue"] { background:#123C5C; border-color:#39D8FF; }
-QPushButton#Nav { min-height:46px; border-radius:11px; color:#FFFFFF; background:#0B2740; border:1px solid #216B91; font-size:10px; font-weight:900; padding:0 12px; }
-QPushButton#Nav:hover { background:#123C5B; border-color:#39D8FF; }
-QPushButton#VerifyNav { min-height:46px; border-radius:11px; color:#FFFFFF; background:#17324A; border:1px solid #F49ABD; font-size:10px; font-weight:900; padding:0 12px; }
-QPushButton#VerifyNav:hover { background:#2B4C61; border-color:#FFFFFF; }
-QPushButton#Ball { min-width:64px; min-height:64px; color:#EAF4FA; background:#081D32; border:2px solid #1875A5; border-radius:32px; font-size:18px; font-weight:900; }
-QPushButton#Ball:hover { background:#103754; border:2px solid #39D8FF; }
-QPushButton#Ball[called="true"] { background:#6E3155; border:3px solid #F49ABD; color:#FFFFFF; }
-QPushButton#Ball[current="true"] { background:#D75E92; border:4px solid #FFFFFF; color:#FFFFFF; }
-QMenu { background:#071A2C; color:#F7F9FF; border:1px solid #2D7195; padding:4px; }
+QLabel#CurrentCaption { background:#0B1732; color:#FFFFFF; border:1px solid #0BCBFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:7px; letter-spacing:.6px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:108px; font-weight:900; background:#030A1B; border:5px solid #FF31AE; border-radius:125px; }
+QLabel#CurrentBall[empty="true"] { color:#63859A; border-color:#0ABFFF; }
+QLabel#CallState { color:#FF4CB5; font-size:14px; font-weight:900; }
+QLabel#Called { color:#12D9FF; font-size:29px; font-weight:900; }
+QLabel#Muted { color:#9BB7C9; font-size:10px; }
+QLabel#HistoryBall { min-width:48px; max-width:48px; min-height:48px; max-height:48px; border-radius:24px; color:#FFFFFF; font-size:16px; font-weight:900; background:#06152D; border:2px solid #08CFFF; }
+QLabel#HistoryBall[tone="pink"] { background:#32102C; border-color:#FF38B0; }
+QLabel#HistoryBall[tone="blue"] { background:#061A35; border-color:#09CFFF; }
+QPushButton#Nav { min-height:46px; border-radius:8px; color:#FFFFFF; background:#06152B; border:1px solid #0878BE; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#Nav:hover { background:#0A2845; border-color:#13D8FF; }
+QPushButton#VerifyNav { min-height:46px; border-radius:8px; color:#FFFFFF; background:#071C35; border:1px solid #FF49B5; font-size:10px; font-weight:900; padding:0 12px; }
+QPushButton#VerifyNav:hover { background:#241331; border-color:#FFFFFF; }
+QPushButton#Ball { min-width:70px; min-height:70px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:35px; font-size:19px; font-weight:900; }
+QPushButton#Ball:hover { background:#0A3158; border:3px solid #54E6FF; }
+QPushButton#Ball[called="true"] { background:#4A123F; border:3px solid #FF22AC; color:#FFFFFF; }
+QPushButton#Ball[current="true"] { background:#FF149F; border:4px solid #FFFFFF; color:#FFFFFF; }
+QMenu { background:#061329; color:#F7F9FF; border:1px solid #0B78B9; padding:4px; }
 QMenu::item { padding:8px 16px; border-radius:5px; }
-QMenu::item:selected { background:#A95173; }
-QLineEdit { background:#081C30; border:1px solid #2B6685; border-radius:9px; color:#FFFFFF; padding:8px; font-size:12px; }
-QLineEdit:focus { border:2px solid #F49ABD; }
-QLineEdit#BallInput { font-size:26px; font-weight:900; min-height:52px; text-align:center; border:2px solid #39D8FF; border-radius:10px; }
-QLineEdit#BallInput:focus { border:2px solid #F49ABD; }
+QMenu::item:selected { background:#A51668; }
+QLineEdit { background:#04152C; border:1px solid #0879BF; border-radius:9px; color:#FFFFFF; padding:8px; font-size:12px; }
+QLineEdit:focus { border:2px solid #FF4DB7; }
+QLineEdit#BallInput { font-size:26px; font-weight:900; min-height:52px; text-align:center; border:2px solid #00D2FF; border-radius:10px; }
+QLineEdit#BallInput:focus { border:2px solid #FF4DB7; }
 """
 
 
@@ -102,8 +101,8 @@ class BingoMainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("FB-BINGO — Sala de Juego")
-        self.resize(1540, 930)
-        self.setMinimumSize(1200, 760)
+        self.resize(1600, 900)
+        self.setMinimumSize(1280, 760)
         self.game = BingoGame()
         self._finalized = False
         self.repository = SQLiteSeriesRepository(database_path())
@@ -175,9 +174,9 @@ class BingoMainWindow(QMainWindow):
             btn = QPushButton(str(number)); btn.setObjectName("Ball"); btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); btn.clicked.connect(lambda checked=False, n=number: self.call_number(n)); self._buttons[number] = btn; grid.addWidget(btn, (number - 1) // 10, (number - 1) % 10)
         bl.addLayout(grid, 1); center.addWidget(board_panel, 1)
 
-        current = QFrame(objectName="Panel"); current.setFixedWidth(350); cl = QVBoxLayout(current); cl.setContentsMargins(10, 10, 10, 10); cl.setSpacing(7)
+        current = QFrame(objectName="Panel"); current.setFixedWidth(365); cl = QVBoxLayout(current); cl.setContentsMargins(10, 10, 10, 10); cl.setSpacing(7)
         cap = QLabel("NÚMERO ACTUAL"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
-        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setProperty("empty", True); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setFixedSize(245, 245); cl.addWidget(self.current_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.current_label = QLabel("—"); self.current_label.setObjectName("CurrentBall"); self.current_label.setProperty("empty", True); self.current_label.setAlignment(Qt.AlignmentFlag.AlignCenter); self.current_label.setFixedSize(255, 255); cl.addWidget(self.current_label, 0, Qt.AlignmentFlag.AlignHCenter)
         self.call_state = QLabel("¡LISTO PARA JUGAR!"); self.call_state.setObjectName("CallState"); self.call_state.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(self.call_state)
         cap = QLabel("ÚLTIMAS 5 BOLAS"); cap.setObjectName("CurrentCaption"); cap.setAlignment(Qt.AlignmentFlag.AlignCenter); cl.addWidget(cap)
         history_row = QHBoxLayout(); history_row.setSpacing(5); self.history_balls = []
