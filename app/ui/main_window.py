@@ -198,19 +198,20 @@ class BingoMainWindow(QMainWindow):
         raw = self.ball_input.text().strip()
         try: number = int(raw)
         except (TypeError, ValueError): self.ball_message.setText("✕ DIGITE UN NÚMERO DEL 1 AL 90"); self.ball_input.selectAll(); self.ball_input.setFocus(); return False
+        if getattr(self, "_finalized", False): self.ball_message.setText("✕ LA PARTIDA ESTÁ FINALIZADA"); self.ball_input.selectAll(); self.ball_input.setFocus(); return False
         if not 1 <= number <= 90: self.ball_message.setText("✕ NÚMERO INVÁLIDO · USE 1–90"); self.ball_input.selectAll(); self.ball_input.setFocus(); return False
         if number in self.game.history: self.ball_message.setText(f"✕ LA BOLA {number} YA FUE CANTADA"); self.ball_input.selectAll(); self.ball_input.setFocus(); return False
         if self.game.state.finished: self.ball_message.setText("✕ LA PARTIDA ESTÁ FINALIZADA"); self.ball_input.selectAll(); self.ball_input.setFocus(); return False
         remaining = tuple(n for n in self.game.state.remaining_numbers if n != number); self.game.restore(GameState(drawn_numbers=self.game.history + (number,), remaining_numbers=remaining, paused=False)); self.ball_input.clear(); self.ball_message.setText(f"✓ BOLA {number} REGISTRADA"); self._sync_ui(); self.ball_input.setFocus(); return True
 
     def draw_number(self) -> None:
-        if self.game.state.paused or self.game.state.finished: return
+        if self.game.state.paused or self.game.state.finished or getattr(self, "_finalized", False): return
         try: self.game.draw()
         except Exception: return
         self.ball_message.setText("MODO AUTOMÁTICO · BOLA SORTEADA POR EL PROGRAMA"); self._sync_ui()
 
     def call_number(self, number: int) -> None:
-        if number in self.game.history or self.game.state.finished: return
+        if number in self.game.history or self.game.state.finished or getattr(self, "_finalized", False): return
         remaining = list(self.game.state.remaining_numbers)
         if number not in remaining: return
         remaining.remove(number); self.game.restore(GameState(drawn_numbers=self.game.history + (number,), remaining_numbers=tuple(remaining), paused=False)); self.ball_message.setText(f"✓ BOLA {number} REGISTRADA"); self._sync_ui()
@@ -219,7 +220,7 @@ class BingoMainWindow(QMainWindow):
         if self.game.current_number is not None: self._sync_ui()
 
     def undo_number(self) -> None:
-        if not self.game.history: return
+        if not self.game.history or getattr(self, "_finalized", False): return
         history = self.game.history[:-1]; remaining = tuple(n for n in range(1, 91) if n not in history); self.game.restore(GameState(drawn_numbers=history, remaining_numbers=remaining, paused=False)); self.ball_message.setText("↶ ÚLTIMA BOLA DESHECHA · LISTA PARA DIGITAR"); self._sync_ui(); self.ball_input.setFocus()
 
     def toggle_pause(self) -> None:
@@ -270,7 +271,7 @@ class BingoMainWindow(QMainWindow):
 
     def _sync_ui(self) -> None:
         state = self.game.state; current = state.current_number; count = len(state.drawn_numbers)
-        self.current_label.setText("—" if current is None else str(current)); self.current_label.setProperty("empty", current is None); self.current_label.style().unpolish(self.current_label); self.current_label.style().polish(self.current_label); self.current_label.update(); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.count_label.setText(format_ball_count(count)); self.header_values[1].setText("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA")); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M"))
+        self.current_label.setText("—" if current is None else str(current)); self.current_label.setProperty("empty", current is None); self.current_label.style().unpolish(self.current_label); self.current_label.style().polish(self.current_label); self.current_label.update(); self.call_state.setText("¡CANTADO!" if current is not None else "¡LISTO PARA JUGAR!"); self.count_label.setText(format_ball_count(count)); self.header_values[1].setText("FINALIZADA" if getattr(self, "_finalized", False) else ("PAUSADO" if state.paused else ("EN JUEGO" if count else "EN ESPERA"))); self.header_values[3].setText(datetime.now().strftime("%d/%m/%Y  %H:%M"))
         recent = list(state.last_five[::-1])
         for index, ball in enumerate(self.history_balls): ball.setText(str(recent[index]) if index < len(recent) else "—"); ball.setProperty("tone", "pink" if index % 2 == 0 else "blue"); ball.style().unpolish(ball); ball.style().polish(ball); ball.update()
         for number, button in self._buttons.items(): button.setProperty("called", number in state.drawn_numbers); button.setProperty("current", number == current); button.style().unpolish(button); button.style().polish(button); button.update()
