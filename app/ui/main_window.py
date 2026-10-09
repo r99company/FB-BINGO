@@ -20,7 +20,7 @@ from app.verification import CardVerifier, LivePrizeTracker
 
 PROFESSIONAL_QSS = """
 QWidget#Root { background:#030814; color:#F7FAFF; font-family:'Segoe UI'; }
-QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#06142A; border:1px solid #1268A0; border-radius:12px; }
+QFrame#Panel,QFrame#HeaderCard,QFrame#TopBar { background:#091A2D; border:1px solid #1D5A80; border-radius:16px; }
 QFrame#Panel { background:#041127; border-color:#0876BE; }
 QFrame#TopBar { background:#020A18; border-color:#0B5B91; }
 QLabel#Brand { font-size:31px; font-weight:900; color:#00D9FF; }
@@ -35,7 +35,7 @@ QLabel#HeaderSmall { font-size:8px; color:#76A9C9; font-weight:900; }
 QLabel#ClockLabel { color:#C4D9E8; font-size:10px; font-weight:800; padding:4px 7px; }
 QLabel#SectionTitle { font-size:13px; font-weight:900; color:#FFFFFF; }
 QLabel#CurrentCaption { background:#0B1732; color:#FFFFFF; border:1px solid #0BCBFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:7px; letter-spacing:.6px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:108px; font-weight:900; background:#030A1B; border:5px solid #FF31AE; border-radius:125px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:108px; font-weight:900; background:#030A1B; border:5px solid #FF31AE; border-radius:120px; }
 QLabel#CurrentBall[empty="true"] { color:#63859A; border-color:#0ABFFF; }
 QLabel#CallState { color:#FF4CB5; font-size:14px; font-weight:900; }
 QLabel#Called { color:#12D9FF; font-size:29px; font-weight:900; }
@@ -47,7 +47,7 @@ QPushButton#Nav { min-height:58px; min-width:118px; border-radius:9px; color:#FF
 QPushButton#Nav:hover { background:#0A2845; border-color:#13D8FF; }
 QPushButton#VerifyNav { min-height:58px; min-width:132px; border-radius:9px; color:#FFFFFF; background:#071C35; border:1px solid #FF49B5; font-size:10px; font-weight:900; padding:0 12px; }
 QPushButton#VerifyNav:hover { background:#241331; border-color:#FFFFFF; }
-QPushButton#Ball { min-width:70px; min-height:70px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:35px; font-size:19px; font-weight:900; }
+QPushButton#Ball { min-width:64px; min-height:64px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:35px; font-size:19px; font-weight:900; }
 QPushButton#Ball:hover { background:#0A3158; border:3px solid #54E6FF; }
 QPushButton#Ball[called="true"] { background:#4A123F; border:3px solid #FF22AC; color:#FFFFFF; }
 QPushButton#Ball[current="true"] { background:#FF149F; border:4px solid #FFFFFF; color:#FFFFFF; }
@@ -104,7 +104,7 @@ class BingoMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("FB-BINGO — Sala de Juego")
         self.resize(1600, 900)
-        self.setMinimumSize(1280, 760)
+        self.setMinimumSize(1200, 760)
         self.game = BingoGame()
         self._finalized = False
         self.repository = SQLiteSeriesRepository(database_path())
@@ -129,10 +129,10 @@ class BingoMainWindow(QMainWindow):
                 action = menu.addAction(label); action.triggered.connect(callback)
             button.setMenu(menu); return button
 
-        controls = add_menu("▣  CONTROLES\nDE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
-        cards = add_menu("▤  CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
-        verify = QPushButton("✓  VERIFICAR\nCARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
-        help_menu = add_menu("?  AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self._f4_action), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
+        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
+        cards = add_menu("CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
+        verify = QPushButton("VERIFICAR CARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
+        help_menu = add_menu("AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self._f4_action), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
         hr.addWidget(controls); hr.addWidget(cards); hr.addWidget(verify); hr.addWidget(help_menu)
         self.header_values = []
         for title, value, pink in (("JUEGO ACTUAL", "PARTIDA RÁPIDA", False), ("ESTADO DEL JUEGO", "EN ESPERA", False), ("SERIE ACTUAL", "—", True)):
