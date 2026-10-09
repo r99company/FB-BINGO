@@ -224,6 +224,8 @@ class BingoMainWindow(QMainWindow):
         history = self.game.history[:-1]; remaining = tuple(n for n in range(1, 91) if n not in history); self.game.restore(GameState(drawn_numbers=history, remaining_numbers=remaining, paused=False)); self.ball_message.setText("↶ ÚLTIMA BOLA DESHECHA · LISTA PARA DIGITAR"); self._sync_ui(); self.ball_input.setFocus()
 
     def toggle_pause(self) -> None:
+        if getattr(self, "_finalized", False) or self.game.state.finished:
+            return
         if self.game.state.paused: self.game.resume(); self.ball_message.setText("✓ PARTIDA REANUDADA")
         else: self.game.pause(); self.ball_message.setText("Ⅱ PARTIDA PAUSADA")
         self._sync_ui()
@@ -240,11 +242,13 @@ class BingoMainWindow(QMainWindow):
 
     def _f4_action(self) -> None:
         if not getattr(self, "_finalized", False):
-            if self.game.history:
-                self._finalized = True
-                self.ball_input.setEnabled(False)
-                self.ball_message.setText("PARTIDA FINALIZADA · F4 PARA NUEVA PARTIDA")
-                self._sync_ui()
+            if not self.game.history:
+                self.ball_message.setText("NO HAY UNA PARTIDA INICIADA PARA FINALIZAR")
+                return
+            self._finalized = True
+            self.ball_input.setEnabled(False)
+            self.ball_message.setText("PARTIDA FINALIZADA · F4 PARA NUEVA PARTIDA")
+            self._sync_ui()
             return
         if self._confirm_new_game():
             self._finalized = False
