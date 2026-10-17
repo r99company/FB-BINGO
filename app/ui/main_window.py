@@ -25,29 +25,29 @@ QFrame#Panel { background:#041127; border-color:#0876BE; }
 QFrame#TopBar { background:#020A18; border-color:#0B5B91; }
 QLabel#Brand { font-size:31px; font-weight:900; color:#00D9FF; }
 QLabel#BrandAccent { font-size:31px; font-weight:900; color:#FF58B7; }
-QLabel#Tagline { color:#C5D9EA; font-size:9px; font-weight:800; letter-spacing:1px; }
+QLabel#Tagline { color:#8FD9FF; font-size:9px; font-weight:800; letter-spacing:1px; }
 QLabel#LogoBadge { min-width:62px; max-width:62px; min-height:62px; max-height:62px; border-radius:31px; color:#FFFFFF; background:#071B38; border:3px solid #00D9FF; font-size:15px; font-weight:900; }
 QLabel#LogoBadgeAccent { color:#FF58B7; font-size:8px; font-weight:900; }
 QLabel#HeaderTitle { font-size:10px; font-weight:900; color:#FFFFFF; }
 QLabel#HeaderValue { font-size:13px; font-weight:900; color:#14D8FF; }
 QLabel#HeaderValuePink { font-size:13px; font-weight:900; color:#FF58B7; }
-QLabel#HeaderSmall { font-size:8px; color:#76A9C9; font-weight:900; }
+QLabel#HeaderSmall { font-size:8px; color:#F49ABD; font-weight:900; }
 QLabel#ClockLabel { color:#C4D9E8; font-size:10px; font-weight:800; padding:4px 7px; }
 QLabel#SectionTitle { font-size:13px; font-weight:900; color:#FFFFFF; }
 QLabel#CurrentCaption { background:#0B1732; color:#FFFFFF; border:1px solid #0BCBFF; font-size:10px; font-weight:900; padding:7px 9px; border-radius:7px; letter-spacing:.6px; }
-QLabel#CurrentBall { color:#FFFFFF; font-size:108px; font-weight:900; background:#030A1B; border:5px solid #FF31AE; border-radius:120px; }
+QLabel#CurrentBall { color:#FFFFFF; font-size:112px; font-weight:900; background:#030A1B; border:5px solid #FF31AE; border-radius:120px; }
 QLabel#CurrentBall[empty="true"] { color:#63859A; border-color:#0ABFFF; }
 QLabel#CallState { color:#FF4CB5; font-size:14px; font-weight:900; }
 QLabel#Called { color:#12D9FF; font-size:29px; font-weight:900; }
-QLabel#Muted { color:#9BB7C9; font-size:10px; }
+QLabel#Muted { color:#8FD9FF; font-size:10px; }
 QLabel#HistoryBall { min-width:48px; max-width:48px; min-height:48px; max-height:48px; border-radius:24px; color:#FFFFFF; font-size:16px; font-weight:900; background:#06152D; border:2px solid #08CFFF; }
 QLabel#HistoryBall[tone="pink"] { background:#32102C; border-color:#FF38B0; }
 QLabel#HistoryBall[tone="blue"] { background:#061A35; border-color:#09CFFF; }
-QPushButton#Nav { min-height:58px; min-width:118px; border-radius:9px; color:#FFFFFF; background:#06152B; border:1px solid #0878BE; font-size:10px; font-weight:900; padding:0 14px; }
+QPushButton#Nav { min-height:46px; min-width:118px; border-radius:9px; color:#FFFFFF; background:#06152B; border:1px solid #0878BE; font-size:10px; font-weight:900; padding:0 14px; }
 QPushButton#Nav:hover { background:#0A2845; border-color:#13D8FF; }
 QPushButton#VerifyNav { min-height:58px; min-width:132px; border-radius:9px; color:#FFFFFF; background:#071C35; border:1px solid #FF49B5; font-size:10px; font-weight:900; padding:0 12px; }
 QPushButton#VerifyNav:hover { background:#241331; border-color:#FFFFFF; }
-QPushButton#Ball { min-width:64px; min-height:64px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:35px; font-size:19px; font-weight:900; }
+QPushButton#Ball { min-width:64px; min-height:64px; color:#F8FCFF; background:#071B38; border:3px solid #00CFFF; border-radius:32px; font-size:19px; font-weight:900; }
 QPushButton#Ball:hover { background:#0A3158; border:3px solid #54E6FF; }
 QPushButton#Ball[called="true"] { background:#4A123F; border:3px solid #FF22AC; color:#FFFFFF; }
 QPushButton#Ball[current="true"] { background:#FF149F; border:4px solid #FFFFFF; color:#FFFFFF; }
