@@ -32,7 +32,7 @@ class PrizeSetupDialog(QDialog):
         self.setWindowTitle("FB-BINGO · Preparar partida")
         self.setMinimumWidth(560)
         self.setStyleSheet(PRIZE_QSS)
-        values = {"line": True, "double_line": True, "bingo": True}
+        values = {"line": True, "double_line": True, "missing_one": True, "bingo": True, "second_bingo": False}
         if prizes:
             values.update(prizes)
 
@@ -57,7 +57,9 @@ class PrizeSetupDialog(QDialog):
         options = [
             ("line", "LÍNEA", "Completar una fila horizontal del cartón."),
             ("double_line", "DOBLE LÍNEA", "Completar dos filas horizontales del mismo cartón."),
+            ("missing_one", "FALTA UNO", "Queda un número para completar el bingo."),
             ("bingo", "BINGO", "Completar los 15 números del cartón."),
+            ("second_bingo", "SEGUNDO BINGO", "Después del primer bingo, continuar la partida hasta completar otro cartón. Opcional."),
         ]
         for key, name, description in options:
             card = QFrame()
