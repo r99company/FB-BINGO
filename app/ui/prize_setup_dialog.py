@@ -13,7 +13,8 @@ QLabel#Title { color:#00D9FF; font-size:25px; font-weight:900; }
 QLabel#Subtitle { color:#8FD9FF; font-size:11px; }
 QLabel#PrizeName { color:#FFFFFF; font-size:16px; font-weight:900; }
 QLabel#PrizeDescription { color:#A9CBE0; font-size:11px; }
-QDoubleSpinBox { min-width:95px; min-height:32px; background:#04152C; color:#FFFFFF; border:1px solid #0878BE; border-radius:7px; padding:4px; font-weight:800; }\nQCheckBox { color:#FFFFFF; font-size:12px; font-weight:800; spacing:8px; }
+QDoubleSpinBox { min-width:95px; min-height:32px; background:#04152C; color:#FFFFFF; border:1px solid #0878BE; border-radius:7px; padding:4px; font-weight:800; }
+QCheckBox { color:#FFFFFF; font-size:12px; font-weight:800; spacing:8px; }
 QCheckBox::indicator { width:22px; height:22px; }
 QCheckBox::indicator:unchecked { background:#04152C; border:1px solid #5085A4; border-radius:6px; }
 QCheckBox::indicator:checked { background:#0878BE; border:2px solid #00D9FF; border-radius:6px; }
@@ -33,8 +34,12 @@ class PrizeSetupDialog(QDialog):
         self.setMinimumWidth(560)
         self.setStyleSheet(PRIZE_QSS)
         values = {"line": True, "double_line": True, "missing_one": True, "bingo": True, "second_bingo": False}
+        amounts = {"line": 10.0, "double_line": 20.0, "missing_one": 50.0, "bingo": 150.0, "second_bingo": 150.0}
         if prizes:
-            values.update(prizes)
+            values.update({key: value for key, value in prizes.items() if key in values})
+            for key in amounts:
+                if f"{key}_amount" in prizes:
+                    amounts[key] = float(prizes[f"{key}_amount"])
 
         root = QWidget(objectName="PrizeRoot")
         self.setLayout(QVBoxLayout())
@@ -53,7 +58,8 @@ class PrizeSetupDialog(QDialog):
         subtitle.setWordWrap(True)
         body.addWidget(subtitle)
 
-        self.checkboxes: dict[str, QCheckBox] = {}\n        self.amounts: dict[str, QDoubleSpinBox] = {}
+        self.checkboxes: dict[str, QCheckBox] = {}
+        self.amounts: dict[str, QDoubleSpinBox] = {}
         options = [
             ("line", "LÍNEA", "Completar una fila horizontal del cartón."),
             ("double_line", "DOBLE LÍNEA", "Completar dos filas horizontales del mismo cartón."),
@@ -76,7 +82,15 @@ class PrizeSetupDialog(QDialog):
             labels.addWidget(heading)
             labels.addWidget(detail)
             row.addLayout(labels, 1)
-            amount = QDoubleSpinBox()\n            amount.setRange(0, 1000000)\n            amount.setDecimals(2)\n            amount.setSingleStep(5)\n            amount.setPrefix("$ ")\n            amount.setValue(amounts[key])\n            self.amounts[key] = amount\n            row.addWidget(amount, 0, Qt.AlignmentFlag.AlignVCenter)\n            check = QCheckBox("ACTIVO")
+            amount = QDoubleSpinBox()
+            amount.setRange(0, 1000000)
+            amount.setDecimals(2)
+            amount.setSingleStep(5)
+            amount.setPrefix("$ ")
+            amount.setValue(amounts[key])
+            self.amounts[key] = amount
+            row.addWidget(amount, 0, Qt.AlignmentFlag.AlignVCenter)
+            check = QCheckBox("ACTIVO")
             check.setChecked(values[key])
             self.checkboxes[key] = check
             row.addWidget(check, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -98,5 +112,7 @@ class PrizeSetupDialog(QDialog):
         buttons.addWidget(start)
         body.addLayout(buttons)
 
-    def selected_prizes(self) -> dict[str, bool]:
-        return {key: box.isChecked() for key, box in self.checkboxes.items()}
+    def selected_prizes(self) -> dict[str, bool | float]:
+        result: dict[str, bool | float] = {key: box.isChecked() for key, box in self.checkboxes.items()}
+        result.update({f"{key}_amount": box.value() for key, box in self.amounts.items()})
+        return result
