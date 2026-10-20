@@ -272,12 +272,11 @@ class BingoMainWindow(QMainWindow):
             return False
         self.active_prizes = dialog.selected_prizes()
         active = []
-        if self.active_prizes["line"]: active.append("LÍNEA")
+        if self.active_prizes["line"]: active.append(f"LÍNEA ${self.active_prizes.get('line_amount', 10):g}")
         if self.active_prizes["double_line"]: active.append(f"DOBLE LÍNEA ${self.active_prizes.get('double_line_amount', 20):g}")
         if self.active_prizes.get("missing_one", True): active.append(f"FALTA UNO ${self.active_prizes.get('missing_one_amount', 50):g}")
         if self.active_prizes["bingo"]: active.append(f"BINGO ${self.active_prizes.get('bingo_amount', 150):g}")
         if self.active_prizes.get("second_bingo", False): active.append(f"SEGUNDO BINGO ${self.active_prizes.get('second_bingo_amount', 150):g}")
-        if self.active_prizes["line"]: active[0] = f"LÍNEA ${self.active_prizes.get('line_amount', 10):g}"
         self.ball_message.setText("PREMIOS CONFIGURADOS · " + (" · ".join(active) if active else "SIN PREMIOS ACTIVOS"))
         return True
 
