@@ -15,6 +15,7 @@ from app.database import SQLiteSeriesRepository
 from app.settings.paths import database_path
 from app.ui.generator_window import GeneratorWidget
 from app.ui.live_prizes_window import LivePrizesWindow
+from app.ui.prize_setup_dialog import PrizeSetupDialog
 from app.ui.public_display import format_ball_count
 from app.verification import CardVerifier, LivePrizeTracker
 
@@ -107,6 +108,7 @@ class BingoMainWindow(QMainWindow):
         self.setMinimumSize(1200, 760)
         self.game = BingoGame()
         self._finalized = False
+        self.active_prizes = {"line": True, "double_line": True, "bingo": True}
         self.repository = SQLiteSeriesRepository(database_path())
         self._buttons = {}
         self.tv_window = None
@@ -129,7 +131,7 @@ class BingoMainWindow(QMainWindow):
                 action = menu.addAction(label); action.triggered.connect(callback)
             button.setMenu(menu); return button
 
-        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
+        controls = add_menu("CONTROLES DE SALA", [("🎙 Partida", lambda: self.ball_input.setFocus()), ("🛒 Ventas", lambda: getattr(self, "open_sales", lambda: None)()), ("📊 Reportes", lambda: getattr(self, "open_reports", lambda: None)()), ("🏆 Premios en juego", self.open_live_prizes), ("🎯 Preparar premios de partida", self.configure_prizes), ("⚙ Configuración", lambda: getattr(self, "open_settings", lambda: None)())])
         cards = add_menu("CARTONES", [("🖨 Generador / Impresor", lambda: getattr(self, "open_cartons", self.open_generator)()), ("🎨 Diseñador", lambda: getattr(self, "open_cartons", self.open_generator)())])
         verify = QPushButton("VERIFICAR CARTÓN"); verify.setObjectName("VerifyNav"); verify.clicked.connect(self.verify_card)
         help_menu = add_menu("AYUDA", [("F1 / Ctrl+1 · Sorteo automático", self.draw_number), ("F2 / Ctrl+2 · Pausar / reanudar", self.toggle_pause), ("F3 / Ctrl+3 · Deshacer bola", self.undo_number), ("F4 / Ctrl+4 · Finalizar / nueva partida", self._f4_action), ("Ctrl+5 · Verificador de cartón", self.verify_card), ("F11 · Pantalla completa", self._toggle_fullscreen)])
@@ -255,8 +257,30 @@ class BingoMainWindow(QMainWindow):
             self.ball_input.setEnabled(True)
             self.new_game()
 
+    def configure_prizes(self) -> bool:
+        """Muestra la selección de premios y guarda la regla de la partida."""
+        if self.game.history and not self._finalized:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "FB-BINGO · Premios",
+                "Los premios de esta partida ya están fijados. Finaliza la partida para configurar la siguiente.",
+            )
+            return False
+        dialog = PrizeSetupDialog(self.active_prizes, self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return False
+        self.active_prizes = dialog.selected_prizes()
+        active = []
+        if self.active_prizes["line"]: active.append("LÍNEA")
+        if self.active_prizes["double_line"]: active.append("DOBLE LÍNEA")
+        if self.active_prizes["bingo"]: active.append("BINGO")
+        self.ball_message.setText("PREMIOS CONFIGURADOS · " + (" · ".join(active) if active else "SIN PREMIOS ACTIVOS"))
+        return True
+
     def new_game(self) -> None:
-        self.game.reset(); self.live_prize_tracker.reset(); self._finalized = False; self.ball_input.setEnabled(True); self.ball_message.setText("NUEVA PARTIDA · ESPERANDO BOLA FÍSICA"); self._sync_ui(); self.ball_input.clear(); self.ball_input.setFocus()
+        if not self.configure_prizes():
+            return
+        self.game.reset(); self.live_prize_tracker.reset(); self._finalized = False; self.ball_input.setEnabled(True); self.ball_message.setText("NUEVA PARTIDA · PREMIOS FIJADOS · ESPERANDO BOLA FÍSICA"); self._sync_ui(); self.ball_input.clear(); self.ball_input.setFocus()
 
     def verify_card(self) -> None:
         self.open_verification()
