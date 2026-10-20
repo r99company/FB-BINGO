@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
@@ -117,6 +117,7 @@ class BingoMainWindow(QMainWindow):
         self.live_prize_tracker = LivePrizeTracker(self.repository)
         self._build_ui()
         self._sync_ui()
+        QTimer.singleShot(0, self.configure_prizes)
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="Root"); self.setCentralWidget(root); root.setStyleSheet(PROFESSIONAL_QSS)
