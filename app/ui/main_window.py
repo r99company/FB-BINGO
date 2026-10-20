@@ -108,7 +108,7 @@ class BingoMainWindow(QMainWindow):
         self.setMinimumSize(1200, 760)
         self.game = BingoGame()
         self._finalized = False
-        self.active_prizes = {"line": True, "double_line": True, "bingo": True}
+        self.active_prizes = {"line": True, "double_line": True, "missing_one": True, "bingo": True, "second_bingo": False, "line_amount": 10.0, "double_line_amount": 20.0, "missing_one_amount": 50.0, "bingo_amount": 150.0, "second_bingo_amount": 150.0}
         self.repository = SQLiteSeriesRepository(database_path())
         self._buttons = {}
         self.tv_window = None
@@ -273,8 +273,11 @@ class BingoMainWindow(QMainWindow):
         self.active_prizes = dialog.selected_prizes()
         active = []
         if self.active_prizes["line"]: active.append("LÍNEA")
-        if self.active_prizes["double_line"]: active.append("DOBLE LÍNEA")
-        if self.active_prizes["bingo"]: active.append("BINGO")
+        if self.active_prizes["double_line"]: active.append(f"DOBLE LÍNEA ${self.active_prizes.get('double_line_amount', 20):g}")
+        if self.active_prizes.get("missing_one", True): active.append(f"FALTA UNO ${self.active_prizes.get('missing_one_amount', 50):g}")
+        if self.active_prizes["bingo"]: active.append(f"BINGO ${self.active_prizes.get('bingo_amount', 150):g}")
+        if self.active_prizes.get("second_bingo", False): active.append(f"SEGUNDO BINGO ${self.active_prizes.get('second_bingo_amount', 150):g}")
+        if self.active_prizes["line"]: active[0] = f"LÍNEA ${self.active_prizes.get('line_amount', 10):g}"
         self.ball_message.setText("PREMIOS CONFIGURADOS · " + (" · ".join(active) if active else "SIN PREMIOS ACTIVOS"))
         return True
 
