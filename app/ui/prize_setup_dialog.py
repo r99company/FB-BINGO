@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton,
+    QCheckBox, QDialog, QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, QPushButton,
     QVBoxLayout, QWidget,
 )
 
@@ -13,7 +13,7 @@ QLabel#Title { color:#00D9FF; font-size:25px; font-weight:900; }
 QLabel#Subtitle { color:#8FD9FF; font-size:11px; }
 QLabel#PrizeName { color:#FFFFFF; font-size:16px; font-weight:900; }
 QLabel#PrizeDescription { color:#A9CBE0; font-size:11px; }
-QCheckBox { color:#FFFFFF; font-size:12px; font-weight:800; spacing:8px; }
+QDoubleSpinBox { min-width:95px; min-height:32px; background:#04152C; color:#FFFFFF; border:1px solid #0878BE; border-radius:7px; padding:4px; font-weight:800; }\nQCheckBox { color:#FFFFFF; font-size:12px; font-weight:800; spacing:8px; }
 QCheckBox::indicator { width:22px; height:22px; }
 QCheckBox::indicator:unchecked { background:#04152C; border:1px solid #5085A4; border-radius:6px; }
 QCheckBox::indicator:checked { background:#0878BE; border:2px solid #00D9FF; border-radius:6px; }
@@ -53,7 +53,7 @@ class PrizeSetupDialog(QDialog):
         subtitle.setWordWrap(True)
         body.addWidget(subtitle)
 
-        self.checkboxes: dict[str, QCheckBox] = {}
+        self.checkboxes: dict[str, QCheckBox] = {}\n        self.amounts: dict[str, QDoubleSpinBox] = {}
         options = [
             ("line", "LÍNEA", "Completar una fila horizontal del cartón."),
             ("double_line", "DOBLE LÍNEA", "Completar dos filas horizontales del mismo cartón."),
@@ -76,7 +76,7 @@ class PrizeSetupDialog(QDialog):
             labels.addWidget(heading)
             labels.addWidget(detail)
             row.addLayout(labels, 1)
-            check = QCheckBox("ACTIVO")
+            amount = QDoubleSpinBox()\n            amount.setRange(0, 1000000)\n            amount.setDecimals(2)\n            amount.setSingleStep(5)\n            amount.setPrefix("$ ")\n            amount.setValue(amounts[key])\n            self.amounts[key] = amount\n            row.addWidget(amount, 0, Qt.AlignmentFlag.AlignVCenter)\n            check = QCheckBox("ACTIVO")
             check.setChecked(values[key])
             self.checkboxes[key] = check
             row.addWidget(check, 0, Qt.AlignmentFlag.AlignVCenter)
