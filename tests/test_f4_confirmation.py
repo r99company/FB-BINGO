@@ -50,3 +50,12 @@ def test_help_menu_f4_uses_same_confirmation_guard(monkeypatch):
     assert window.ball_message.text() == "NUEVA PARTIDA CANCELADA · SE CONSERVA EL ESTADO"
     window.close()
     app.processEvents()
+
+def test_ctrl4_shortcut_is_registered_for_finalize_action():
+    app = QApplication.instance() or QApplication([])
+    window = BingoMainWindow()
+    sequences = {shortcut.key().toString() for shortcut in window._operator_shortcuts}
+    assert "Ctrl+4" in sequences
+    assert "F4" in sequences
+    window.close()
+    app.processEvents()
