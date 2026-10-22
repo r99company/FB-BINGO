@@ -105,3 +105,34 @@ def test_verification_uses_latest_called_balls_in_open_window(qapp, repository):
     assert result.bingo is True
     assert "BINGO" in window.result_label.text()
     window.close()
+
+def test_verification_accepts_card_number_with_thousands_separator(qapp, repository):
+    window = VerificationWindow(verification_service=VerificationService(repository), called_numbers=set(), expected_model=CardModel.A)
+    window.serial_input.setText("12.500")
+    result = window.verify()
+    assert result is not None
+    assert result.serial == "0001-012500"
+    window.close()
+
+
+def test_verified_line_advances_to_waiting_for_bingo(qapp, repository):
+    card = repository.get_card("12500")
+    called = set(value for value in card.grid[0] if value is not None)
+    window = VerificationWindow(verification_service=VerificationService(repository), called_numbers=called, expected_model=CardModel.A)
+    window.serial_input.setText("12500")
+
+    first = window.verify()
+    assert first is not None and first.line_rows == (0,)
+    assert "LÍNEA" in window.result_label.text()
+
+    second = window.verify()
+    assert second is not None and second.line_rows == (0,)
+    assert "ESPERANDO BINGO" in window.result_label.text()
+
+    window.called_numbers = set(card.numbers)
+    third = window.verify()
+    assert third is not None and third.bingo is True
+    assert "BINGO" in window.result_label.text()
+    svg = window.card_preview.property("svg_content")
+    assert isinstance(svg, str) and svg.count('class="called-number"') == 15
+    window.close()

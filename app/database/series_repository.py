@@ -57,6 +57,15 @@ class SQLiteSeriesRepository:
             if number < 1:
                 raise KeyError(f"Número de cartón inválido: {value}")
             return number
+        # Aceptar números escritos con separador de miles, por ejemplo 2.455
+        # o 2,455, además del serial completo 0002-002455.
+        if all(character.isdigit() or character in "., " for character in value):
+            normalized = value.replace(".", "").replace(",", "").replace(" ", "")
+            if normalized.isdigit():
+                number = int(normalized)
+                if number < 1:
+                    raise KeyError(f"Número de cartón inválido: {value}")
+                return number
         suffix = value[-6:]
         if suffix.isdigit():
             return int(suffix)
