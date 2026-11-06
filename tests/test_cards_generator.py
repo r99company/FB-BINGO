@@ -138,3 +138,14 @@ def test_generation_variant_changes_candidate_but_keeps_series_identity() -> Non
     assert base.series_id == alternate.series_id == "SER-V"
     assert [card.serial for card in base.cards] == [card.serial for card in alternate.cards]
     assert _layout_signature(base.cards[0]) != _layout_signature(alternate.cards[0])
+
+
+@pytest.mark.parametrize("model", [CardModel.A, CardModel.B])
+def test_each_row_has_six_distinct_cell_patterns_in_a_series(model) -> None:
+    series = SeriesGenerator(seed=20261105).generate(f"DYNAMIC-{model.value}", model)
+    for row in range(3):
+        patterns = [
+            tuple(value is not None for value in card.grid[row])
+            for card in series.cards
+        ]
+        assert len(set(patterns)) == 6
