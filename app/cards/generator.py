@@ -69,7 +69,7 @@ class SeriesGenerator:
         for _ in range(192):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
-            if grids is None:
+            if grids is None or not self._has_dynamic_rows(grids):
                 continue
             score = self._dynamic_layout_score(grids, column_counts)
             if score > best_score:
@@ -96,6 +96,15 @@ class SeriesGenerator:
     @staticmethod
     def _column_signature(counts: Sequence[int]) -> tuple[int, ...]:
         return tuple(counts)
+
+    @classmethod
+    def _has_dynamic_rows(cls, grids) -> bool:
+        """Exige seis patrones de casillas distintos en cada fila de la serie."""
+        for row in range(ROWS):
+            patterns = [cls._row_signature(grid, row) for grid in grids]
+            if len(set(patterns)) != CARDS_PER_SERIES:
+                return False
+        return True
 
     @classmethod
     def _pair_distance(cls, first, second) -> int:
