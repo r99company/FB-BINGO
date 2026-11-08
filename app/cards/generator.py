@@ -225,12 +225,21 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks = []
+        # Evita repetir el mismo patrón de casillas ocupadas en una fila
+        # entre dos cartones de esta serie. DistributionModel ya admite
+        # patrones prohibidos por fila, así que aplicamos la diversidad
+        # durante la construcción y no después de generar toda la serie.
+        used_row_masks = [set() for _ in range(ROWS)]
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng)
+            masks = distribution.row_masks_for_counts(
+                counts, rng, forbidden=used_row_masks
+            )
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
             if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
+            for row, mask in enumerate(masks):
+                used_row_masks[row].add(mask)
             row_masks.append(masks)
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
