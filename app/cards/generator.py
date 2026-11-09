@@ -66,10 +66,10 @@ class SeriesGenerator:
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
-        for _ in range(192):
+        for _ in range(16):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
-            if grids is None:
+            if grids is None or not self._has_dynamic_rows(grids):
                 continue
             score = self._dynamic_layout_score(grids, column_counts)
             if score > best_score:
@@ -96,6 +96,15 @@ class SeriesGenerator:
     @staticmethod
     def _column_signature(counts: Sequence[int]) -> tuple[int, ...]:
         return tuple(counts)
+
+    @classmethod
+    def _has_dynamic_rows(cls, grids) -> bool:
+        """Exige seis patrones de casillas distintos en cada fila de la serie."""
+        for row in range(ROWS):
+            patterns = [cls._row_signature(grid, row) for grid in grids]
+            if len(set(patterns)) != CARDS_PER_SERIES:
+                return False
+        return True
 
     @classmethod
     def _pair_distance(cls, first, second) -> int:
@@ -216,12 +225,21 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks = []
+        # Evita repetir el mismo patrón de casillas ocupadas en una fila
+        # entre dos cartones de esta serie. DistributionModel ya admite
+        # patrones prohibidos por fila, así que aplicamos la diversidad
+        # durante la construcción y no después de generar toda la serie.
+        used_row_masks = [set() for _ in range(ROWS)]
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng)
+            masks = distribution.row_masks_for_counts(
+                counts, rng, forbidden=used_row_masks
+            )
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
             if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
+            for row, mask in enumerate(masks):
+                used_row_masks[row].add(mask)
             row_masks.append(masks)
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
