@@ -183,7 +183,7 @@ class DistributionModel:
 
         best: tuple[int, int, int] | None = None
         best_score = -10**9
-        for _ in range(24):
+        for _ in range(8):
             candidate = build_once()
             if candidate is None:
                 continue
