@@ -216,13 +216,19 @@ class SeriesGenerator:
         distribution = distribution or DistributionModel.for_model(CardModel.A)
         rng = rng or self._rng
         row_masks = []
+        # Cada cartón de la serie debe tener una huella de ocupación distinta
+        # en cada fila. Así se permite que un cartón tenga un bloque de números
+        # juntos, pero se evita repetir ese mismo patrón en los demás cartones.
+        forbidden_by_row = [set(), set(), set()]
         for counts in column_counts:
-            masks = distribution.row_masks_for_counts(counts, rng)
+            masks = distribution.row_masks_for_counts(counts, rng, forbidden=forbidden_by_row)
             if masks is None or any(mask.bit_count() != 5 for mask in masks):
                 return None
             if any(sum(bool(mask & (1 << column)) for mask in masks) != counts[column] for column in range(COLUMNS)):
                 return None
             row_masks.append(masks)
+            for row, mask in enumerate(masks):
+                forbidden_by_row[row].add(mask)
         grids = [[[None for _ in range(COLUMNS)] for _ in range(ROWS)] for _ in range(CARDS_PER_SERIES)]
         for column in range(COLUMNS):
             values = list(self._values_for_column(column))
