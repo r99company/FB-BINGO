@@ -13,6 +13,16 @@ def test_generates_six_cards_with_fifteen_numbers_each() -> None:
     ]
 
 
+def test_each_card_in_a_series_has_distinct_row_occupancy_patterns() -> None:
+    series = SeriesGenerator(seed=20261108).generate("SER-VARIETY", CardModel.A)
+    for row in range(3):
+        patterns = [
+            tuple(value is not None for value in card.grid[row])
+            for card in series.cards
+        ]
+        assert len(set(patterns)) == 6
+
+
 def test_series_covers_each_number_1_to_90_once() -> None:
     series = SeriesGenerator(seed=456).generate("SER-002", CardModel.A)
     numbers = [number for card in series.cards for number in card.numbers]
