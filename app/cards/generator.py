@@ -66,7 +66,7 @@ class SeriesGenerator:
         distribution = DistributionModel.for_model(model)
         best_grids = None
         best_score = -10**9
-        for _ in range(192):
+        for _ in range(16):
             column_counts = self._column_counts(model, distribution, rng)
             grids = self._build_grids(column_counts, distribution, rng, aesthetic=False)
             if grids is None or not self._has_dynamic_rows(grids):
