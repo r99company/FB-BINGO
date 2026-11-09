@@ -189,14 +189,6 @@ class DistributionModel:
                 continue
             if any(candidate[row] in forbidden[row] for row in range(3)):
                 continue
-            # Evita los bloques de cuatro casillas ocupadas en los extremos
-            # que causan el patrón repetitivo de los cartones de cada serie.
-            first_row_first_four = (1 << 4) - 1
-            third_row_last_four = sum(1 << column for column in range(5, 9))
-            if candidate[0] & first_row_first_four == first_row_first_four:
-                continue
-            if candidate[2] & third_row_last_four == third_row_last_four:
-                continue
             score = self._triple_score(candidate)
             if score > best_score:
                 best_score = score
